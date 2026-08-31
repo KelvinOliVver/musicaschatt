@@ -29,16 +29,13 @@ export function ProfileMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-10 gap-2 px-2">
+        <Button variant="ghost" className="h-10 gap-2 px-2" aria-label="Minha conta">
           <Avatar className="size-7">
             {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt="" />}
             <AvatarFallback className="text-xs">
               {initialsOf(profile?.display_name)}
             </AvatarFallback>
           </Avatar>
-          <span className="hidden max-w-32 truncate text-sm sm:inline">
-            {profile?.display_name ?? "Conta"}
-          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
