@@ -55,6 +55,10 @@ Cada link detectado vira um item na fila com: tipo (youtube/spotify), id, títul
 - Controles: próxima, anterior, remover da fila
 - Quando a fila acaba, mostra "aguardando próximas músicas do chat..."
 
+**Usuário VIP com prioridade:** músicas enviadas pelo usuário `Pitee4` entram sempre no topo da fila, na frente de todas as músicas normais. Se ele mandar várias, elas ficam em ordem de chegada entre si, mas todas acima das demais. A música que já está tocando não é interrompida — a prioridade vale para a próxima a tocar. Na interface, esses itens aparecem com destaque visual (badge "VIP") para deixar claro por que estão na frente.
+
+A lista de usuários prioritários fica em uma constante única no código (`PRIORITY_USERS = ["pitee4"]`, comparação sem diferenciar maiúsculas/minúsculas), fácil de expandir depois.
+
 ### 5. Interface
 
 Design dark moderno (estilo player de música), com:
