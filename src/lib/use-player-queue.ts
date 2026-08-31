@@ -1,10 +1,33 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getTrackMetadata } from "./kick.functions";
 import { isPriorityUser } from "./link-parser";
 import type { DetectedTrack } from "./link-parser";
 import type { QueueItem } from "./types";
 
 const MAX_HISTORY = 40;
+const STORAGE_KEY = "musicas-chat-queue";
+
+interface PersistedState {
+  current: QueueItem | null;
+  queue: QueueItem[];
+  history: QueueItem[];
+}
+
+function loadPersisted(): PersistedState {
+  if (typeof window === "undefined") return { current: null, queue: [], history: [] };
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { current: null, queue: [], history: [] };
+    const parsed = JSON.parse(raw) as PersistedState;
+    return {
+      current: parsed.current ?? null,
+      queue: Array.isArray(parsed.queue) ? parsed.queue : [],
+      history: Array.isArray(parsed.history) ? parsed.history : [],
+    };
+  } catch {
+    return { current: null, queue: [], history: [] };
+  }
+}
 
 function makeId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
@@ -34,9 +57,20 @@ export interface PlayerQueue {
 }
 
 export function usePlayerQueue(): PlayerQueue {
-  const [current, setCurrent] = useState<QueueItem | null>(null);
-  const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [history, setHistory] = useState<QueueItem[]>([]);
+  const [current, setCurrent] = useState<QueueItem | null>(() => loadPersisted().current);
+  const [queue, setQueue] = useState<QueueItem[]>(() => loadPersisted().queue);
+  const [history, setHistory] = useState<QueueItem[]>(() => loadPersisted().history);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ current, queue, history }),
+      );
+    } catch {
+      /* storage cheio ou indisponível — segue sem persistir */
+    }
+  }, [current, queue, history]);
 
   const applyMetadata = useCallback((id: string, track: DetectedTrack) => {
     getTrackMetadata({ data: { source: track.source, trackId: track.trackId } })
