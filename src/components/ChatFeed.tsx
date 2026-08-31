@@ -12,7 +12,7 @@ export function ChatFeed({ messages }: ChatFeedProps) {
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages.length]);
 
   return (
@@ -22,7 +22,7 @@ export function ChatFeed({ messages }: ChatFeedProps) {
         <h2 className="text-sm font-semibold uppercase tracking-widest">Chat</h2>
       </header>
 
-      <div className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-4 py-3 max-h-[500px]">
         {messages.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             Nenhuma mensagem ainda.
