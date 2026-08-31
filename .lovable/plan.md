@@ -59,46 +59,67 @@ Cada link detectado vira um item na fila com: tipo (youtube/spotify), id, títul
 
 A lista de usuários prioritários fica em uma constante única no código (`PRIORITY_USERS = ["pitee4"]`, comparação sem diferenciar maiúsculas/minúsculas), fácil de expandir depois.
 
-### 5. Interface
+### 5. Login (acesso restrito)
+
+O site inteiro fica protegido: só você entra. Usa Lovable Cloud (banco + autenticação já inclusos, sem conta externa).
+
+- **Métodos**: email/senha + entrar com Google
+- **Sem cadastro aberto**: a página de login não oferece "criar conta". Sua conta é criada uma única vez por você no primeiro acesso (ou pelo painel do Cloud), e depois o cadastro fica desativado.
+- **Tabela `profiles`**: guarda nome de exibição e avatar, ligada ao usuário com exclusão em cascata, protegida por políticas que só deixam cada um ler/editar o próprio perfil. Um gatilho cria o perfil automaticamente no cadastro.
+- **Página de conta**: você pode alterar seu nome de exibição e avatar.
+- **Cabeçalho**: mostra seu avatar/nome quando logado, com opção de sair.
+
+Fluxo: quem não está logado cai numa página de entrada; depois de logar vai direto ao player.
+
+### 6. Interface
 
 Design dark moderno (estilo player de música), com:
 - **Painel do player** (esquerda): arte/capa da música atual, controles, info de quem pediu
-- **Fila** (centro/direita): lista de próximas músicas, com origem (YouTube/Spotify), quem mandou no chat
+- **Fila** (centro/direita): lista de próximas músicas, com origem (YouTube/Spotify), quem mandou no chat, badge VIP quando aplicável
 - **Feed do chat** (lateral ou rodapé): últimas mensagens do chat com destaque para as que contêm links
-- **Barra superior**: nome do canal da Kick conectado, status da conexão (conectado/reconectando)
+- **Barra superior**: nome do canal da Kick conectado, status da conexão, seu avatar + sair
 - Campo para trocar o canal da Kick (default: `roceiraplay`)
+- **Página de login**: tela simples com a mesma identidade visual dark
 
 ### Estrutura de arquivos
 
 ```
 src/
 ├── routes/
-│   ├── __root.tsx          (layout + head metadata)
-│   └── index.tsx           (página principal do player)
+│   ├── __root.tsx                    (layout + head + listener de sessão)
+│   ├── index.tsx                     (landing pública com botão de entrar)
+│   ├── auth.tsx                      (página de login)
+│   └── _authenticated/
+│       ├── route.tsx                 (portão de autenticação)
+│       ├── player.tsx                (página principal do player)
+│       └── conta.tsx                 (editar nome e avatar)
 ├── lib/
-│   ├── kick.functions.ts   (getKickChannelInfo — server function)
-│   ├── kick-chat.ts        (hook useKickChat — WebSocket Pusher)
-│   ├── link-parser.ts      (extração de YouTube/Spotify IDs)
-│   ├── use-player-queue.ts (gerenciamento da fila)
-│   └── types.ts            (tipos compartilhados)
+│   ├── kick.functions.ts             (getKickChannelInfo — server function)
+│   ├── kick-chat.ts                  (hook useKickChat — WebSocket Pusher)
+│   ├── link-parser.ts                (extração de YouTube/Spotify IDs)
+│   ├── use-player-queue.ts           (fila + regra de prioridade VIP)
+│   └── types.ts                      (tipos compartilhados)
 ├── components/
-│   ├── PlayerPanel.tsx     (player atual + controles)
-│   ├── QueueList.tsx       (fila de reprodução)
-│   ├── ChatFeed.tsx        (feed de mensagens do chat)
-│   └── ChannelBar.tsx      (barra de canal + status)
-└── styles.css             (design system dark theme)
+│   ├── PlayerPanel.tsx               (player atual + controles)
+│   ├── QueueList.tsx                 (fila de reprodução)
+│   ├── ChatFeed.tsx                  (feed de mensagens do chat)
+│   ├── ChannelBar.tsx                (barra de canal + status + conta)
+│   └── ProfileMenu.tsx               (avatar, nome, sair)
+└── styles.css                        (design system dark theme)
 ```
 
 ## Notas e riscos
 
 - **API não-oficial**: A conexão Pusher do Kick é uma API interna não-documentada. Se Kick mudar a app key ou formato, a conexão quebra. Mitigação: reconexão automática + mensagem de erro clara.
-- **Sem banco de dados**: A fila é efêmera (some ao recarregar a página). Adequado para um "listening party" ao vivo.
+- **Fila efêmera**: A fila vive na memória da página (some ao recarregar). O banco de dados entra só para login e perfil.
 - **CORS/Cloudflare**: A resolução do chatroom ID passa por server function para evitar bloqueio do browser. O WebSocket Pusher funciona direto do browser sem restrição.
+- **Primeiro acesso**: como o cadastro fica fechado, o primeiro login precisa que sua conta seja criada uma vez. Isso é feito no momento da implementação.
 
 ## O que NÃO está incluído (fora do escopo atual)
 
-- Login de usuários / autenticação
+- Cadastro aberto para outros usuários
 - Persistência da fila em banco de dados
 - Votos/likes nas músicas
-- Histórico persistente
+- Histórico persistente entre sessões
 - Spotify Web Playback SDK (requer Premium + OAuth — usando embed simples)
+
