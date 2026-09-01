@@ -48,7 +48,12 @@ export interface PlayerQueue {
   current: QueueItem | null;
   queue: QueueItem[];
   history: QueueItem[];
-  addTrack: (track: DetectedTrack, requestedBy: string, requesterColor: string | null) => void;
+  addTrack: (
+    track: DetectedTrack,
+    requestedBy: string,
+    requesterColor: string | null,
+    options?: { priority?: boolean },
+  ) => boolean;
   playNext: () => void;
   playPrevious: () => void;
   removeItem: (id: string) => void;
