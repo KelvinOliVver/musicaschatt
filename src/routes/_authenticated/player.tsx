@@ -70,6 +70,7 @@ function PlayerPage() {
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)_minmax(280px,0.9fr)]">
         <PlayerPanel
           current={queue.current}
+          next={queue.queue[0] ?? null}
           hasPrevious={queue.history.length > 0}
           hasNext={queue.queue.length > 0}
           onNext={queue.playNext}
