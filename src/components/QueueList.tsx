@@ -65,7 +65,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear }: QueueListProp
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
-                    {item.title ?? `${item.source === "youtube" ? "Vídeo" : "Faixa"} ${item.trackId}`}
+                    {item.title ?? `Vídeo ${item.trackId}`}
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     {item.priority && (
