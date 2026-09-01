@@ -1,10 +1,10 @@
-export type TrackSource = "youtube" | "spotify";
+export type TrackSource = "youtube";
 
 export interface QueueItem {
   /** Stable local id for React keys and queue operations. */
   id: string;
   source: TrackSource;
-  /** YouTube video id or Spotify track id. */
+  /** YouTube video id. */
   trackId: string;
   url: string;
   title: string | null;
