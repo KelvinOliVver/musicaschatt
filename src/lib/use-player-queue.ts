@@ -66,6 +66,11 @@ export function usePlayerQueue(): PlayerQueue {
   const [queue, setQueue] = useState<QueueItem[]>(() => loadPersisted().queue);
   const [history, setHistory] = useState<QueueItem[]>(() => loadPersisted().history);
 
+  const currentRef = useRef(current);
+  const queueRef = useRef(queue);
+  currentRef.current = current;
+  queueRef.current = queue;
+
   useEffect(() => {
     try {
       window.localStorage.setItem(
