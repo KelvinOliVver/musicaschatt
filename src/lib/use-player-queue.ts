@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getTrackMetadata } from "./kick.functions";
 import { isPriorityUser } from "./link-parser";
 import type { DetectedTrack } from "./link-parser";
