@@ -63,6 +63,8 @@ export function YouTubeStage({
   const playerRef = useRef<YTPlayer | null>(null);
   const readyRef = useRef(false);
   const currentIdRef = useRef<string | null>(null);
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
 
   const onEndedRef = useRef(onEnded);
   onEndedRef.current = onEnded;
@@ -86,6 +88,7 @@ export function YouTubeStage({
           events: {
             onReady: () => {
               readyRef.current = true;
+              playerRef.current?.setVolume(volumeRef.current);
               if (currentIdRef.current) {
                 playerRef.current?.loadVideoById(currentIdRef.current);
               }
