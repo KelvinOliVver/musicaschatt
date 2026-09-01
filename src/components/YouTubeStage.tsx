@@ -1,10 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 
 interface YTPlayer {
   loadVideoById: (id: string) => void;
   playVideo: () => void;
   pauseVideo: () => void;
   setVolume: (value: number) => void;
+  mute: () => void;
+  unMute: () => void;
+  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
+  getCurrentTime: () => number;
+  getDuration: () => number;
   destroy: () => void;
 }
 
@@ -44,20 +49,30 @@ function loadYouTubeApi(): Promise<YTNamespace> {
   return apiPromise;
 }
 
+export interface StageControls {
+  seekTo: (seconds: number) => void;
+}
+
 interface YouTubeStageProps {
   videoId: string;
   volume: number;
+  muted: boolean;
   paused: boolean;
   onEnded: () => void;
   onPlayingChange: (playing: boolean) => void;
+  onProgress?: (currentTime: number, duration: number) => void;
+  controlsRef?: MutableRefObject<StageControls | null>;
 }
 
 export function YouTubeStage({
   videoId,
   volume,
+  muted,
   paused,
   onEnded,
   onPlayingChange,
+  onProgress,
+  controlsRef,
 }: YouTubeStageProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<YTPlayer | null>(null);
@@ -65,11 +80,15 @@ export function YouTubeStage({
   const currentIdRef = useRef<string | null>(null);
   const volumeRef = useRef(volume);
   volumeRef.current = volume;
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
 
   const onEndedRef = useRef(onEnded);
   onEndedRef.current = onEnded;
   const onPlayingChangeRef = useRef(onPlayingChange);
   onPlayingChangeRef.current = onPlayingChange;
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
 
   useEffect(() => {
     let disposed = false;
@@ -89,6 +108,8 @@ export function YouTubeStage({
             onReady: () => {
               readyRef.current = true;
               playerRef.current?.setVolume(volumeRef.current);
+              if (mutedRef.current) playerRef.current?.mute();
+              else playerRef.current?.unMute();
               if (currentIdRef.current) {
                 playerRef.current?.loadVideoById(currentIdRef.current);
               }
@@ -106,9 +127,22 @@ export function YouTubeStage({
         /* player stays empty; user can skip manually */
       });
 
+    const timer = window.setInterval(() => {
+      if (!readyRef.current || !playerRef.current) return;
+      try {
+        onProgressRef.current?.(
+          playerRef.current.getCurrentTime() ?? 0,
+          playerRef.current.getDuration() ?? 0,
+        );
+      } catch {
+        /* player not ready yet */
+      }
+    }, 500);
+
     return () => {
       disposed = true;
       readyRef.current = false;
+      window.clearInterval(timer);
       try {
         playerRef.current?.destroy();
       } catch {
@@ -119,6 +153,18 @@ export function YouTubeStage({
   }, []);
 
   useEffect(() => {
+    if (!controlsRef) return;
+    controlsRef.current = {
+      seekTo: (seconds) => {
+        if (readyRef.current) playerRef.current?.seekTo(seconds, true);
+      },
+    };
+    return () => {
+      controlsRef.current = null;
+    };
+  }, [controlsRef]);
+
+  useEffect(() => {
     currentIdRef.current = videoId;
     if (readyRef.current) playerRef.current?.loadVideoById(videoId);
   }, [videoId]);
@@ -127,6 +173,12 @@ export function YouTubeStage({
     if (!readyRef.current) return;
     playerRef.current?.setVolume(volume);
   }, [volume]);
+
+  useEffect(() => {
+    if (!readyRef.current) return;
+    if (muted) playerRef.current?.mute();
+    else playerRef.current?.unMute();
+  }, [muted]);
 
   useEffect(() => {
     if (!readyRef.current) return;
