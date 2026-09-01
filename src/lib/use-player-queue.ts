@@ -99,7 +99,20 @@ export function usePlayerQueue(): PlayerQueue {
   }, []);
 
   const addTrack = useCallback(
-    (track: DetectedTrack, requestedBy: string, requesterColor: string | null) => {
+    (
+      track: DetectedTrack,
+      requestedBy: string,
+      requesterColor: string | null,
+      options?: { priority?: boolean },
+    ) => {
+      // Evita fila duplicada: mesmo vídeo já tocando ou já pedido.
+      if (
+        currentRef.current?.trackId === track.trackId ||
+        queueRef.current.some((item) => item.trackId === track.trackId)
+      ) {
+        return false;
+      }
+
       const item: QueueItem = {
         id: makeId(),
         source: track.source,
@@ -107,13 +120,10 @@ export function usePlayerQueue(): PlayerQueue {
         url: track.url,
         title: null,
         author: null,
-        thumbnail:
-          track.source === "youtube"
-            ? `https://i.ytimg.com/vi/${track.trackId}/hqdefault.jpg`
-            : null,
+        thumbnail: `https://i.ytimg.com/vi/${track.trackId}/hqdefault.jpg`,
         requestedBy,
         requesterColor,
-        priority: isPriorityUser(requestedBy),
+        priority: options?.priority ?? isPriorityUser(requestedBy),
         addedAt: Date.now(),
       };
 
@@ -126,6 +136,7 @@ export function usePlayerQueue(): PlayerQueue {
       });
 
       applyMetadata(item.id, track);
+      return true;
     },
     [applyMetadata],
   );
