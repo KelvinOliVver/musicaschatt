@@ -11,13 +11,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Conecte o chat da Kick, capture links de YouTube e Spotify e toque tudo em uma fila automática com prioridade VIP.",
+          "Conecte o chat da Kick, capture os links de YouTube e toque tudo em uma fila automática com prioridade VIP.",
       },
       { property: "og:title", content: "Kick Music Player · Músicas pedidas no chat" },
       {
         property: "og:description",
         content:
-          "Conecte o chat da Kick, capture links de YouTube e Spotify e toque tudo em uma fila automática com prioridade VIP.",
+          "Conecte o chat da Kick, capture os links de YouTube e toque tudo em uma fila automática com prioridade VIP.",
       },
     ],
   }),
@@ -32,7 +32,7 @@ const FEATURES = [
   },
   {
     icon: Youtube,
-    title: "YouTube e Spotify",
+    title: "Links do YouTube",
     text: "Todo link enviado vira uma faixa na fila, com capa e título automáticos.",
   },
   {
@@ -74,7 +74,7 @@ function LandingPage() {
         </h1>
 
         <p className="max-w-xl text-lg text-muted-foreground">
-          Cada link de YouTube ou Spotify que a galera manda no chat da Kick entra na fila e
+          Cada link de YouTube que a galera manda no chat da Kick entra na fila e
           toca sozinho. Você só assiste — e o VIP fura fila.
         </p>
 

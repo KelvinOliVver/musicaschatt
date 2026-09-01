@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getTrackMetadata } from "./kick.functions";
 import { isPriorityUser } from "./link-parser";
 import type { DetectedTrack } from "./link-parser";
@@ -48,7 +48,12 @@ export interface PlayerQueue {
   current: QueueItem | null;
   queue: QueueItem[];
   history: QueueItem[];
-  addTrack: (track: DetectedTrack, requestedBy: string, requesterColor: string | null) => void;
+  addTrack: (
+    track: DetectedTrack,
+    requestedBy: string,
+    requesterColor: string | null,
+    options?: { priority?: boolean },
+  ) => boolean;
   playNext: () => void;
   playPrevious: () => void;
   removeItem: (id: string) => void;
@@ -60,6 +65,11 @@ export function usePlayerQueue(): PlayerQueue {
   const [current, setCurrent] = useState<QueueItem | null>(() => loadPersisted().current);
   const [queue, setQueue] = useState<QueueItem[]>(() => loadPersisted().queue);
   const [history, setHistory] = useState<QueueItem[]>(() => loadPersisted().history);
+
+  const currentRef = useRef(current);
+  const queueRef = useRef(queue);
+  currentRef.current = current;
+  queueRef.current = queue;
 
   useEffect(() => {
     try {
@@ -94,7 +104,20 @@ export function usePlayerQueue(): PlayerQueue {
   }, []);
 
   const addTrack = useCallback(
-    (track: DetectedTrack, requestedBy: string, requesterColor: string | null) => {
+    (
+      track: DetectedTrack,
+      requestedBy: string,
+      requesterColor: string | null,
+      options?: { priority?: boolean },
+    ) => {
+      // Evita fila duplicada: mesmo vídeo já tocando ou já pedido.
+      if (
+        currentRef.current?.trackId === track.trackId ||
+        queueRef.current.some((item) => item.trackId === track.trackId)
+      ) {
+        return false;
+      }
+
       const item: QueueItem = {
         id: makeId(),
         source: track.source,
@@ -102,13 +125,10 @@ export function usePlayerQueue(): PlayerQueue {
         url: track.url,
         title: null,
         author: null,
-        thumbnail:
-          track.source === "youtube"
-            ? `https://i.ytimg.com/vi/${track.trackId}/hqdefault.jpg`
-            : null,
+        thumbnail: `https://i.ytimg.com/vi/${track.trackId}/hqdefault.jpg`,
         requestedBy,
         requesterColor,
-        priority: isPriorityUser(requestedBy),
+        priority: options?.priority ?? isPriorityUser(requestedBy),
         addedAt: Date.now(),
       };
 
@@ -121,6 +141,7 @@ export function usePlayerQueue(): PlayerQueue {
       });
 
       applyMetadata(item.id, track);
+      return true;
     },
     [applyMetadata],
   );
