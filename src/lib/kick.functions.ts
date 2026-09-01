@@ -91,7 +91,7 @@ interface OEmbedResponse {
 /** Fetches the display title/artwork for a detected track via public oEmbed. */
 export const getTrackMetadata = createServerFn({ method: "GET" })
   .inputValidator((input: { source: TrackSource; trackId: string }) => {
-    if (input.source !== "youtube" && input.source !== "spotify") {
+    if (input.source !== "youtube") {
       throw new Error("Fonte inválida.");
     }
     if (!/^[A-Za-z0-9_-]{1,40}$/.test(input.trackId)) {
@@ -100,19 +100,12 @@ export const getTrackMetadata = createServerFn({ method: "GET" })
     return input;
   })
   .handler(async ({ data }): Promise<TrackMetadata> => {
-    const oembedUrl =
-      data.source === "youtube"
-        ? `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(
-            `https://www.youtube.com/watch?v=${data.trackId}`,
-          )}`
-        : `https://open.spotify.com/oembed?url=${encodeURIComponent(
-            `https://open.spotify.com/track/${data.trackId}`,
-          )}`;
+    const oembedUrl = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(
+      `https://www.youtube.com/watch?v=${data.trackId}`,
+    )}`;
 
-    const fallbackThumb =
-      data.source === "youtube"
-        ? `https://i.ytimg.com/vi/${data.trackId}/hqdefault.jpg`
-        : null;
+    const fallbackThumb = `https://i.ytimg.com/vi/${data.trackId}/hqdefault.jpg`;
+
 
     try {
       const response = await fetch(oembedUrl, { headers: BROWSER_HEADERS });

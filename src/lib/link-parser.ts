@@ -18,7 +18,6 @@ export function isPriorityUser(username: string): boolean {
 }
 
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
-const SPOTIFY_ID = /^[A-Za-z0-9]{22}$/;
 
 function parseYouTube(url: URL): DetectedTrack | null {
   const host = url.hostname.replace(/^www\./, "").toLowerCase();
@@ -37,7 +36,10 @@ function parseYouTube(url: URL): DetectedTrack | null {
       return { source: "youtube", trackId: watchId, url: url.toString() };
     }
     const segments = url.pathname.split("/").filter(Boolean);
-    if (segments.length >= 2 && (segments[0] === "shorts" || segments[0] === "embed" || segments[0] === "live")) {
+    if (
+      segments.length >= 2 &&
+      (segments[0] === "shorts" || segments[0] === "embed" || segments[0] === "live")
+    ) {
       const id = segments[1]!;
       if (YOUTUBE_ID.test(id)) {
         return { source: "youtube", trackId: id, url: url.toString() };
@@ -48,20 +50,25 @@ function parseYouTube(url: URL): DetectedTrack | null {
   return null;
 }
 
-function parseSpotify(url: URL): DetectedTrack | null {
-  const host = url.hostname.replace(/^www\./, "").toLowerCase();
-  if (host !== "open.spotify.com" && host !== "play.spotify.com") return null;
+/** Parses a single pasted link (or bare video id) into a track. */
+export function parseTrackInput(input: string): DetectedTrack | null {
+  const value = input.trim();
+  if (!value) return null;
 
-  const segments = url.pathname.split("/").filter(Boolean);
-  // Handles /track/{id} and localized /intl-pt/track/{id}
-  const trackIndex = segments.indexOf("track");
-  if (trackIndex === -1) return null;
-
-  const id = segments[trackIndex + 1];
-  if (id && SPOTIFY_ID.test(id)) {
-    return { source: "spotify", trackId: id, url: url.toString() };
+  if (YOUTUBE_ID.test(value)) {
+    return {
+      source: "youtube",
+      trackId: value,
+      url: `https://www.youtube.com/watch?v=${value}`,
+    };
   }
-  return null;
+
+  const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    return parseYouTube(new URL(withProtocol));
+  } catch {
+    return null;
+  }
 }
 
 /** Extracts every supported music link found in a chat message. */
@@ -82,12 +89,11 @@ export function extractTracks(content: string): DetectedTrack[] {
       continue;
     }
 
-    const track = parseYouTube(url) ?? parseSpotify(url);
+    const track = parseYouTube(url);
     if (!track) continue;
 
-    const key = `${track.source}:${track.trackId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (seen.has(track.trackId)) continue;
+    seen.add(track.trackId);
     found.push(track);
   }
 
