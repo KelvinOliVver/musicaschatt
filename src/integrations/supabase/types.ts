@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      player_queue: {
+        Row: {
+          added_at: string
+          author: string | null
+          id: string
+          played_at: string | null
+          priority: boolean
+          requested_by: string
+          requester_color: string | null
+          source: string
+          status: string
+          thumbnail: string | null
+          title: string | null
+          track_id: string
+          url: string
+        }
+        Insert: {
+          added_at?: string
+          author?: string | null
+          id?: string
+          played_at?: string | null
+          priority?: boolean
+          requested_by: string
+          requester_color?: string | null
+          source?: string
+          status?: string
+          thumbnail?: string | null
+          title?: string | null
+          track_id: string
+          url: string
+        }
+        Update: {
+          added_at?: string
+          author?: string | null
+          id?: string
+          played_at?: string | null
+          priority?: boolean
+          requested_by?: string
+          requester_color?: string | null
+          source?: string
+          status?: string
+          thumbnail?: string | null
+          title?: string | null
+          track_id?: string
+          url?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
