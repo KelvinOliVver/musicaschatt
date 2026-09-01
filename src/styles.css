@@ -48,7 +48,6 @@
   --color-vip: var(--vip);
   --color-vip-foreground: var(--vip-foreground);
   --color-youtube: var(--youtube);
-  --color-spotify: var(--spotify);
   --color-online: var(--online);
   --color-offline: var(--offline);
 
@@ -103,7 +102,6 @@
   --vip: oklch(0.83 0.17 84);
   --vip-foreground: oklch(0.2 0.05 70);
   --youtube: oklch(0.63 0.24 27);
-  --spotify: oklch(0.75 0.19 152);
   --online: oklch(0.87 0.26 141);
   --offline: oklch(0.6 0.02 250);
 
