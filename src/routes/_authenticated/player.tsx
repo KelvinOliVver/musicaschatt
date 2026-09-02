@@ -95,9 +95,10 @@ function PlayerPage() {
             }
             break;
           case "PROVIDE_TIME":
-            // Quem acabou de entrar recebe o tempo atual e sincroniza
+            // Quem acabou de entrar recebe o tempo atual e sincroniza com play automático
             if (remoteSeek === null || remoteSeek === undefined) {
               setRemoteSeek(payload.time);
+              setRemotePaused(false);
             }
             break;
         }
