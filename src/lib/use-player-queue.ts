@@ -67,7 +67,7 @@ export function usePlayerQueue(): PlayerQueue {
   currentRef.current = current;
   queueRef.current = queue;
 
-  // Trava em memória para impedir que cliques rápidos ou mensagens duplas do chat insiram a mesma música em paralelo
+  // Trava em memória para impedir spam rápido na mesma aba
   const pendingAddsRef = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
@@ -151,35 +151,14 @@ export function usePlayerQueue(): PlayerQueue {
     ) => {
       const trackId = track.trackId;
 
-      // 1. Bloqueia se já estiver na fila atual ou tocando localmente
-      if (
-        currentRef.current?.trackId === trackId ||
-        queueRef.current.some((item) => item.trackId === trackId)
-      ) {
-        return false;
-      }
-
-      // 2. Bloqueia se já houver uma requisição de adição em andamento para essa mesma música
+      // 1. Trava local rápida em memória para aba atual
       if (pendingAddsRef.current.has(trackId)) {
         return false;
       }
-
       pendingAddsRef.current.add(trackId);
 
       try {
-        // 3. Verificação no banco para qualquer item ativo (queued ou playing)
-        const { data: existing } = await supabase
-          .from("player_queue")
-          .select("id")
-          .eq("track_id", trackId)
-          .in("status", ["playing", "queued"])
-          .maybeSingle();
-
-        if (existing) {
-          return false;
-        }
-
-        // 4. Inserção sempre como 'queued' para respeitar a restrição de unicidade do banco
+        // 2. Inserção direta e atômica. Se o banco recusar pelo UNIQUE INDEX (duplicado), retorna false.
         const { data, error } = await supabase
           .from("player_queue")
           .insert({
@@ -193,15 +172,16 @@ export function usePlayerQueue(): PlayerQueue {
             status: "queued",
           })
           .select("id")
-          .single();
+          .maybeSingle();
 
-        if (error || !data) return false;
+        if (error || !data) {
+          return false;
+        }
 
         await refresh();
         applyMetadata((data as { id: string }).id, track);
         return true;
       } finally {
-        // Libera a trava após concluir
         pendingAddsRef.current.delete(trackId);
       }
     },
