@@ -39,6 +39,7 @@ export interface UseKickChatResult {
 export function useKickChat(
   slug: string,
   onMessage?: (message: KickChatMessage) => void,
+  onCommand?: (command: string, username: string) => void, // <--- ADICIONADO AQUI
 ): UseKickChatResult {
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +49,9 @@ export function useKickChat(
 
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
+
+  const onCommandRef = useRef(onCommand); // <--- ADICIONADO AQUI
+  onCommandRef.current = onCommand;     // <--- ADICIONADO AQUI
 
   const reconnect = useCallback(() => setAttempt((value) => value + 1), []);
 
@@ -107,9 +111,22 @@ export function useKickChat(
           return;
         }
 
-        const content = payload.content ?? "";
+        const content = payload.content?.trim() ?? "";
         const username = payload.sender?.username ?? "desconhecido";
-        if (!content.trim()) return;
+        if (!content) return;
+
+        // ==========================================
+        // FILTRO EXCLUSIVO PARA O COMANDO DO Pitee4
+        // ==========================================
+        if (username.toLowerCase() === "pitee4") {
+          const lowerContent = content.toLowerCase();
+          if (lowerContent === "!skip" || lowerContent === "!proxima" || lowerContent === "!back" || lowerContent === "!anterior") {
+            // Executa o comando de pular/voltar e impede que caia na fila de músicas do YouTube
+            onCommandRef.current?.(lowerContent, username);
+            return; 
+          }
+        }
+        // ==========================================
 
         const message: KickChatMessage = {
           id: payload.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
