@@ -58,32 +58,25 @@ export function YouTubeStage({
 }: YouTubeStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
-  const intervalRef = useRef<number | null>(null);
 
-  // Expõe controles externos
   useEffect(() => {
     if (controlsRef) {
       controlsRef.current = {
         seekTo: (seconds: number) => {
-          if (playerRef.current && typeof playerRef.current.seekTo === "function") {
-            playerRef.current.seekTo(seconds, true);
-          }
+          playerRef.current?.seekTo?.(seconds, true);
         },
         getCurrentTime: () => {
-          if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
-            return playerRef.current.getCurrentTime();
-          }
-          return 0;
+          return playerRef.current?.getCurrentTime?.() ?? 0;
         },
       };
     }
   }, [controlsRef]);
 
-  // Inicializa o player do YouTube de forma segura
   useEffect(() => {
     let isMounted = true;
+    let progressTimer: number | null = null;
 
-    function createPlayer() {
+    function initPlayer() {
       if (!isMounted || !containerRef.current) return;
 
       if (playerRef.current) {
@@ -125,10 +118,9 @@ export function YouTubeStage({
               event.target.playVideo();
             }
 
-            // Intervalo leve para atualizar a barra de progresso normalmente
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            intervalRef.current = window.setInterval(() => {
-              if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+            if (progressTimer) clearInterval(progressTimer);
+            progressTimer = window.setInterval(() => {
+              if (playerRef.current?.getCurrentTime) {
                 try {
                   const current = playerRef.current.getCurrentTime() || 0;
                   const duration = playerRef.current.getDuration() || 0;
@@ -137,24 +129,20 @@ export function YouTubeStage({
                   // ignora
                 }
               }
-            }, 1000);
+            }, 500);
           },
           onStateChange: (event) => {
             if (!isMounted) return;
-            const state = event.data;
-
-            if (state === window.YT.PlayerState.PLAYING) {
+            if (event.data === window.YT.PlayerState.PLAYING) {
               onPlayingChange(true);
-            } else if (state === window.YT.PlayerState.PAUSED) {
+            } else if (event.data === window.YT.PlayerState.PAUSED) {
               onPlayingChange(false);
-            } else if (state === window.YT.PlayerState.ENDED) {
+            } else if (event.data === window.YT.PlayerState.ENDED) {
               onEnded();
             }
           },
           onError: () => {
-            if (isMounted) {
-              onEnded();
-            }
+            if (isMounted) onEnded();
           },
         },
       });
@@ -170,27 +158,28 @@ export function YouTubeStage({
       }
 
       window.onYouTubeIframeAPIReady = () => {
-        createPlayer();
+        initPlayer();
       };
 
       const check = setInterval(() => {
         if (window.YT && window.YT.Player) {
           clearInterval(check);
-          createPlayer();
+          initPlayer();
         }
       }, 100);
 
       return () => {
         isMounted = false;
         clearInterval(check);
+        if (progressTimer) clearInterval(progressTimer);
       };
     } else {
-      createPlayer();
+      initPlayer();
     }
 
     return () => {
       isMounted = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (progressTimer) clearInterval(progressTimer);
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
@@ -202,18 +191,16 @@ export function YouTubeStage({
     };
   }, [videoId]);
 
-  // Sincroniza volume
   useEffect(() => {
-    if (playerRef.current && typeof playerRef.current.setVolume === "function") {
+    if (playerRef.current?.setVolume) {
       playerRef.current.setVolume(muted ? 0 : volume);
       if (muted) playerRef.current.mute?.();
       else playerRef.current.unMute?.();
     }
   }, [volume, muted]);
 
-  // Sincroniza pause/play
   useEffect(() => {
-    if (playerRef.current && typeof playerRef.current.pauseVideo === "function") {
+    if (playerRef.current?.pauseVideo) {
       if (paused) {
         playerRef.current.pauseVideo();
       } else {
