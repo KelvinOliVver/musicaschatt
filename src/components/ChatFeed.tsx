@@ -56,8 +56,8 @@ export function ChatFeed({ messages }: ChatFeedProps) {
   }
 
   return (
-    <section className="panel relative flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center gap-2 border-b border-border px-5 py-4">
+    <section className="panel relative flex h-full max-h-[600px] flex-col">
+      <header className="flex items-center gap-2 border-b border-border px-5 py-4 shrink-0">
         <MessageSquare className="size-4 text-primary" aria-hidden />
         <h2 className="text-sm font-semibold uppercase tracking-widest">Chat</h2>
         <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
@@ -128,7 +128,7 @@ export function ChatFeed({ messages }: ChatFeedProps) {
           type="button"
           size="sm"
           onClick={() => scrollToEnd()}
-          className="absolute bottom-4 left-1/2 h-8 -translate-x-1/2 gap-1.5 shadow-lg"
+          className="absolute bottom-4 left-1/2 h-8 -translate-x-1/2 gap-1.5 shadow-lg z-10"
         >
           <ArrowDown className="size-3.5" aria-hidden />
           {unread > 0 ? `${unread} nova${unread > 1 ? "s" : ""}` : "Ir para o fim"}
