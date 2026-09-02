@@ -77,7 +77,8 @@ function PlayerPage() {
             queue.moveItem(payload.from, payload.to);
             break;
           case "SEEK":
-            setRemoteSeek(payload.time);
+            // Soma um valor infinitesimal para forçar o React a disparar a atualização mesmo se o segundo for idêntico
+            setRemoteSeek(payload.time + Math.random() * 0.0001);
             break;
           case "TOGGLE_PLAY":
             setRemotePaused(payload.paused);
@@ -96,10 +97,8 @@ function PlayerPage() {
             break;
           case "PROVIDE_TIME":
             // Quem acabou de entrar recebe o tempo atual e sincroniza com play automático
-            if (remoteSeek === null || remoteSeek === undefined) {
-              setRemoteSeek(payload.time);
-              setRemotePaused(false);
-            }
+            setRemoteSeek(payload.time + Math.random() * 0.0001);
+            setRemotePaused(false);
             break;
         }
       })
@@ -115,7 +114,7 @@ function PlayerPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [slug, queue, broadcast, remoteSeek]);
+  }, [slug, queue, broadcast]);
 
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
