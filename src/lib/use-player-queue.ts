@@ -158,6 +158,9 @@ export function usePlayerQueue(): PlayerQueue {
       pendingAddsRef.current.add(trackId);
 
       try {
+        // CORREÇÃO: Garante que o VIP só fica ativo se explicitamente passado nas options. Caso contrário, é false.
+        const isVip = options?.priority ?? false;
+
         // 2. Inserção direta e atômica. Se o banco recusar pelo UNIQUE INDEX (duplicado), retorna false.
         const { data, error } = await supabase
           .from("player_queue")
@@ -168,7 +171,7 @@ export function usePlayerQueue(): PlayerQueue {
             thumbnail: `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg`,
             requested_by: requestedBy,
             requester_color: requesterColor,
-            priority: options?.priority ?? isPriorityUser(requestedBy),
+            priority: isVip,
             status: "queued",
           })
           .select("id")
@@ -220,9 +223,10 @@ export function usePlayerQueue(): PlayerQueue {
       if (!previous) return;
       const playing = currentRef.current;
       if (playing) {
+        // CORREÇÃO: Removido o 'priority: true' forçado ao voltar a música atual para a fila
         await supabase
           .from("player_queue")
-          .update({ status: "queued", priority: true, added_at: new Date().toISOString() })
+          .update({ status: "queued", added_at: new Date().toISOString() })
           .eq("id", playing.id);
       }
       await supabase
