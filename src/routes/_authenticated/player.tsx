@@ -18,24 +18,6 @@ import type { KickChatMessage } from "@/lib/types";
 const DEFAULT_CHANNEL = "roceiraplay";
 
 export const Route = createFileRoute("/_authenticated/player")({
-  head: () => ({
-    meta: [
-      { title: "Player · Músicas do chat da Kick" },
-      {
-        name: "description",
-        content:
-          "Fila automática que toca os links de YouTube enviados no chat da Kick, com prioridade VIP.",
-      },
-      { property: "og:title", content: "Player · Músicas do chat da Kick" },
-      {
-        property: "og:description",
-        content:
-          "Fila automática que toca os links de YouTube enviados no chat da Kick, com prioridade VIP.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
   component: PlayerPage,
 });
 
@@ -44,14 +26,14 @@ function PlayerPage() {
   const [manual, setManual] = useState("");
   const queue = usePlayerQueue();
   
-  // Referência para o canal do Supabase
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // ------------------------------------------------------------------
-  // SUPABASE REALTIME: O "CHEFÃO" DA SINCRONIZAÇÃO
-  // ------------------------------------------------------------------
+  // Estados remotos para forçar sincronização de player (tempo, play/pause, volume)
+  const [remoteSeek, setRemoteSeek] = useState<number | null>(null);
+  const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
+  const [remoteVolume, setRemoteVolume] = useState<number | null>(null);
+
   useEffect(() => {
-    // Cria uma sala única baseada no nome do canal da Kick
     const channel = supabase.channel(`player-room-${slug}`, {
       config: { broadcast: { ack: false } }
     });
@@ -63,7 +45,6 @@ function PlayerPage() {
             queue.addTrack(payload.track, payload.username, payload.color, payload.options);
             break;
           case "PLAY_NEXT":
-            // Só pula se estiver na mesma música de quem mandou o comando (evita skips fantasmas/duplos)
             if (queue.current?.id === payload.currentId || !payload.currentId) {
               queue.playNext();
             }
@@ -83,6 +64,15 @@ function PlayerPage() {
           case "MOVE_ITEM":
             queue.moveItem(payload.from, payload.to);
             break;
+          case "SEEK":
+            setRemoteSeek(payload.time);
+            break;
+          case "TOGGLE_PLAY":
+            setRemotePaused(payload.paused);
+            break;
+          case "CHANGE_VOLUME":
+            setRemoteVolume(payload.volume);
+            break;
         }
       })
       .subscribe();
@@ -94,7 +84,6 @@ function PlayerPage() {
     };
   }, [slug, queue]);
 
-  // Função ajudante para disparar ações para todo mundo conectado
   const broadcast = useCallback((action: string, data?: any) => {
     channelRef.current?.send({
       type: "broadcast",
@@ -102,7 +91,6 @@ function PlayerPage() {
       payload: { action, ...data },
     });
   }, []);
-  // ------------------------------------------------------------------
 
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
@@ -116,7 +104,6 @@ function PlayerPage() {
   const handleCommand = useCallback(
     (command: string) => {
       if (command === "!skip" || command === "!proxima") {
-        // Avisa o Supabase para pular para todo mundo!
         broadcast("PLAY_NEXT", { currentId: queue.current?.id });
         queue.playNext();
         toast.info("Música pulada pelo comando do chat!");
@@ -139,7 +126,6 @@ function PlayerPage() {
       return;
     }
     
-    // Avisa o Supabase que você colocou uma música na mão
     broadcast("ADD_TRACK", {
       track,
       username: "você",
@@ -154,7 +140,7 @@ function PlayerPage() {
     setManual("");
   }
 
-  // --- WRAPPERS DA INTERFACE PARA AVISAR O SUPABASE ---
+  // Wrappers com Broadcast
   const handlePlayNext = useCallback(() => {
     broadcast("PLAY_NEXT", { currentId: queue.current?.id });
     queue.playNext();
@@ -184,7 +170,19 @@ function PlayerPage() {
     broadcast("MOVE_ITEM", { from, to });
     queue.moveItem(from, to);
   }, [broadcast, queue]);
-  // ----------------------------------------------------
+
+  // Funções de controle remoto enviadas ao PlayerPanel
+  const handleSeekBroadcast = useCallback((time: number) => {
+    broadcast("SEEK", { time });
+  }, [broadcast]);
+
+  const handleTogglePlayBroadcast = useCallback((paused: boolean) => {
+    broadcast("TOGGLE_PLAY", { paused });
+  }, [broadcast]);
+
+  const handleVolumeBroadcast = useCallback((volume: number) => {
+    broadcast("CHANGE_VOLUME", { volume });
+  }, [broadcast]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
@@ -225,11 +223,16 @@ function PlayerPage() {
           next={queue.queue[0] ?? null}
           hasPrevious={queue.history.length > 0}
           hasNext={queue.queue.length > 0}
-          onNext={handlePlayNext} // Usando o wrapper do Supabase!
-          onPrevious={handlePlayPrevious} // Usando o wrapper do Supabase!
+          onNext={handlePlayNext}
+          onPrevious={handlePlayPrevious}
+          remoteSeek={remoteSeek}
+          remotePaused={remotePaused}
+          remoteVolume={remoteVolume}
+          onSeekChange={handleSeekBroadcast}
+          onTogglePlayChange={handleTogglePlayBroadcast}
+          onVolumeChange={handleVolumeBroadcast}
         />
 
-        {/* Desktop: fila e chat lado a lado. */}
         <div className="hidden min-h-[420px] flex-col lg:flex">
           <QueueList
             items={queue.queue}
@@ -244,7 +247,6 @@ function PlayerPage() {
           <ChatFeed messages={chat.messages} />
         </div>
 
-        {/* Mobile/tablet: abas para economizar espaço. */}
         <Tabs defaultValue="fila" className="flex min-h-[420px] flex-col lg:hidden">
           <TabsList className="w-full">
             <TabsTrigger value="fila" className="flex-1 gap-1.5">
