@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, ListMusic, MessageSquare, Plus } from "lucide-react";
+import { AlertTriangle, ListMusic, MessageSquare, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { ChannelBar } from "@/components/ChannelBar";
 import { ChatFeed } from "@/components/ChatFeed";
@@ -9,6 +9,7 @@ import { QueueList } from "@/components/QueueList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useKickChat } from "@/lib/kick-chat";
 import { extractTracks, parseTrackInput } from "@/lib/link-parser";
 import { usePlayerQueue } from "@/lib/use-player-queue";
@@ -21,6 +22,12 @@ const DEFAULT_CHANNEL = "roceiraplay";
 export const Route = createFileRoute("/_authenticated/player")({
   component: PlayerPage,
 });
+
+interface OnlineUser {
+  presence_ref: string;
+  username: string;
+  joined_at: string;
+}
 
 function PlayerPage() {
   const [slug, setSlug] = useState(DEFAULT_CHANNEL);
@@ -37,6 +44,9 @@ function PlayerPage() {
   const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
   const [remoteVolume, setRemoteVolume] = useState<number | null>(null);
 
+  // Estado para armazenar os usuários conectados na sala
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+
   const broadcast = useCallback((action: string, data?: any) => {
     channelRef.current?.send({
       type: "broadcast",
@@ -47,7 +57,10 @@ function PlayerPage() {
 
   useEffect(() => {
     const channel = supabase.channel(`player-room-${slug}`, {
-      config: { broadcast: { ack: false } }
+      config: { 
+        broadcast: { ack: false },
+        presence: { key: crypto.randomUUID() } // Identificador único para cada aba/usuário conectado
+      }
     });
 
     channel
@@ -77,7 +90,6 @@ function PlayerPage() {
             queue.moveItem(payload.from, payload.to);
             break;
           case "SEEK":
-            // Soma um valor infinitesimal para forçar o React a disparar a atualização mesmo se o segundo for idêntico
             setRemoteSeek(payload.time + Math.random() * 0.0001);
             break;
           case "TOGGLE_PLAY":
@@ -87,7 +99,6 @@ function PlayerPage() {
             setRemoteVolume(payload.volume);
             break;
           case "REQUEST_TIME":
-            // Quem já está na sala responde com o segundo atual do player
             if (playerControlsRef.current) {
               const currentTime = playerControlsRef.current.getCurrentTime();
               if (currentTime > 0) {
@@ -96,16 +107,37 @@ function PlayerPage() {
             }
             break;
           case "PROVIDE_TIME":
-            // Quem acabou de entrar recebe o tempo atual e sincroniza com play automático
             setRemoteSeek(payload.time + Math.random() * 0.0001);
             setRemotePaused(false);
             break;
         }
       })
-      .subscribe((status) => {
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        const users: OnlineUser[] = [];
+        
+        Object.values(state).forEach((presences: any) => {
+          presences.forEach((p: any) => {
+            users.push({
+              presence_ref: p.presence_ref,
+              username: p.username || "Ouvinte Anônimo",
+              joined_at: p.joined_at,
+            });
+          });
+        });
+        
+        setOnlineUsers(users);
+      })
+      .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          // Assim que entra na sala, solicita o tempo atual de quem já está ouvindo
+          // Solicita o tempo atual de quem já está ouvindo
           broadcast("REQUEST_TIME");
+
+          // Registra a presença do usuário atual na sala
+          await channel.track({
+            username: `Ouvinte (${slug.slice(0, 4)}...)`,
+            joined_at: new Date().toISOString(),
+          });
         }
       });
 
@@ -212,13 +244,50 @@ function PlayerPage() {
     <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
       <h1 className="sr-only">Player de músicas do chat da Kick</h1>
 
-      <ChannelBar
-        slug={slug}
-        status={chat.status}
-        channel={chat.channel}
-        onChangeChannel={setSlug}
-        onReconnect={chat.reconnect}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex-1">
+          <ChannelBar
+            slug={slug}
+            status={chat.status}
+            channel={chat.channel}
+            onChangeChannel={setSlug}
+            onReconnect={chat.reconnect}
+          />
+        </div>
+
+        {/* Indicador de Usuários Online */}
+        <div className="flex items-center self-end sm:self-auto">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 bg-card/50 backdrop-blur-sm">
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
+                </span>
+                <Users className="size-4 text-muted-foreground" />
+                <span className="text-xs font-medium">
+                  {onlineUsers.length} {onlineUsers.length === 1 ? "online" : "online"}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3" align="end">
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Pessoas ouvindo agora ({onlineUsers.length})
+                </h4>
+                <div className="max-h-48 overflow-y-auto space-y-1.5">
+                  {onlineUsers.map((user, idx) => (
+                    <div key={user.presence_ref || idx} className="flex items-center gap-2 text-sm py-1 px-2 rounded-md hover:bg-muted/50 transition-colors">
+                      <div className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="truncate font-medium">{user.username}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
 
       {chat.error && (
         <div className="panel flex items-center gap-3 border-destructive/40 px-4 py-3 text-sm">
