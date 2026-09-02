@@ -1,56 +1,39 @@
-import { useEffect, useRef, type MutableRefObject } from "react";
+import { useEffect, useRef } from "react";
 
-interface YTPlayer {
-  loadVideoById: (id: string) => void;
-  playVideo: () => void;
-  pauseVideo: () => void;
-  setVolume: (value: number) => void;
-  mute: () => void;
-  unMute: () => void;
-  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
-  getCurrentTime: () => number;
-  getDuration: () => number;
-  destroy: () => void;
-}
-
-interface YTNamespace {
-  Player: new (
-    element: HTMLElement,
-    options: Record<string, unknown>,
-  ) => YTPlayer;
-  PlayerState: { ENDED: number; PLAYING: number; PAUSED: number };
-}
-
+// Declaração global para a API do YouTube
 declare global {
   interface Window {
-    YT?: YTNamespace;
+    YT: {
+      Player: new (
+        elementId: string | HTMLElement,
+        options: {
+          height?: string | number;
+          width?: string | number;
+          videoId: string;
+          playerVars?: Record<string, any>;
+          events?: {
+            onReady?: (event: { target: any }) => void;
+            onStateChange?: (event: { data: number; target: any }) => void;
+            onError?: (event: { data: number }) => void;
+          };
+        }
+      ) => any;
+      PlayerState: {
+        UNSTARTED: number;
+        ENDED: number;
+        PLAYING: number;
+        PAUSED: number;
+        BUFFERING: number;
+        CUED: number;
+      };
+    };
     onYouTubeIframeAPIReady?: () => void;
   }
 }
 
-let apiPromise: Promise<YTNamespace> | null = null;
-
-function loadYouTubeApi(): Promise<YTNamespace> {
-  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
-  if (window.YT?.Player) return Promise.resolve(window.YT);
-  if (apiPromise) return apiPromise;
-
-  apiPromise = new Promise<YTNamespace>((resolve) => {
-    const previous = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      previous?.();
-      resolve(window.YT!);
-    };
-    const script = document.createElement("script");
-    script.src = "https://www.youtube.com/iframe_api";
-    document.head.appendChild(script);
-  });
-
-  return apiPromise;
-}
-
 export interface StageControls {
   seekTo: (seconds: number) => void;
+  getCurrentTime: () => number;
 }
 
 interface YouTubeStageProps {
@@ -60,8 +43,8 @@ interface YouTubeStageProps {
   paused: boolean;
   onEnded: () => void;
   onPlayingChange: (playing: boolean) => void;
-  onProgress?: (currentTime: number, duration: number) => void;
-  controlsRef?: MutableRefObject<StageControls | null>;
+  onProgress: (currentTime: number, duration: number) => void;
+  controlsRef?: React.MutableRefObject<StageControls | null>;
 }
 
 export function YouTubeStage({
@@ -74,199 +57,187 @@ export function YouTubeStage({
   onProgress,
   controlsRef,
 }: YouTubeStageProps) {
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const playerRef = useRef<YTPlayer | null>(null);
-  const readyRef = useRef(false);
-  const currentIdRef = useRef<string | null>(null);
-  const volumeRef = useRef(volume);
-  volumeRef.current = volume;
-  const mutedRef = useRef(muted);
-  mutedRef.current = muted;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<any>(null);
+  const progressIntervalRef = useRef<number | null>(null);
 
-  const onEndedRef = useRef(onEnded);
-  onEndedRef.current = onEnded;
-  const onPlayingChangeRef = useRef(onPlayingChange);
-  onPlayingChangeRef.current = onPlayingChange;
-  const onProgressRef = useRef(onProgress);
-  onProgressRef.current = onProgress;
-
-  // Evita chamadas duplicadas de onEnded
-  const endedCalledRef = useRef(false);
-
+  // Expõe controles externos para o PlayerPanel
   useEffect(() => {
-    endedCalledRef.current = false;
-  }, [videoId]);
-
-  useEffect(() => {
-    let disposed = false;
-
-    loadYouTubeApi()
-      .then((YT) => {
-        if (disposed || !hostRef.current) return;
-        playerRef.current = new YT.Player(hostRef.current, {
-          host: "https://www.youtube-nocookie.com",
-          playerVars: {
-            autoplay: 1,
-            rel: 0,
-            modestbranding: 1,
-            playsinline: 1,
-          },
-          events: {
-            onReady: () => {
-              readyRef.current = true;
-              playerRef.current?.setVolume(volumeRef.current);
-              if (mutedRef.current) playerRef.current?.mute();
-              else playerRef.current?.unMute();
-              if (currentIdRef.current) {
-                playerRef.current?.loadVideoById(currentIdRef.current);
-              }
-              if (!paused) {
-                playerRef.current?.playVideo();
-              }
-            },
-            onStateChange: (event: { data: number }) => {
-              if (event.data === YT.PlayerState.ENDED) {
-                if (!endedCalledRef.current) {
-                  endedCalledRef.current = true;
-                  onEndedRef.current();
-                }
-              }
-              if (event.data === YT.PlayerState.PLAYING) onPlayingChangeRef.current(true);
-              if (event.data === YT.PlayerState.PAUSED) onPlayingChangeRef.current(false);
-            },
-            onError: () => {
-              if (!endedCalledRef.current) {
-                endedCalledRef.current = true;
-                onEndedRef.current();
-              }
-            },
-          },
-        });
-      })
-      .catch(() => {
-        /* player stays empty */
-      });
-
-    let lastTime = 0;
-    let animationFrameId: number;
-
-    const updateProgress = (timestamp: number) => {
-      if (timestamp - lastTime >= 500) {
-        lastTime = timestamp;
-        if (readyRef.current && playerRef.current) {
-          try {
-            const current = playerRef.current.getCurrentTime() ?? 0;
-            const duration = playerRef.current.getDuration() ?? 0;
-
-            onProgressRef.current?.(current, duration);
-
-            // GARANTIA EXTRA PARA SEGUNDO PLANO:
-            // Se o player estiver próximo ao fim (último 1 segundo) e a aba estiver oculta/atrasada, força o onEnded
-            if (duration > 0 && current >= duration - 0.8 && !endedCalledRef.current) {
-              endedCalledRef.current = true;
-              onEndedRef.current();
-            }
-          } catch {
-            /* ignora se player indisponível */
+    if (controlsRef) {
+      controlsRef.current = {
+        seekTo: (seconds: number) => {
+          if (playerRef.current && typeof playerRef.current.seekTo === "function") {
+            playerRef.current.seekTo(seconds, true);
           }
-        }
-      }
-      if (!disposed) {
-        animationFrameId = requestAnimationFrame(updateProgress);
-      }
-    };
-
-    animationFrameId = requestAnimationFrame(updateProgress);
-
-    // Intervalo de segurança robusto para quando o navegador desacelera requests em segundo plano
-    const safetyInterval = setInterval(() => {
-      if (readyRef.current && playerRef.current && !endedCalledRef.current) {
-        try {
-          const current = playerRef.current.getCurrentTime() ?? 0;
-          const duration = playerRef.current.getDuration() ?? 0;
-          if (duration > 0 && current >= duration - 0.8) {
-            endedCalledRef.current = true;
-            onEndedRef.current();
+        },
+        getCurrentTime: () => {
+          if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+            return playerRef.current.getCurrentTime();
           }
-        } catch {
-          // ignora
-        }
-      }
-    }, 1000);
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden && readyRef.current && playerRef.current) {
-        if (!paused) {
-          playerRef.current.playVideo();
-        }
-        // Checagem imediata ao voltar para a aba
-        try {
-          const current = playerRef.current.getCurrentTime() ?? 0;
-          const duration = playerRef.current.getDuration() ?? 0;
-          if (duration > 0 && current >= duration - 0.8 && !endedCalledRef.current) {
-            endedCalledRef.current = true;
-            onEndedRef.current();
-          }
-        } catch {
-          // ignora
-        }
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      disposed = true;
-      readyRef.current = false;
-      cancelAnimationFrame(animationFrameId);
-      clearInterval(safetyInterval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      try {
-        playerRef.current?.destroy();
-      } catch {
-        /* ignore */
-      }
-      playerRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!controlsRef) return;
-    controlsRef.current = {
-      seekTo: (seconds) => {
-        if (readyRef.current) playerRef.current?.seekTo(seconds, true);
-      },
-    };
-    return () => {
-      controlsRef.current = null;
-    };
+          return 0;
+        },
+      };
+    }
   }, [controlsRef]);
 
+  // Inicializa a API do YouTube IFrame
   useEffect(() => {
-    currentIdRef.current = videoId;
-    if (readyRef.current) playerRef.current?.loadVideoById(videoId);
+    let isMounted = true;
+
+    function initPlayer() {
+      if (!isMounted || !containerRef.current) return;
+
+      // Limpa player anterior se existir
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch {
+          // ignora
+        }
+        playerRef.current = null;
+      }
+
+      // Cria um elemento interno limpo para o player do YT injetar o iframe
+      const targetId = `youtube-player-${Math.random().toString(36).substring(2, 9)}`;
+      containerRef.current.innerHTML = `<div id="${targetId}" class="size-full"></div>`;
+
+      playerRef.current = new window.YT.Player(targetId, {
+        height: "100%",
+        width: "100%",
+        videoId,
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          iv_load_policy: 3,
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
+        },
+        events: {
+          onReady: (event) => {
+            if (!isMounted) return;
+            event.target.setVolume(muted ? 0 : volume);
+            if (muted) event.target.mute();
+            else event.target.unMute();
+
+            if (paused) {
+              event.target.pauseVideo();
+            } else {
+              event.target.playVideo();
+            }
+
+            // Inicia o loop de progresso blindado contra abas em segundo plano
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            
+            progressIntervalRef.current = window.setInterval(() => {
+              if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+                try {
+                  const current = playerRef.current.getCurrentTime() || 0;
+                  const duration = playerRef.current.getDuration() || 0;
+                  onProgress(current, duration);
+
+                  // FALLBACK DE SEGURANÇA: Se a aba estava em segundo plano e a música acabou,
+                  // garante que o evento onEnded seja disparado mesmo que o navegador tenha travado o player state.
+                  if (duration > 0 && current >= duration - 0.8) {
+                    onEnded();
+                  }
+                } catch {
+                  // ignora erros de leitura de iframe oculto
+                }
+              }
+            }, 500);
+          },
+          onStateChange: (event) => {
+            if (!isMounted) return;
+            const state = event.data;
+
+            if (state === window.YT.PlayerState.PLAYING) {
+              onPlayingChange(true);
+            } else if (state === window.YT.PlayerState.PAUSED) {
+              onPlayingChange(false);
+            } else if (state === window.YT.PlayerState.ENDED) {
+              onEnded();
+            }
+          },
+          onError: () => {
+            // Se der erro no vídeo (ex: vídeo privado ou removido), pula automaticamente para o próximo
+            if (isMounted) {
+              onEnded();
+            }
+          },
+        },
+      });
+    }
+
+    if (!window.YT || !window.YT.Player) {
+      if (!document.getElementById("youtube-iframe-api")) {
+        const tag = document.createElement("script");
+        tag.id = "youtube-iframe-api";
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName("script")[0];
+        firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
+      }
+
+      window.onYouTubeIframeAPIReady = () => {
+        initPlayer();
+      };
+
+      // Intervalo de segurança caso a API demore a carregar
+      const checkInterval = setInterval(() => {
+        if (window.YT && window.YT.Player) {
+          clearInterval(checkInterval);
+          initPlayer();
+        }
+      }, 100);
+
+      return () => {
+        isMounted = false;
+        clearInterval(checkInterval);
+      };
+    } else {
+      initPlayer();
+    }
+
+    return () => {
+      isMounted = false;
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch {
+          // ignora
+        }
+        playerRef.current = null;
+      }
+    };
   }, [videoId]);
 
+  // Atualiza volume dinamicamente
   useEffect(() => {
-    if (!readyRef.current) return;
-    playerRef.current?.setVolume(volume);
-  }, [volume]);
+    if (playerRef.current && typeof playerRef.current.setVolume === "function") {
+      playerRef.current.setVolume(muted ? 0 : volume);
+      if (muted) {
+        playerRef.current.mute?.();
+      } else {
+        playerRef.current.unMute?.();
+      }
+    }
+  }, [volume, muted]);
 
+  // Atualiza estado de play/pause dinamicamente
   useEffect(() => {
-    if (!readyRef.current) return;
-    if (muted) playerRef.current?.mute();
-    else playerRef.current?.unMute();
-  }, [muted]);
-
-  useEffect(() => {
-    if (!readyRef.current) return;
-    if (paused) playerRef.current?.pauseVideo();
-    else playerRef.current?.playVideo();
+    if (playerRef.current && typeof playerRef.current.pauseVideo === "function") {
+      if (paused) {
+        playerRef.current.pauseVideo();
+      } else {
+        playerRef.current.playVideo();
+      }
+    }
   }, [paused]);
 
-  return (
-    <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
-      <div ref={hostRef} className="h-full w-full" />
-    </div>
-  );
+  return <div ref={containerRef} className="aspect-video w-full bg-black" />;
 }
