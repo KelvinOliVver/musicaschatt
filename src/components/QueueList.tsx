@@ -1,4 +1,21 @@
-import { ChevronDown, ChevronUp, Crown, ListMusic, Music2, Play, Trash2, Youtube } from "lucide-react";
+import { useState } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Crown, GripVertical, ListMusic, Music2, Play, Trash2, Youtube } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,16 +27,34 @@ interface QueueListProps {
   onPlayNow: (id: string) => void;
   onRemove: (id: string) => void;
   onClear: () => void;
-  onMove?: (id: string, direction: "up" | "down") => void;
+  onMove?: (id: string, toIndex: number) => void;
 }
 
 export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: QueueListProps) {
   const vipCount = items.filter((item) => item.priority).length;
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   function handleClear() {
     if (!window.confirm(`Limpar as ${items.length} músicas da fila?`)) return;
     onClear();
     toast.success("Fila limpa");
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id || !onMove) return;
+
+    const fromIndex = items.findIndex((item) => item.id === active.id);
+    const toIndex = items.findIndex((item) => item.id === over.id);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    onMove(active.id as string, toIndex);
   }
 
   return (
@@ -57,115 +92,131 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
         </div>
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <ol className="divide-y divide-border">
-            {items.map((item, index) => {
-              const isNext = index === 0;
-              const canMoveUp = onMove && index > 0 && items[index - 1]?.priority === item.priority;
-              const canMoveDown =
-                onMove && index < items.length - 1 && items[index + 1]?.priority === item.priority;
-
-              return (
-                <li
-                  key={item.id}
-                  className={`group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 ${
-                    isNext ? "bg-primary/5" : ""
-                  }`}
-                >
-                  <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">
-                    {index + 1}
-                  </span>
-
-                  <div className="relative size-11 shrink-0 overflow-hidden rounded-md bg-muted">
-                    {item.thumbnail ? (
-                      <img
-                        src={item.thumbnail}
-                        alt=""
-                        loading="lazy"
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex size-full items-center justify-center">
-                        <Music2 className="size-4 text-muted-foreground" aria-hidden />
-                      </div>
-                    )}
-                    {isNext && (
-                      <span className="absolute inset-x-0 bottom-0 bg-primary/90 py-0.5 text-center text-[8px] font-bold uppercase tracking-wider text-primary-foreground">
-                        Próxima
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {item.title ?? `Vídeo ${item.trackId}`}
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      {item.priority && (
-                        <span className="bg-gradient-vip inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-vip-foreground">
-                          <Crown className="size-2.5" aria-hidden />
-                          VIP
-                        </span>
-                      )}
-                      <Youtube className="size-3 text-youtube" aria-hidden />
-                      <span
-                        className="truncate text-xs text-muted-foreground"
-                        style={item.requesterColor ? { color: item.requesterColor } : undefined}
-                      >
-                        {item.requestedBy}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                    {onMove && (
-                      <div className="flex flex-col">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-4"
-                          disabled={!canMoveUp}
-                          onClick={() => onMove(item.id, "up")}
-                          aria-label={`Subir na fila: ${item.title ?? item.trackId}`}
-                        >
-                          <ChevronUp className="size-3" aria-hidden />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-4"
-                          disabled={!canMoveDown}
-                          onClick={() => onMove(item.id, "down")}
-                          aria-label={`Descer na fila: ${item.title ?? item.trackId}`}
-                        >
-                          <ChevronDown className="size-3" aria-hidden />
-                        </Button>
-                      </div>
-                    )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-8"
-                      onClick={() => onPlayNow(item.id)}
-                      aria-label={`Tocar agora: ${item.title ?? item.trackId}`}
-                    >
-                      <Play className="size-4" aria-hidden />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => onRemove(item.id)}
-                      aria-label={`Remover da fila: ${item.title ?? item.trackId}`}
-                    >
-                      <Trash2 className="size-4" aria-hidden />
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={(e) => setActiveId(e.active.id as string)}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => setActiveId(null)}
+          >
+            <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              <ol className="divide-y divide-border">
+                {items.map((item, index) => (
+                  <QueueRow
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    isDragging={activeId === item.id}
+                    draggable={Boolean(onMove)}
+                    onPlayNow={onPlayNow}
+                    onRemove={onRemove}
+                  />
+                ))}
+              </ol>
+            </SortableContext>
+          </DndContext>
         </ScrollArea>
       )}
     </section>
+  );
+}
+
+interface QueueRowProps {
+  item: QueueItem;
+  index: number;
+  isDragging: boolean;
+  draggable: boolean;
+  onPlayNow: (id: string) => void;
+  onRemove: (id: string) => void;
+}
+
+function QueueRow({ item, index, isDragging, draggable, onPlayNow, onRemove }: QueueRowProps) {
+  const sortable = useSortable({ id: item.id, disabled: !draggable });
+  const isNext = index === 0;
+
+  const style = {
+    transform: CSS.Transform.toString(sortable.transform),
+    transition: sortable.transition,
+  };
+
+  return (
+    <li
+      ref={sortable.setNodeRef}
+      style={style}
+      className={`group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 ${
+        isNext ? "bg-primary/5" : ""
+      } ${isDragging || sortable.isDragging ? "opacity-50" : ""}`}
+    >
+      {draggable && (
+        <button
+          type="button"
+          className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+          aria-label={`Arrastar para reordenar: ${item.title ?? item.trackId}`}
+          {...sortable.attributes}
+          {...sortable.listeners}
+        >
+          <GripVertical className="size-4" aria-hidden />
+        </button>
+      )}
+
+      <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">
+        {index + 1}
+      </span>
+
+      <div className="relative size-11 shrink-0 overflow-hidden rounded-md bg-muted">
+        {item.thumbnail ? (
+          <img src={item.thumbnail} alt="" loading="lazy" className="size-full object-cover" />
+        ) : (
+          <div className="flex size-full items-center justify-center">
+            <Music2 className="size-4 text-muted-foreground" aria-hidden />
+          </div>
+        )}
+        {isNext && (
+          <span className="absolute inset-x-0 bottom-0 bg-primary/90 py-0.5 text-center text-[8px] font-bold uppercase tracking-wider text-primary-foreground">
+            Próxima
+          </span>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{item.title ?? `Vídeo ${item.trackId}`}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          {item.priority && (
+            <span className="bg-gradient-vip inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-vip-foreground">
+              <Crown className="size-2.5" aria-hidden />
+              VIP
+            </span>
+          )}
+          <Youtube className="size-3 text-youtube" aria-hidden />
+          <span
+            className="truncate text-xs text-muted-foreground"
+            style={item.requesterColor ? { color: item.requesterColor } : undefined}
+          >
+            {item.requestedBy}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-8"
+          onClick={() => onPlayNow(item.id)}
+          aria-label={`Tocar agora: ${item.title ?? item.trackId}`}
+        >
+          <Play className="size-4" aria-hidden />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-8 text-muted-foreground hover:text-destructive"
+          onClick={() => onRemove(item.id)}
+          aria-label={`Remover da fila: ${item.title ?? item.trackId}`}
+        >
+          <Trash2 className="size-4" aria-hidden />
+        </Button>
+      </div>
+    </li>
   );
 }
