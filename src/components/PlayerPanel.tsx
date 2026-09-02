@@ -31,6 +31,7 @@ interface PlayerPanelProps {
   onSeekChange?: (time: number) => void;
   onTogglePlayChange?: (paused: boolean) => void;
   onVolumeChange?: (volume: number) => void;
+  controlsRef?: React.MutableRefObject<StageControls | null>; // <--- Adicionado aqui
 }
 
 function formatTime(seconds: number): string {
@@ -54,6 +55,7 @@ export function PlayerPanel({
   onSeekChange,
   onTogglePlayChange,
   onVolumeChange,
+  controlsRef: externalControlsRef, // <--- Recebe a ref de fora
 }: PlayerPanelProps) {
   const [volume, setVolume] = useState(() => {
     if (typeof window === "undefined") return 70;
@@ -64,7 +66,10 @@ export function PlayerPanel({
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState({ current: 0, duration: 0 });
   const [scrubbing, setScrubbing] = useState<number | null>(null);
-  const controlsRef = useRef<StageControls | null>(null);
+  
+  const internalControlsRef = useRef<StageControls | null>(null);
+  // Usa a ref externa se ela existir, senão usa a interna
+  const controlsRef = externalControlsRef || internalControlsRef;
 
   // Sincroniza volume remoto vindo do Supabase
   useEffect(() => {
@@ -85,7 +90,7 @@ export function PlayerPanel({
     if (remoteSeek !== null && remoteSeek !== undefined) {
       controlsRef.current?.seekTo(remoteSeek);
     }
-  }, [remoteSeek]);
+  }, [remoteSeek, controlsRef]);
 
   useEffect(() => {
     try {
