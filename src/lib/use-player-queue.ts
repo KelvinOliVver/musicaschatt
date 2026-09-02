@@ -57,10 +57,6 @@ export interface PlayerQueue {
   moveItem: (id: string, direction: "up" | "down") => void;
 }
 
-/**
- * Fila compartilhada: todo o estado vive no banco, então qualquer tela aberta
- * (a sua e a da streamer) enxerga exatamente a mesma fila em tempo real.
- */
 export function usePlayerQueue(): PlayerQueue {
   const [current, setCurrent] = useState<QueueItem | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -93,15 +89,16 @@ export function usePlayerQueue(): PlayerQueue {
   }, []);
 
   useEffect(() => {
-    // Fila antiga só do navegador não é mais usada.
     try {
       localStorage.removeItem("musicas-chat-queue");
     } catch {
       /* ignora */
     }
     void refresh();
+    
+    // Canal Realtime unificado para escutar mudanças no banco instantaneamente
     const channel = supabase
-      .channel("player-queue-sync")
+      .channel("player-queue-sync-v2")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "player_queue" },
@@ -110,12 +107,13 @@ export function usePlayerQueue(): PlayerQueue {
         },
       )
       .subscribe();
+
     return () => {
       void supabase.removeChannel(channel);
     };
   }, [refresh]);
 
-  // Se nada está tocando e há fila, promove o primeiro item.
+  // Se nada está tocando e há fila, promove o primeiro item automaticamente
   useEffect(() => {
     if (current || queue.length === 0) return;
     const head = queue[0]!;
@@ -152,6 +150,7 @@ export function usePlayerQueue(): PlayerQueue {
       requesterColor: string | null,
       options?: { priority?: boolean },
     ) => {
+      // Evita duplicar se já estiver tocando ou na fila local
       if (
         currentRef.current?.trackId === track.trackId ||
         queueRef.current.some((item) => item.trackId === track.trackId)
@@ -174,6 +173,7 @@ export function usePlayerQueue(): PlayerQueue {
           })
           .select("id")
           .single();
+        
         if (error || !data) return;
         await refresh();
         applyMetadata((data as { id: string }).id, track);
@@ -231,7 +231,8 @@ export function usePlayerQueue(): PlayerQueue {
 
   const removeItem = useCallback(
     (id: string) => {
-      setQueue((items) => items.filter((item) => item.id !== id));
+      // Removido o setQueue otimista local para evitar conflito com o Realtime.
+      // O banco manda o evento e o refresh atualiza todo mundo ao mesmo tempo.
       void supabase
         .from("player_queue")
         .delete()
@@ -253,14 +254,13 @@ export function usePlayerQueue(): PlayerQueue {
   );
 
   const clearQueue = useCallback(() => {
-    setQueue([]);
+    // Removido o setQueue([]) otimista para aguardar o banco sincronizar.
     void (async () => {
       await supabase.from("player_queue").delete().eq("status", "queued");
       await refresh();
     })();
   }, [refresh]);
 
-  // Reordena trocando o added_at com o vizinho (a fila ordena por priority, depois added_at).
   const moveItem = useCallback(
     (id: string, direction: "up" | "down") => {
       const items = queueRef.current;
@@ -269,7 +269,8 @@ export function usePlayerQueue(): PlayerQueue {
       if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return;
       const item = items[index]!;
       const target = items[targetIndex]!;
-      if (item.priority !== target.priority) return; // não cruza a fronteira VIP
+      if (item.priority !== target.priority) return; 
+      
       void (async () => {
         await supabase
           .from("player_queue")
