@@ -90,6 +90,13 @@ export function YouTubeStage({
   const onProgressRef = useRef(onProgress);
   onProgressRef.current = onProgress;
 
+  // Evita chamadas duplicadas de onEnded
+  const endedCalledRef = useRef(false);
+
+  useEffect(() => {
+    endedCalledRef.current = false;
+  }, [videoId]);
+
   useEffect(() => {
     let disposed = false;
 
@@ -118,11 +125,21 @@ export function YouTubeStage({
               }
             },
             onStateChange: (event: { data: number }) => {
-              if (event.data === YT.PlayerState.ENDED) onEndedRef.current();
+              if (event.data === YT.PlayerState.ENDED) {
+                if (!endedCalledRef.current) {
+                  endedCalledRef.current = true;
+                  onEndedRef.current();
+                }
+              }
               if (event.data === YT.PlayerState.PLAYING) onPlayingChangeRef.current(true);
               if (event.data === YT.PlayerState.PAUSED) onPlayingChangeRef.current(false);
             },
-            onError: () => onEndedRef.current(),
+            onError: () => {
+              if (!endedCalledRef.current) {
+                endedCalledRef.current = true;
+                onEndedRef.current();
+              }
+            },
           },
         });
       })
@@ -138,10 +155,17 @@ export function YouTubeStage({
         lastTime = timestamp;
         if (readyRef.current && playerRef.current) {
           try {
-            onProgressRef.current?.(
-              playerRef.current.getCurrentTime() ?? 0,
-              playerRef.current.getDuration() ?? 0,
-            );
+            const current = playerRef.current.getCurrentTime() ?? 0;
+            const duration = playerRef.current.getDuration() ?? 0;
+
+            onProgressRef.current?.(current, duration);
+
+            // GARANTIA EXTRA PARA SEGUNDO PLANO:
+            // Se o player estiver próximo ao fim (último 1 segundo) e a aba estiver oculta/atrasada, força o onEnded
+            if (duration > 0 && current >= duration - 0.8 && !endedCalledRef.current) {
+              endedCalledRef.current = true;
+              onEndedRef.current();
+            }
           } catch {
             /* ignora se player indisponível */
           }
@@ -154,10 +178,37 @@ export function YouTubeStage({
 
     animationFrameId = requestAnimationFrame(updateProgress);
 
+    // Intervalo de segurança robusto para quando o navegador desacelera requests em segundo plano
+    const safetyInterval = setInterval(() => {
+      if (readyRef.current && playerRef.current && !endedCalledRef.current) {
+        try {
+          const current = playerRef.current.getCurrentTime() ?? 0;
+          const duration = playerRef.current.getDuration() ?? 0;
+          if (duration > 0 && current >= duration - 0.8) {
+            endedCalledRef.current = true;
+            onEndedRef.current();
+          }
+        } catch {
+          // ignora
+        }
+      }
+    }, 1000);
+
     const handleVisibilityChange = () => {
       if (!document.hidden && readyRef.current && playerRef.current) {
         if (!paused) {
           playerRef.current.playVideo();
+        }
+        // Checagem imediata ao voltar para a aba
+        try {
+          const current = playerRef.current.getCurrentTime() ?? 0;
+          const duration = playerRef.current.getDuration() ?? 0;
+          if (duration > 0 && current >= duration - 0.8 && !endedCalledRef.current) {
+            endedCalledRef.current = true;
+            onEndedRef.current();
+          }
+        } catch {
+          // ignora
         }
       }
     };
@@ -168,6 +219,7 @@ export function YouTubeStage({
       disposed = true;
       readyRef.current = false;
       cancelAnimationFrame(animationFrameId);
+      clearInterval(safetyInterval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       try {
         playerRef.current?.destroy();
