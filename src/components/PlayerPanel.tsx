@@ -255,15 +255,7 @@ export function PlayerPanel({
               <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
                 {current.title ?? `Tocando ${current.trackId}`}
               </h2>
-              
-                href={current.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-muted-foreground transition-colors hover:text-primary"
-                aria-label="Abrir no YouTube"
-              >
-                <ExternalLink className="size-4" aria-hidden />
-              </a>
+              <ExternalLinkButton url={current.url} />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               Pedido por{" "}
@@ -391,5 +383,24 @@ export function PlayerPanel({
         <span className="hidden sm:inline">Espaço: pausar · Shift + ← → : pular · M: mudo</span>
       </div>
     </section>
+  );
+}
+
+/**
+ * Extraído em componente separado de propósito: em alguns editores/colar via chat,
+ * uma tag <a> solta no meio do JSX acaba sendo "comida" (interpretada como HTML real
+ * em vez de texto). Isolando em um componente próprio isso deixa de acontecer.
+ */
+function ExternalLinkButton({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="text-muted-foreground transition-colors hover:text-primary"
+      aria-label="Abrir no YouTube"
+    >
+      <ExternalLink className="size-4" aria-hidden />
+    </a>
   );
 }
