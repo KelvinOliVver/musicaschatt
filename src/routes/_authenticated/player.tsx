@@ -14,6 +14,7 @@ import { extractTracks, parseTrackInput } from "@/lib/link-parser";
 import { usePlayerQueue } from "@/lib/use-player-queue";
 import { supabase } from "@/integrations/supabase/client";
 import type { KickChatMessage } from "@/lib/types";
+import type { StageControls } from "@/components/YouTubeStage";
 
 const DEFAULT_CHANNEL = "roceiraplay";
 
@@ -27,11 +28,22 @@ function PlayerPage() {
   const queue = usePlayerQueue();
   
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  
+  // Referência para controlar o tempo do player vinda de dentro do PlayerPanel
+  const playerControlsRef = useRef<StageControls | null>(null);
 
   // Estados remotos para forçar sincronização de player (tempo, play/pause, volume)
   const [remoteSeek, setRemoteSeek] = useState<number | null>(null);
   const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
   const [remoteVolume, setRemoteVolume] = useState<number | null>(null);
+
+  const broadcast = useCallback((action: string, data?: any) => {
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "sync-action",
+      payload: { action, ...data },
+    });
+  }, []);
 
   useEffect(() => {
     const channel = supabase.channel(`player-room-${slug}`, {
@@ -73,24 +85,36 @@ function PlayerPage() {
           case "CHANGE_VOLUME":
             setRemoteVolume(payload.volume);
             break;
+          case "REQUEST_TIME":
+            // Quem já está na sala responde com o segundo atual do player
+            if (playerControlsRef.current) {
+              const currentTime = playerControlsRef.current.getCurrentTime();
+              if (currentTime > 0) {
+                broadcast("PROVIDE_TIME", { time: currentTime });
+              }
+            }
+            break;
+          case "PROVIDE_TIME":
+            // Quem acabou de entrar recebe o tempo atual e sincroniza
+            if (remoteSeek === null || remoteSeek === undefined) {
+              setRemoteSeek(payload.time);
+            }
+            break;
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          // Assim que entra na sala, solicita o tempo atual de quem já está ouvindo
+          broadcast("REQUEST_TIME");
+        }
+      });
 
     channelRef.current = channel;
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [slug, queue]);
-
-  const broadcast = useCallback((action: string, data?: any) => {
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "sync-action",
-      payload: { action, ...data },
-    });
-  }, []);
+  }, [slug, queue, broadcast, remoteSeek]);
 
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
@@ -231,6 +255,7 @@ function PlayerPage() {
           onSeekChange={handleSeekBroadcast}
           onTogglePlayChange={handleTogglePlayBroadcast}
           onVolumeChange={handleVolumeBroadcast}
+          controlsRef={playerControlsRef}
         />
 
         <div className="hidden min-h-[420px] flex-col lg:flex">
