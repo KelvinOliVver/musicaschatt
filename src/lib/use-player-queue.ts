@@ -54,6 +54,7 @@ export interface PlayerQueue {
   removeItem: (id: string) => void;
   playNow: (id: string) => void;
   clearQueue: () => void;
+  moveItem: (id: string, direction: "up" | "down") => void;
 }
 
 /**
