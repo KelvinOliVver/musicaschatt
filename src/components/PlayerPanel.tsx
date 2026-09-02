@@ -66,7 +66,39 @@ export function PlayerPanel({
     setProgress({ current: 0, duration: 0 });
   }, [current?.id]);
 
-  // Atalhos de teclado: espaço = play/pause, setas = pular, M = mudo.
+  // Sincroniza com as teclas de mídia globais do teclado (Play, Pause, Next, Prev) em segundo plano
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+
+    navigator.mediaSession.setActionHandler("nexttrack", () => {
+      onNext();
+    });
+
+    navigator.mediaSession.setActionHandler("previoustrack", () => {
+      onPrevious();
+    });
+
+    navigator.mediaSession.setActionHandler("play", () => {
+      setPaused(false);
+    });
+
+    navigator.mediaSession.setActionHandler("pause", () => {
+      setPaused(true);
+    });
+
+    return () => {
+      try {
+        navigator.mediaSession.setActionHandler("nexttrack", null);
+        navigator.mediaSession.setActionHandler("previoustrack", null);
+        navigator.mediaSession.setActionHandler("play", null);
+        navigator.mediaSession.setActionHandler("pause", null);
+      } catch {
+        // Ignora se não suportado
+      }
+    };
+  }, [onNext, onPrevious]);
+
+  // Atalhos de teclado locais: espaço = play/pause, setas = pular, M = mudo.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
