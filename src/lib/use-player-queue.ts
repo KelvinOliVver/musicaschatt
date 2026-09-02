@@ -231,9 +231,15 @@ export function usePlayerQueue(): PlayerQueue {
       const playing = currentRef.current;
 
       if (playing) {
+        // CORREÇÃO: Pegamos a música que está no topo atual da fila (se houver) 
+        // e colocamos a música atual com um timestamp menor para garantir que ela vire o novo topo exato.
+        const firstItem = queueRef.current[0];
+        const baseTime = firstItem ? firstItem.addedAt : Date.now();
+        const safeAddedAt = new Date(baseTime - 2000).toISOString();
+
         await supabase
           .from("player_queue")
-          .update({ status: "queued", played_at: null, added_at: new Date(Date.now() - 1000).toISOString() })
+          .update({ status: "queued", played_at: null, added_at: safeAddedAt })
           .eq("id", playing.id);
       }
 
