@@ -66,6 +66,24 @@ export function PlayerPanel({
     setProgress({ current: 0, duration: 0 });
   }, [current?.id]);
 
+  // CORREÇÃO PARA ABAS EM SEGUNDO PLANO:
+  // Força a retomada ou checagem do player caso o evento de fim tenha travado enquanto a aba estava oculta.
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible" && current && progress.duration > 0) {
+        // Se a música já passou do tempo de duração e a aba voltou, força o avanço
+        if (progress.current >= progress.duration - 1) {
+          onNext();
+        }
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [current, progress, onNext]);
+
   // Sincroniza com as teclas de mídia globais do teclado (Play, Pause, Next, Prev) em segundo plano
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
