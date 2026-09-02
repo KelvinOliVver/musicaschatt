@@ -80,7 +80,10 @@ export function usePlayerQueue(): PlayerQueue {
     const rows = data as unknown as QueueRow[];
     const playing = rows.find((row) => row.status === "playing");
     setCurrent(playing ? toItem(playing) : null);
+    
+    // Filtra enfileiradas (exclui a que está tocando e as já tocadas)
     setQueue(rows.filter((row) => row.status === "queued").map(toItem));
+    
     setHistory(
       rows
         .filter((row) => row.status === "played")
@@ -112,12 +115,13 @@ export function usePlayerQueue(): PlayerQueue {
     };
   }, [refresh]);
 
+  // Auto-play caso não tenha música tocando e haja itens na fila
   useEffect(() => {
     if (current || queue.length === 0) return;
     const head = queue[0]!;
     void supabase
       .from("player_queue")
-      .update({ status: "playing" })
+      .update({ status: "playing", played_at: null })
       .eq("id", head.id)
       .eq("status", "queued")
       .then(() => refresh());
@@ -150,17 +154,14 @@ export function usePlayerQueue(): PlayerQueue {
     ) => {
       const trackId = track.trackId;
 
-      // 1. Trava local rápida em memória para aba atual
       if (pendingAddsRef.current.has(trackId)) {
         return false;
       }
       pendingAddsRef.current.add(trackId);
 
       try {
-        // Garante que o VIP só fica ativo se explicitamente passado nas options. Caso contrário, é false.
         const isVip = options?.priority ?? false;
 
-        // 2. Inserção direta e atômica. Se o banco recusar pelo UNIQUE INDEX (duplicado), retorna false.
         const { data, error } = await supabase
           .from("player_queue")
           .insert({
@@ -190,47 +191,62 @@ export function usePlayerQueue(): PlayerQueue {
     [applyMetadata, refresh],
   );
 
-  const finishCurrent = useCallback(async () => {
-    const playing = currentRef.current;
-    if (!playing) return;
-    await supabase
-      .from("player_queue")
-      .update({ status: "played", played_at: new Date().toISOString() })
-      .eq("id", playing.id);
-  }, []);
-
+  // AVANÇAR MÚSICA (Next): joga a atual para 'played' e puxa a próxima da fila
   const playNext = useCallback(() => {
     void (async () => {
-      const head = queueRef.current[0];
-      await finishCurrent();
-      if (head) {
-        await supabase.from("player_queue").update({ status: "playing" }).eq("id", head.id);
+      const playing = currentRef.current;
+      const nextItem = queueRef.current[0];
+
+      // 1. Marca a atual como 'played' se houver uma tocando
+      if (playing) {
+        await supabase
+          .from("player_queue")
+          .update({ status: "played", played_at: new Date().toISOString() })
+          .eq("id", playing.id);
       }
+
+      // 2. Se houver próxima na fila, coloca ela como 'playing'
+      if (nextItem) {
+        await supabase
+          .from("player_queue")
+          .update({ status: "playing", played_at: null })
+          .eq("id", nextItem.id);
+      }
+
       await refresh();
     })();
-  }, [finishCurrent, refresh]);
+  }, [refresh]);
 
+  // VOLTAR MÚSICA (Previous): pega a última tocada do histórico, joga de volta pra 'playing', e a atual volta para a ponta da fila
   const playPrevious = useCallback(() => {
     void (async () => {
-      const { data } = await supabase
+      // Busca a última música que foi marcada como 'played' de forma mais recente
+      const { data, error } = await supabase
         .from("player_queue")
         .select("*")
         .eq("status", "played")
         .order("played_at", { ascending: false })
         .limit(1);
-      const previous = (data as unknown as QueueRow[] | null)?.[0];
-      if (!previous) return;
+
+      if (error || !data || data.length === 0) return;
+      const previousRow = data[0] as QueueRow;
+
       const playing = currentRef.current;
+
+      // 1. Se tem música tocando, devolve ela para o topo da fila (status queued)
       if (playing) {
         await supabase
           .from("player_queue")
-          .update({ status: "queued", added_at: new Date().toISOString() })
+          .update({ status: "queued", played_at: null, added_at: new Date(Date.now() - 1000).toISOString() })
           .eq("id", playing.id);
       }
+
+      // 2. Pega a música anterior do histórico e define como 'playing'
       await supabase
         .from("player_queue")
         .update({ status: "playing", played_at: null })
-        .eq("id", previous.id);
+        .eq("id", previousRow.id);
+
       await refresh();
     })();
   }, [refresh]);
@@ -249,12 +265,21 @@ export function usePlayerQueue(): PlayerQueue {
   const playNow = useCallback(
     (id: string) => {
       void (async () => {
-        await finishCurrent();
-        await supabase.from("player_queue").update({ status: "playing" }).eq("id", id);
+        const playing = currentRef.current;
+        if (playing) {
+          await supabase
+            .from("player_queue")
+            .update({ status: "played", played_at: new Date().toISOString() })
+            .eq("id", playing.id);
+        }
+        await supabase
+          .from("player_queue")
+          .update({ status: "playing", played_at: null })
+          .eq("id", id);
         await refresh();
       })();
     },
-    [finishCurrent, refresh],
+    [refresh],
   );
 
   const clearQueue = useCallback(() => {
@@ -295,7 +320,7 @@ export function usePlayerQueue(): PlayerQueue {
     addTrack,
     playNext,
     playPrevious,
-    removeItem, // <--- Adicionado de volta aqui!
+    removeItem,
     playNow,
     clearQueue,
     moveItem,
