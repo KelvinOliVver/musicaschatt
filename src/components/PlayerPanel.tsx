@@ -25,6 +25,12 @@ interface PlayerPanelProps {
   hasNext: boolean;
   onNext: () => void;
   onPrevious: () => void;
+  remoteSeek?: number | null;
+  remotePaused?: boolean | null;
+  remoteVolume?: number | null;
+  onSeekChange?: (time: number) => void;
+  onTogglePlayChange?: (paused: boolean) => void;
+  onVolumeChange?: (volume: number) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -42,6 +48,12 @@ export function PlayerPanel({
   hasNext,
   onNext,
   onPrevious,
+  remoteSeek,
+  remotePaused,
+  remoteVolume,
+  onSeekChange,
+  onTogglePlayChange,
+  onVolumeChange,
 }: PlayerPanelProps) {
   const [volume, setVolume] = useState(() => {
     if (typeof window === "undefined") return 70;
@@ -53,6 +65,27 @@ export function PlayerPanel({
   const [progress, setProgress] = useState({ current: 0, duration: 0 });
   const [scrubbing, setScrubbing] = useState<number | null>(null);
   const controlsRef = useRef<StageControls | null>(null);
+
+  // Sincroniza volume remoto vindo do Supabase
+  useEffect(() => {
+    if (remoteVolume !== null && remoteVolume !== undefined && remoteVolume !== volume) {
+      setVolume(remoteVolume);
+    }
+  }, [remoteVolume]);
+
+  // Sincroniza pause/play remoto vindo do Supabase
+  useEffect(() => {
+    if (remotePaused !== null && remotePaused !== undefined && remotePaused !== paused) {
+      setPaused(remotePaused);
+    }
+  }, [remotePaused]);
+
+  // Sincroniza o tempo (seek) remoto vindo do Supabase
+  useEffect(() => {
+    if (remoteSeek !== null && remoteSeek !== undefined) {
+      controlsRef.current?.seekTo(remoteSeek);
+    }
+  }, [remoteSeek]);
 
   useEffect(() => {
     try {
@@ -66,12 +99,9 @@ export function PlayerPanel({
     setProgress({ current: 0, duration: 0 });
   }, [current?.id]);
 
-  // CORREÇÃO PARA ABAS EM SEGUNDO PLANO:
-  // Força a retomada ou checagem do player caso o evento de fim tenha travado enquanto a aba estava oculta.
   useEffect(() => {
     function handleVisibilityChange() {
       if (document.visibilityState === "visible" && current && progress.duration > 0) {
-        // Se a música já passou do tempo de duração e a aba voltou, força o avanço
         if (progress.current >= progress.duration - 1) {
           onNext();
         }
@@ -84,7 +114,6 @@ export function PlayerPanel({
     };
   }, [current, progress, onNext]);
 
-  // Sincroniza com as teclas de mídia globais do teclado (Play, Pause, Next, Prev) em segundo plano
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
 
@@ -98,10 +127,12 @@ export function PlayerPanel({
 
     navigator.mediaSession.setActionHandler("play", () => {
       setPaused(false);
+      onTogglePlayChange?.(false);
     });
 
     navigator.mediaSession.setActionHandler("pause", () => {
       setPaused(true);
+      onTogglePlayChange?.(true);
     });
 
     return () => {
@@ -114,9 +145,8 @@ export function PlayerPanel({
         // Ignora se não suportado
       }
     };
-  }, [onNext, onPrevious]);
+  }, [onNext, onPrevious, onTogglePlayChange]);
 
-  // Atalhos de teclado locais: espaço = play/pause, setas = pular, M = mudo.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
@@ -125,7 +155,11 @@ export function PlayerPanel({
 
       if (event.code === "Space") {
         event.preventDefault();
-        setPaused((value) => !value);
+        setPaused((value) => {
+          const nextVal = !value;
+          onTogglePlayChange?.(nextVal);
+          return nextVal;
+        });
       } else if (event.code === "ArrowRight" && event.shiftKey) {
         event.preventDefault();
         onNext();
@@ -138,7 +172,7 @@ export function PlayerPanel({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onNext, onPrevious]);
+  }, [onNext, onPrevious, onTogglePlayChange]);
 
   const shown = scrubbing ?? progress.current;
 
@@ -153,7 +187,11 @@ export function PlayerPanel({
             muted={muted}
             paused={paused}
             onEnded={onNext}
-            onPlayingChange={(playing) => setPaused(!playing)}
+            onPlayingChange={(playing) => {
+              const newPaused = !playing;
+              setPaused(newPaused);
+              onTogglePlayChange?.(newPaused);
+            }}
             onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
             controlsRef={controlsRef}
           />
@@ -218,8 +256,10 @@ export function PlayerPanel({
           disabled={!current || progress.duration <= 0}
           onValueChange={([value]) => setScrubbing(value ?? 0)}
           onValueCommit={([value]) => {
-            controlsRef.current?.seekTo(value ?? 0);
+            const targetTime = value ?? 0;
+            controlsRef.current?.seekTo(targetTime);
             setScrubbing(null);
+            onSeekChange?.(targetTime); // Envia a mudança de tempo para todo mundo
           }}
           aria-label="Progresso da música"
         />
@@ -243,7 +283,13 @@ export function PlayerPanel({
           <Button
             size="icon"
             className="bg-gradient-primary glow size-12 rounded-full text-primary-foreground"
-            onClick={() => setPaused((value) => !value)}
+            onClick={() => {
+              setPaused((value) => {
+                const nextVal = !value;
+                onTogglePlayChange?.(nextVal);
+                return nextVal;
+              });
+            }}
             disabled={!current}
             aria-label={paused ? "Tocar" : "Pausar"}
           >
@@ -282,8 +328,10 @@ export function PlayerPanel({
           <Slider
             value={[muted ? 0 : volume]}
             onValueChange={([value]) => {
-              setVolume(value ?? 0);
-              if ((value ?? 0) > 0) setMuted(false);
+              const newVol = value ?? 0;
+              setVolume(newVol);
+              if (newVol > 0) setMuted(false);
+              onVolumeChange?.(newVol); // Envia a mudança de volume para todo mundo
             }}
             max={100}
             step={1}
