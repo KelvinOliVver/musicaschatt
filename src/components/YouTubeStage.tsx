@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 
-// Declaração global para a API do YouTube
 declare global {
   interface Window {
     YT: {
@@ -59,9 +58,9 @@ export function YouTubeStage({
 }: YouTubeStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
-  const progressIntervalRef = useRef<number | null>(null);
+  const intervalRef = useRef<number | null>(null);
 
-  // Expõe controles externos para o PlayerPanel
+  // Expõe controles externos
   useEffect(() => {
     if (controlsRef) {
       controlsRef.current = {
@@ -80,14 +79,13 @@ export function YouTubeStage({
     }
   }, [controlsRef]);
 
-  // Inicializa a API do YouTube IFrame
+  // Inicializa o player do YouTube de forma segura
   useEffect(() => {
     let isMounted = true;
 
-    function initPlayer() {
+    function createPlayer() {
       if (!isMounted || !containerRef.current) return;
 
-      // Limpa player anterior se existir
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
@@ -97,7 +95,6 @@ export function YouTubeStage({
         playerRef.current = null;
       }
 
-      // Cria um elemento interno limpo para o player do YT injetar o iframe
       const targetId = `youtube-player-${Math.random().toString(36).substring(2, 9)}`;
       containerRef.current.innerHTML = `<div id="${targetId}" class="size-full"></div>`;
 
@@ -128,26 +125,19 @@ export function YouTubeStage({
               event.target.playVideo();
             }
 
-            // Inicia o loop de progresso blindado contra abas em segundo plano
-            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-            
-            progressIntervalRef.current = window.setInterval(() => {
+            // Intervalo leve para atualizar a barra de progresso normalmente
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            intervalRef.current = window.setInterval(() => {
               if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
                 try {
                   const current = playerRef.current.getCurrentTime() || 0;
                   const duration = playerRef.current.getDuration() || 0;
                   onProgress(current, duration);
-
-                  // FALLBACK DE SEGURANÇA: Se a aba estava em segundo plano e a música acabou,
-                  // garante que o evento onEnded seja disparado mesmo que o navegador tenha travado o player state.
-                  if (duration > 0 && current >= duration - 0.8) {
-                    onEnded();
-                  }
                 } catch {
-                  // ignora erros de leitura de iframe oculto
+                  // ignora
                 }
               }
-            }, 500);
+            }, 1000);
           },
           onStateChange: (event) => {
             if (!isMounted) return;
@@ -162,7 +152,6 @@ export function YouTubeStage({
             }
           },
           onError: () => {
-            // Se der erro no vídeo (ex: vídeo privado ou removido), pula automaticamente para o próximo
             if (isMounted) {
               onEnded();
             }
@@ -181,30 +170,27 @@ export function YouTubeStage({
       }
 
       window.onYouTubeIframeAPIReady = () => {
-        initPlayer();
+        createPlayer();
       };
 
-      // Intervalo de segurança caso a API demore a carregar
-      const checkInterval = setInterval(() => {
+      const check = setInterval(() => {
         if (window.YT && window.YT.Player) {
-          clearInterval(checkInterval);
-          initPlayer();
+          clearInterval(check);
+          createPlayer();
         }
       }, 100);
 
       return () => {
         isMounted = false;
-        clearInterval(checkInterval);
+        clearInterval(check);
       };
     } else {
-      initPlayer();
+      createPlayer();
     }
 
     return () => {
       isMounted = false;
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
+      if (intervalRef.current) clearInterval(intervalRef.current);
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
@@ -216,19 +202,16 @@ export function YouTubeStage({
     };
   }, [videoId]);
 
-  // Atualiza volume dinamicamente
+  // Sincroniza volume
   useEffect(() => {
     if (playerRef.current && typeof playerRef.current.setVolume === "function") {
       playerRef.current.setVolume(muted ? 0 : volume);
-      if (muted) {
-        playerRef.current.mute?.();
-      } else {
-        playerRef.current.unMute?.();
-      }
+      if (muted) playerRef.current.mute?.();
+      else playerRef.current.unMute?.();
     }
   }, [volume, muted]);
 
-  // Atualiza estado de play/pause dinamicamente
+  // Sincroniza pause/play
   useEffect(() => {
     if (playerRef.current && typeof playerRef.current.pauseVideo === "function") {
       if (paused) {
