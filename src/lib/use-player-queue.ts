@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getTrackMetadata } from "./kick.functions";
-import { isPriorityUser } from "./link-parser";
 import type { DetectedTrack } from "./link-parser";
 import type { QueueItem } from "./types";
 
@@ -158,7 +157,7 @@ export function usePlayerQueue(): PlayerQueue {
       pendingAddsRef.current.add(trackId);
 
       try {
-        // CORREÇÃO: Garante que o VIP só fica ativo se explicitamente passado nas options. Caso contrário, é false.
+        // Garante que o VIP só fica ativo se explicitamente passado nas options. Caso contrário, é false.
         const isVip = options?.priority ?? false;
 
         // 2. Inserção direta e atômica. Se o banco recusar pelo UNIQUE INDEX (duplicado), retorna false.
@@ -223,7 +222,6 @@ export function usePlayerQueue(): PlayerQueue {
       if (!previous) return;
       const playing = currentRef.current;
       if (playing) {
-        // CORREÇÃO: Removido o 'priority: true' forçado ao voltar a música atual para a fila
         await supabase
           .from("player_queue")
           .update({ status: "queued", added_at: new Date().toISOString() })
@@ -297,7 +295,7 @@ export function usePlayerQueue(): PlayerQueue {
     addTrack,
     playNext,
     playPrevious,
-    removeItem,
+    removeItem, // <--- Adicionado de volta aqui!
     playNow,
     clearQueue,
     moveItem,
