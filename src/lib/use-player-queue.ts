@@ -92,6 +92,12 @@ export function usePlayerQueue(): PlayerQueue {
   }, []);
 
   useEffect(() => {
+    // Fila antiga só do navegador não é mais usada.
+    try {
+      localStorage.removeItem("musicas-chat-queue");
+    } catch {
+      /* ignora */
+    }
     void refresh();
     const channel = supabase
       .channel("player-queue-sync")
