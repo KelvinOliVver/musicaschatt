@@ -260,6 +260,31 @@ export function usePlayerQueue(): PlayerQueue {
     })();
   }, [refresh]);
 
+  // Reordena trocando o added_at com o vizinho (a fila ordena por priority, depois added_at).
+  const moveItem = useCallback(
+    (id: string, direction: "up" | "down") => {
+      const items = queueRef.current;
+      const index = items.findIndex((item) => item.id === id);
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return;
+      const item = items[index]!;
+      const target = items[targetIndex]!;
+      if (item.priority !== target.priority) return; // não cruza a fronteira VIP
+      void (async () => {
+        await supabase
+          .from("player_queue")
+          .update({ added_at: new Date(target.addedAt).toISOString() })
+          .eq("id", item.id);
+        await supabase
+          .from("player_queue")
+          .update({ added_at: new Date(item.addedAt).toISOString() })
+          .eq("id", target.id);
+        await refresh();
+      })();
+    },
+    [refresh],
+  );
+
   return {
     current,
     queue,
@@ -270,5 +295,6 @@ export function usePlayerQueue(): PlayerQueue {
     removeItem,
     playNow,
     clearQueue,
+    moveItem,
   };
 }
