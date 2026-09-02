@@ -20,6 +20,10 @@ interface QueueRow {
   status: string;
   added_at: string;
   played_at: string | null;
+  position: number | null;
+  playback_position: number | null;
+  is_paused: boolean | null;
+  state_updated_at: string | null;
 }
 
 function toItem(row: QueueRow): QueueItem {
@@ -35,6 +39,12 @@ function toItem(row: QueueRow): QueueItem {
     requesterColor: row.requester_color,
     priority: row.priority,
     addedAt: new Date(row.added_at).getTime(),
+    position: row.position ?? new Date(row.added_at).getTime(),
+    playbackPosition: Number(row.playback_position ?? 0),
+    isPaused: row.is_paused ?? false,
+    stateUpdatedAt: row.state_updated_at
+      ? new Date(row.state_updated_at).getTime()
+      : Date.now(),
   };
 }
 
@@ -53,7 +63,10 @@ export interface PlayerQueue {
   removeItem: (id: string) => void;
   playNow: (id: string) => void;
   clearQueue: () => void;
-  moveItem: (id: string, direction: "up" | "down") => void;
+  /** Move o item para o índice alvo dentro da lista `queue` (drag-and-drop). */
+  moveItem: (id: string, toIndex: number) => void;
+  /** Gravado periodicamente pelo host para os que entrarem depois saberem onde a música está. */
+  updatePlaybackHeartbeat: (itemId: string, playbackPosition: number, isPaused: boolean) => void;
 }
 
 export function usePlayerQueue(): PlayerQueue {
@@ -73,7 +86,7 @@ export function usePlayerQueue(): PlayerQueue {
       .from("player_queue")
       .select("*")
       .order("priority", { ascending: false })
-      .order("added_at", { ascending: true })
+      .order("position", { ascending: true })
       .order("id", { ascending: true });
 
     if (error || !data) return;
@@ -81,9 +94,9 @@ export function usePlayerQueue(): PlayerQueue {
     const rows = data as unknown as QueueRow[];
     const playing = rows.find((row) => row.status === "playing");
     setCurrent(playing ? toItem(playing) : null);
-    
+
     setQueue(rows.filter((row) => row.status === "queued").map(toItem));
-    
+
     setHistory(
       rows
         .filter((row) => row.status === "played")
@@ -94,11 +107,6 @@ export function usePlayerQueue(): PlayerQueue {
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.removeItem("musicas-chat-queue");
-    } catch {
-      /* ignora */
-    }
     void refresh();
     const channel = supabase
       .channel("player-queue-sync-v4")
@@ -120,7 +128,7 @@ export function usePlayerQueue(): PlayerQueue {
     const head = queue[0]!;
     void supabase
       .from("player_queue")
-      .update({ status: "playing", played_at: null })
+      .update({ status: "playing", played_at: null, state_updated_at: new Date().toISOString(), playback_position: 0, is_paused: false })
       .eq("id", head.id)
       .eq("status", "queued")
       .then(() => refresh());
@@ -155,6 +163,11 @@ export function usePlayerQueue(): PlayerQueue {
 
       try {
         const isVip = options?.priority ?? false;
+        const items = queueRef.current;
+        const group = items.filter((i) => i.priority === isVip);
+        const position = group.length > 0
+          ? Math.max(...group.map((i) => i.position)) + 1000
+          : Date.now();
 
         const { data, error } = await supabase
           .from("player_queue")
@@ -168,6 +181,7 @@ export function usePlayerQueue(): PlayerQueue {
             priority: isVip,
             status: "queued",
             added_at: new Date().toISOString(),
+            position,
           })
           .select("id")
           .maybeSingle();
@@ -184,6 +198,10 @@ export function usePlayerQueue(): PlayerQueue {
     [applyMetadata, refresh],
   );
 
+  function resetPlaybackFields() {
+    return { playback_position: 0, is_paused: false, state_updated_at: new Date().toISOString() };
+  }
+
   const playNext = useCallback(() => {
     void (async () => {
       const playing = currentRef.current;
@@ -199,7 +217,7 @@ export function usePlayerQueue(): PlayerQueue {
       if (nextItem) {
         await supabase
           .from("player_queue")
-          .update({ status: "playing", played_at: null })
+          .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
           .eq("id", nextItem.id);
       }
 
@@ -230,7 +248,7 @@ export function usePlayerQueue(): PlayerQueue {
 
       await supabase
         .from("player_queue")
-        .update({ status: "playing", played_at: null })
+        .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
         .eq("id", previousRow.id);
 
       await refresh();
@@ -260,7 +278,7 @@ export function usePlayerQueue(): PlayerQueue {
         }
         await supabase
           .from("player_queue")
-          .update({ status: "playing", played_at: null })
+          .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
           .eq("id", id);
         await refresh();
       })();
@@ -275,41 +293,53 @@ export function usePlayerQueue(): PlayerQueue {
     })();
   }, [refresh]);
 
+  /** Reordenação livre por drag-and-drop usando posição fracionária. */
   const moveItem = useCallback(
-    (id: string, direction: "up" | "down") => {
+    (id: string, toIndex: number) => {
       const items = queueRef.current;
-      const index = items.findIndex((item) => item.id === id);
-      const targetIndex = direction === "up" ? index - 1 : index + 1;
-      
-      if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return;
-      
-      const item = items[index]!;
-      const target = items[targetIndex]!;
-      
-      if (item.priority !== target.priority) return;
+      const fromIndex = items.findIndex((item) => item.id === id);
+      if (fromIndex < 0 || toIndex < 0 || toIndex >= items.length || fromIndex === toIndex) return;
 
-      void (async () => {
-        const currentTime = new Date(item.addedAt).toISOString();
-        const targetTime = new Date(target.addedAt).toISOString();
+      const reordered = [...items];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, moved!);
 
-        const { error: err1 } = await supabase
-          .from("player_queue")
-          .update({ added_at: targetTime })
-          .eq("id", item.id);
+      const prev = reordered[toIndex - 1];
+      const next = reordered[toIndex + 1];
 
-        if (err1) return;
+      let newPosition: number;
+      if (prev && next) {
+        newPosition = (prev.position + next.position) / 2;
+      } else if (prev) {
+        newPosition = prev.position + 1000;
+      } else if (next) {
+        newPosition = next.position - 1000;
+      } else {
+        newPosition = Date.now();
+      }
 
-        const { error: err2 } = await supabase
-          .from("player_queue")
-          .update({ added_at: currentTime })
-          .eq("id", target.id);
-
-        if (err2) return;
-
-        await refresh();
-      })();
+      void supabase
+        .from("player_queue")
+        .update({ position: newPosition })
+        .eq("id", id)
+        .then(() => refresh());
     },
     [refresh],
+  );
+
+  const updatePlaybackHeartbeat = useCallback(
+    (itemId: string, playbackPosition: number, isPaused: boolean) => {
+      void supabase
+        .from("player_queue")
+        .update({
+          playback_position: playbackPosition,
+          is_paused: isPaused,
+          state_updated_at: new Date().toISOString(),
+        })
+        .eq("id", itemId)
+        .eq("status", "playing");
+    },
+    [],
   );
 
   return {
@@ -323,5 +353,6 @@ export function usePlayerQueue(): PlayerQueue {
     playNow,
     clearQueue,
     moveItem,
+    updatePlaybackHeartbeat,
   };
 }
