@@ -40,6 +40,7 @@ interface YouTubeStageProps {
   volume: number;
   muted: boolean;
   paused: boolean;
+  remoteSeek?: number | null; // <--- Adicionado para receber o tempo sincronizado
   onEnded: () => void;
   onPlayingChange: (playing: boolean) => void;
   onProgress: (currentTime: number, duration: number) => void;
@@ -51,6 +52,7 @@ export function YouTubeStage({
   volume,
   muted,
   paused,
+  remoteSeek,
   onEnded,
   onPlayingChange,
   onProgress,
@@ -71,6 +73,17 @@ export function YouTubeStage({
       };
     }
   }, [controlsRef]);
+
+  // Sincroniza o tempo (Seek) remotamente quando o usuário entra ou a sala fornece o tempo
+  useEffect(() => {
+    if (remoteSeek !== null && remoteSeek !== undefined && playerRef.current?.seekTo) {
+      const currentTime = playerRef.current.getCurrentTime() || 0;
+      // Só aplica o seek se a diferença for maior que 2 segundos para evitar pulos chatos durante a reprodução normal
+      if (Math.abs(currentTime - remoteSeek) > 2) {
+        playerRef.current.seekTo(remoteSeek, true);
+      }
+    }
+  }, [remoteSeek]);
 
   useEffect(() => {
     let isMounted = true;
@@ -111,6 +124,11 @@ export function YouTubeStage({
             event.target.setVolume(muted ? 0 : volume);
             if (muted) event.target.mute();
             else event.target.unMute();
+
+            // Se houver um remoteSeek inicial, aplica logo no ready
+            if (remoteSeek !== null && remoteSeek !== undefined) {
+              event.target.seekTo(remoteSeek, true);
+            }
 
             if (paused) {
               event.target.pauseVideo();
