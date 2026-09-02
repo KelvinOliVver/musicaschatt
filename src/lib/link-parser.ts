@@ -21,33 +21,41 @@ const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
 
 function parseYouTube(url: URL): DetectedTrack | null {
   const host = url.hostname.replace(/^www\./, "").toLowerCase();
+  let trackId: string | null = null;
 
   if (host === "youtu.be") {
     const id = url.pathname.slice(1).split("/")[0] ?? "";
     if (YOUTUBE_ID.test(id)) {
-      return { source: "youtube", trackId: id, url: url.toString() };
+      trackId = id;
     }
-    return null;
-  }
-
-  if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
+  } else if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
     const watchId = url.searchParams.get("v");
     if (watchId && YOUTUBE_ID.test(watchId)) {
-      return { source: "youtube", trackId: watchId, url: url.toString() };
-    }
-    const segments = url.pathname.split("/").filter(Boolean);
-    if (
-      segments.length >= 2 &&
-      (segments[0] === "shorts" || segments[0] === "embed" || segments[0] === "live")
-    ) {
-      const id = segments[1]!;
-      if (YOUTUBE_ID.test(id)) {
-        return { source: "youtube", trackId: id, url: url.toString() };
+      trackId = watchId;
+    } else {
+      const segments = url.pathname.split("/").filter(Boolean);
+      if (
+        segments.length >= 2 &&
+        (segments[0] === "shorts" || segments[0] === "embed" || segments[0] === "live")
+      ) {
+        const id = segments[1]!;
+        if (YOUTUBE_ID.test(id)) {
+          trackId = id;
+        }
       }
     }
   }
 
-  return null;
+  if (!trackId) return null;
+
+  // Normaliza a URL para sempre salvar limpa, eliminando parâmetros de playlist (&list=, etc.)
+  const cleanUrl = `https://www.youtube.com/watch?v=${trackId}`;
+
+  return {
+    source: "youtube",
+    trackId,
+    url: cleanUrl,
+  };
 }
 
 /** Parses a single pasted link (or bare video id) into a track. */
