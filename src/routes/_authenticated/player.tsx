@@ -42,7 +42,7 @@ function PlayerPage() {
   const [slug, setSlug] = useState(DEFAULT_CHANNEL);
   const [manual, setManual] = useState("");
   const queue = usePlayerQueue();
-  const { addTrack } = queue;
+  const { addTrack, playNext, playPrevious } = queue;
 
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
@@ -53,7 +53,21 @@ function PlayerPage() {
     [addTrack],
   );
 
-  const chat = useKickChat(slug, handleMessage);
+  // Adicionado o terceiro parâmetro para tratar comandos exclusivos do Pitee4
+  const handleCommand = useCallback(
+    (command: string) => {
+      if (command === "!skip" || command === "!proxima") {
+        playNext();
+        toast.info("Música pulada pelo comando do chat!");
+      } else if (command === "!back" || command === "!anterior") {
+        playPrevious();
+        toast.info("Voltando para a música anterior pelo chat!");
+      }
+    },
+    [playNext, playPrevious],
+  );
+
+  const chat = useKickChat(slug, handleMessage, handleCommand);
 
   function handleManualAdd(event: FormEvent) {
     event.preventDefault();
