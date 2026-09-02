@@ -48,7 +48,7 @@ export interface PlayerQueue {
     requestedBy: string,
     requesterColor: string | null,
     options?: { priority?: boolean },
-  ) => boolean;
+  ) => Promise<boolean>;
   playNext: () => void;
   playPrevious: () => void;
   removeItem: (id: string) => void;
@@ -57,6 +57,10 @@ export interface PlayerQueue {
   moveItem: (id: string, direction: "up" | "down") => void;
 }
 
+/**
+ * Fila compartilhada: todo o estado vive no banco, então qualquer tela aberta
+ * (a sua e a da streamer) enxerga exatamente a mesma fila em tempo real.
+ */
 export function usePlayerQueue(): PlayerQueue {
   const [current, setCurrent] = useState<QueueItem | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -89,14 +93,13 @@ export function usePlayerQueue(): PlayerQueue {
   }, []);
 
   useEffect(() => {
+    // Fila antiga só do navegador não é mais usada.
     try {
       localStorage.removeItem("musicas-chat-queue");
     } catch {
       /* ignora */
     }
     void refresh();
-    
-    // Canal Realtime unificado para escutar mudanças no banco instantaneamente
     const channel = supabase
       .channel("player-queue-sync-v2")
       .on(
@@ -107,13 +110,12 @@ export function usePlayerQueue(): PlayerQueue {
         },
       )
       .subscribe();
-
     return () => {
       void supabase.removeChannel(channel);
     };
   }, [refresh]);
 
-  // Se nada está tocando e há fila, promove o primeiro item automaticamente
+  // Se nada está tocando e há fila, promove o primeiro item.
   useEffect(() => {
     if (current || queue.length === 0) return;
     const head = queue[0]!;
@@ -144,13 +146,13 @@ export function usePlayerQueue(): PlayerQueue {
   }, [refresh]);
 
   const addTrack = useCallback(
-    (
+    async (
       track: DetectedTrack,
       requestedBy: string,
       requesterColor: string | null,
       options?: { priority?: boolean },
     ) => {
-      // Evita duplicar se já estiver tocando ou na fila local
+      // 1. Checagem rápida local
       if (
         currentRef.current?.trackId === track.trackId ||
         queueRef.current.some((item) => item.trackId === track.trackId)
@@ -158,27 +160,38 @@ export function usePlayerQueue(): PlayerQueue {
         return false;
       }
 
-      void (async () => {
-        const { data, error } = await supabase
-          .from("player_queue")
-          .insert({
-            source: track.source,
-            track_id: track.trackId,
-            url: track.url,
-            thumbnail: `https://i.ytimg.com/vi/${track.trackId}/hqdefault.jpg`,
-            requested_by: requestedBy,
-            requester_color: requesterColor,
-            priority: options?.priority ?? isPriorityUser(requestedBy),
-            status: currentRef.current ? "queued" : "playing",
-          })
-          .select("id")
-          .single();
-        
-        if (error || !data) return;
-        await refresh();
-        applyMetadata((data as { id: string }).id, track);
-      })();
+      // 2. Trava de segurança no banco para barrar duplicações em tempo real entre diferentes telas/chat
+      const { data: existing } = await supabase
+        .from("player_queue")
+        .select("id")
+        .eq("track_id", track.trackId)
+        .in("status", ["playing", "queued"])
+        .maybeSingle();
 
+      if (existing) {
+        return false;
+      }
+
+      // 3. Insere se realmente não existir
+      const { data, error } = await supabase
+        .from("player_queue")
+        .insert({
+          source: track.source,
+          track_id: track.trackId,
+          url: track.url,
+          thumbnail: `https://i.ytimg.com/vi/${track.trackId}/hqdefault.jpg`,
+          requested_by: requestedBy,
+          requester_color: requesterColor,
+          priority: options?.priority ?? isPriorityUser(requestedBy),
+          status: currentRef.current ? "queued" : "playing",
+        })
+        .select("id")
+        .single();
+
+      if (error || !data) return false;
+      
+      await refresh();
+      applyMetadata((data as { id: string }).id, track);
       return true;
     },
     [applyMetadata, refresh],
@@ -231,8 +244,6 @@ export function usePlayerQueue(): PlayerQueue {
 
   const removeItem = useCallback(
     (id: string) => {
-      // Removido o setQueue otimista local para evitar conflito com o Realtime.
-      // O banco manda o evento e o refresh atualiza todo mundo ao mesmo tempo.
       void supabase
         .from("player_queue")
         .delete()
@@ -254,13 +265,13 @@ export function usePlayerQueue(): PlayerQueue {
   );
 
   const clearQueue = useCallback(() => {
-    // Removido o setQueue([]) otimista para aguardar o banco sincronizar.
     void (async () => {
       await supabase.from("player_queue").delete().eq("status", "queued");
       await refresh();
     })();
   }, [refresh]);
 
+  // Reordena trocando o added_at com o vizinho (a fila ordena por priority, depois added_at).
   const moveItem = useCallback(
     (id: string, direction: "up" | "down") => {
       const items = queueRef.current;
@@ -269,8 +280,7 @@ export function usePlayerQueue(): PlayerQueue {
       if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return;
       const item = items[index]!;
       const target = items[targetIndex]!;
-      if (item.priority !== target.priority) return; 
-      
+      if (item.priority !== target.priority) return; // não cruza a fronteira VIP
       void (async () => {
         await supabase
           .from("player_queue")
