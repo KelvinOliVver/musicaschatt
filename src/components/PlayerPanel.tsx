@@ -23,15 +23,15 @@ interface PlayerPanelProps {
   next: QueueItem | null;
   hasPrevious: boolean;
   hasNext: boolean;
+  isHost: boolean;
   onNext: () => void;
   onPrevious: () => void;
   remoteSeek?: number | null;
   remotePaused?: boolean | null;
-  remoteVolume?: number | null;
   onSeekChange?: (time: number) => void;
   onTogglePlayChange?: (paused: boolean) => void;
-  onVolumeChange?: (volume: number) => void;
-  controlsRef?: React.MutableRefObject<StageControls | null>; // <--- Adicionado aqui
+  onPlaybackHeartbeat?: (position: number, paused: boolean) => void;
+  controlsRef?: React.MutableRefObject<StageControls | null>;
 }
 
 function formatTime(seconds: number): string {
@@ -47,15 +47,15 @@ export function PlayerPanel({
   next,
   hasPrevious,
   hasNext,
+  isHost,
   onNext,
   onPrevious,
   remoteSeek,
   remotePaused,
-  remoteVolume,
   onSeekChange,
   onTogglePlayChange,
-  onVolumeChange,
-  controlsRef: externalControlsRef, // <--- Recebe a ref de fora
+  onPlaybackHeartbeat,
+  controlsRef: externalControlsRef,
 }: PlayerPanelProps) {
   const [volume, setVolume] = useState(() => {
     if (typeof window === "undefined") return 70;
@@ -66,26 +66,18 @@ export function PlayerPanel({
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState({ current: 0, duration: 0 });
   const [scrubbing, setScrubbing] = useState<number | null>(null);
-  
+
   const internalControlsRef = useRef<StageControls | null>(null);
-  // Usa a ref externa se ela existir, senão usa a interna
   const controlsRef = externalControlsRef || internalControlsRef;
 
-  // Sincroniza volume remoto vindo do Supabase
-  useEffect(() => {
-    if (remoteVolume !== null && remoteVolume !== undefined && remoteVolume !== volume) {
-      setVolume(remoteVolume);
-    }
-  }, [remoteVolume]);
-
-  // Sincroniza pause/play remoto vindo do Supabase
+  // Sincroniza pause/play remoto vindo do broadcast (efeito imediato, tipo "watch party").
   useEffect(() => {
     if (remotePaused !== null && remotePaused !== undefined && remotePaused !== paused) {
       setPaused(remotePaused);
     }
   }, [remotePaused]);
 
-  // Sincroniza o tempo (seek) remoto vindo do Supabase
+  // Sincroniza o tempo (seek) remoto vindo do broadcast.
   useEffect(() => {
     if (remoteSeek !== null && remoteSeek !== undefined) {
       controlsRef.current?.seekTo(remoteSeek);
@@ -100,12 +92,47 @@ export function PlayerPanel({
     }
   }, [volume]);
 
+  // Ao trocar de música (inclusive ao entrar na sala com uma música já rolando),
+  // calcula onde ela deveria estar com base no que o host gravou no banco,
+  // assim quem entra no meio da música já cai no tempo certo.
   useEffect(() => {
+    if (!current) {
+      setProgress({ current: 0, duration: 0 });
+      return;
+    }
+
     setProgress({ current: 0, duration: 0 });
+
+    const elapsedSinceHeartbeat = current.isPaused
+      ? 0
+      : (Date.now() - current.stateUpdatedAt) / 1000;
+    const target = current.playbackPosition + elapsedSinceHeartbeat;
+
+    if (target > 1) {
+      controlsRef.current?.seekTo(target);
+    }
+    setPaused(current.isPaused);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
+  // Só o host grava periodicamente a posição da música no banco, para quem
+  // entrar depois conseguir calcular onde ela está sem depender de outro cliente online.
   useEffect(() => {
+    if (!isHost || !current) return;
+    const interval = setInterval(() => {
+      const time = controlsRef.current?.getCurrentTime();
+      if (typeof time === "number" && time > 0) {
+        onPlaybackHeartbeat?.(time, paused);
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [isHost, current?.id, paused, onPlaybackHeartbeat, controlsRef]);
+
+  useEffect(() => {
+    // Só o host força o avanço automático ao voltar pra aba — evita todo mundo
+    // com a página aberta tentando pular a fila ao mesmo tempo.
     function handleVisibilityChange() {
+      if (!isHost) return;
       if (document.visibilityState === "visible" && current && progress.duration > 0) {
         if (progress.current >= progress.duration - 1) {
           onNext();
@@ -117,7 +144,7 @@ export function PlayerPanel({
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [current, progress, onNext]);
+  }, [current, progress, onNext, isHost]);
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
@@ -191,7 +218,11 @@ export function PlayerPanel({
             volume={volume}
             muted={muted}
             paused={paused}
-            onEnded={onNext}
+            onEnded={() => {
+              // Só o host avança a fila quando o vídeo termina naturalmente,
+              // evitando que todas as abas abertas pulem a música ao mesmo tempo.
+              if (isHost) onNext();
+            }}
             onPlayingChange={(playing) => {
               const newPaused = !playing;
               setPaused(newPaused);
@@ -224,7 +255,7 @@ export function PlayerPanel({
               <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
                 {current.title ?? `Tocando ${current.trackId}`}
               </h2>
-              <a
+              
                 href={current.url}
                 target="_blank"
                 rel="noreferrer"
@@ -264,7 +295,7 @@ export function PlayerPanel({
             const targetTime = value ?? 0;
             controlsRef.current?.seekTo(targetTime);
             setScrubbing(null);
-            onSeekChange?.(targetTime); // Envia a mudança de tempo para todo mundo
+            onSeekChange?.(targetTime);
           }}
           aria-label="Progresso da música"
         />
@@ -336,7 +367,6 @@ export function PlayerPanel({
               const newVol = value ?? 0;
               setVolume(newVol);
               if (newVol > 0) setMuted(false);
-              onVolumeChange?.(newVol); // Envia a mudança de volume para todo mundo
             }}
             max={100}
             step={1}
