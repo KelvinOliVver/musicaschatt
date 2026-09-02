@@ -10,7 +10,7 @@ export interface DetectedTrack {
  * Users that always jump the queue. Compared lowercased, so casing in chat
  * ("Pitee4", "PITEE4", "pitee4") does not matter.
  */
-export const PRIORITY_USERS = ["pitee4"] as const;
+export const PRIORITY_USERS = [""] as const;
 
 export function isPriorityUser(username: string): boolean {
   const normalized = username.trim().toLowerCase();
