@@ -37,7 +37,7 @@ export function ChatFeed({ messages }: ChatFeedProps) {
     setPinned(true);
   }, []);
 
-  // Só acompanha automaticamente quando o usuário está no final da lista.
+  // Rola para o fim automaticamente quando chegam novas mensagens e o usuário está ancorado embaixo.
   useEffect(() => {
     if (pinned) {
       endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -45,7 +45,6 @@ export function ChatFeed({ messages }: ChatFeedProps) {
     } else {
       setUnread((n) => n + 1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible.length]);
 
   function handleScroll() {
@@ -80,7 +79,7 @@ export function ChatFeed({ messages }: ChatFeedProps) {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-4 py-3 max-h-[500px]"
+        className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-4 py-3"
       >
         {visible.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
