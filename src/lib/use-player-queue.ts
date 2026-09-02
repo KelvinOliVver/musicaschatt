@@ -151,7 +151,7 @@ export function usePlayerQueue(): PlayerQueue {
     ) => {
       const trackId = track.trackId;
 
-      // 1. Bloqueia se já estiver na fila atual ou tocando
+      // 1. Bloqueia se já estiver na fila atual ou tocando localmente
       if (
         currentRef.current?.trackId === trackId ||
         queueRef.current.some((item) => item.trackId === trackId)
@@ -167,7 +167,7 @@ export function usePlayerQueue(): PlayerQueue {
       pendingAddsRef.current.add(trackId);
 
       try {
-        // 3. Verificação definitiva no banco
+        // 3. Verificação no banco para qualquer item ativo (queued ou playing)
         const { data: existing } = await supabase
           .from("player_queue")
           .select("id")
@@ -179,7 +179,7 @@ export function usePlayerQueue(): PlayerQueue {
           return false;
         }
 
-        // 4. Inserção limpa
+        // 4. Inserção sempre como 'queued' para respeitar a restrição de unicidade do banco
         const { data, error } = await supabase
           .from("player_queue")
           .insert({
@@ -190,7 +190,7 @@ export function usePlayerQueue(): PlayerQueue {
             requested_by: requestedBy,
             requester_color: requesterColor,
             priority: options?.priority ?? isPriorityUser(requestedBy),
-            status: currentRef.current ? "queued" : "playing",
+            status: "queued",
           })
           .select("id")
           .single();
