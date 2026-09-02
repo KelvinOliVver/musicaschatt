@@ -74,7 +74,9 @@ export function usePlayerQueue(): PlayerQueue {
       .from("player_queue")
       .select("*")
       .order("priority", { ascending: false })
-      .order("added_at", { ascending: true });
+      .order("added_at", { ascending: true })
+      .order("id", { ascending: true }); // Desempate perfeito para itens inseridos no mesmo segundo
+
     if (error || !data) return;
 
     const rows = data as unknown as QueueRow[];
@@ -191,13 +193,11 @@ export function usePlayerQueue(): PlayerQueue {
     [applyMetadata, refresh],
   );
 
-  // AVANÇAR MÚSICA (Next): joga a atual para 'played' e puxa a próxima da fila
   const playNext = useCallback(() => {
     void (async () => {
       const playing = currentRef.current;
       const nextItem = queueRef.current[0];
 
-      // 1. Marca a atual como 'played' se houver uma tocando
       if (playing) {
         await supabase
           .from("player_queue")
@@ -205,7 +205,6 @@ export function usePlayerQueue(): PlayerQueue {
           .eq("id", playing.id);
       }
 
-      // 2. Se houver próxima na fila, coloca ela como 'playing'
       if (nextItem) {
         await supabase
           .from("player_queue")
@@ -217,10 +216,8 @@ export function usePlayerQueue(): PlayerQueue {
     })();
   }, [refresh]);
 
-  // VOLTAR MÚSICA (Previous): pega a última tocada do histórico, joga de volta pra 'playing', e a atual volta para a ponta da fila
   const playPrevious = useCallback(() => {
     void (async () => {
-      // Busca a última música que foi marcada como 'played' de forma mais recente
       const { data, error } = await supabase
         .from("player_queue")
         .select("*")
@@ -233,7 +230,6 @@ export function usePlayerQueue(): PlayerQueue {
 
       const playing = currentRef.current;
 
-      // 1. Se tem música tocando, devolve ela para o topo da fila (status queued)
       if (playing) {
         await supabase
           .from("player_queue")
@@ -241,7 +237,6 @@ export function usePlayerQueue(): PlayerQueue {
           .eq("id", playing.id);
       }
 
-      // 2. Pega a música anterior do histórico e define como 'playing'
       await supabase
         .from("player_queue")
         .update({ status: "playing", played_at: null })
@@ -298,14 +293,17 @@ export function usePlayerQueue(): PlayerQueue {
       const item = items[index]!;
       const target = items[targetIndex]!;
       if (item.priority !== target.priority) return;
+
       void (async () => {
+        // Inverte os timestamps de adição para fazer a troca exata de posição de forma segura
+        const tempTime = item.addedAt;
         await supabase
           .from("player_queue")
           .update({ added_at: new Date(target.addedAt).toISOString() })
           .eq("id", item.id);
         await supabase
           .from("player_queue")
-          .update({ added_at: new Date(item.addedAt).toISOString() })
+          .update({ added_at: new Date(tempTime).toISOString() })
           .eq("id", target.id);
         await refresh();
       })();
