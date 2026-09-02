@@ -113,6 +113,9 @@ export function YouTubeStage({
               if (currentIdRef.current) {
                 playerRef.current?.loadVideoById(currentIdRef.current);
               }
+              if (!paused) {
+                playerRef.current?.playVideo();
+              }
             },
             onStateChange: (event: { data: number }) => {
               if (event.data === YT.PlayerState.ENDED) onEndedRef.current();
@@ -124,29 +127,52 @@ export function YouTubeStage({
         });
       })
       .catch(() => {
-        /* player stays empty; user can skip manually */
+        /* player stays empty */
       });
 
-    const timer = window.setInterval(() => {
-      if (!readyRef.current || !playerRef.current) return;
-      try {
-        onProgressRef.current?.(
-          playerRef.current.getCurrentTime() ?? 0,
-          playerRef.current.getDuration() ?? 0,
-        );
-      } catch {
-        /* player not ready yet */
+    let lastTime = 0;
+    let animationFrameId: number;
+
+    const updateProgress = (timestamp: number) => {
+      if (timestamp - lastTime >= 500) {
+        lastTime = timestamp;
+        if (readyRef.current && playerRef.current) {
+          try {
+            onProgressRef.current?.(
+              playerRef.current.getCurrentTime() ?? 0,
+              playerRef.current.getDuration() ?? 0,
+            );
+          } catch {
+            /* ignora se player indisponível */
+          }
+        }
       }
-    }, 500);
+      if (!disposed) {
+        animationFrameId = requestAnimationFrame(updateProgress);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(updateProgress);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && readyRef.current && playerRef.current) {
+        if (!paused) {
+          playerRef.current.playVideo();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       disposed = true;
       readyRef.current = false;
-      window.clearInterval(timer);
+      cancelAnimationFrame(animationFrameId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       try {
         playerRef.current?.destroy();
       } catch {
-        /* ignore teardown races */
+        /* ignore */
       }
       playerRef.current = null;
     };
