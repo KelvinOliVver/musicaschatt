@@ -59,7 +59,7 @@ function PlayerPage() {
     const channel = supabase.channel(`player-room-${slug}`, {
       config: { 
         broadcast: { ack: false },
-        presence: { key: crypto.randomUUID() } // Identificador único para cada aba/usuário conectado
+        presence: { key: crypto.randomUUID() }
       }
     });
 
@@ -130,10 +130,7 @@ function PlayerPage() {
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          // Solicita o tempo atual de quem já está ouvindo
           broadcast("REQUEST_TIME");
-
-          // Registra a presença do usuário atual na sala
           await channel.track({
             username: `Ouvinte (${slug.slice(0, 4)}...)`,
             joined_at: new Date().toISOString(),
@@ -196,7 +193,7 @@ function PlayerPage() {
     setManual("");
   }
 
-  // Wrappers com Broadcast
+  // Wrappers com Broadcast para sincronizar a fila em tempo real para todos na sala
   const handlePlayNext = useCallback(() => {
     broadcast("PLAY_NEXT", { currentId: queue.current?.id });
     queue.playNext();
@@ -227,7 +224,7 @@ function PlayerPage() {
     queue.moveItem(from, to);
   }, [broadcast, queue]);
 
-  // Funções de controle remoto enviadas ao PlayerPanel
+  // Controles remotos do player
   const handleSeekBroadcast = useCallback((time: number) => {
     broadcast("SEEK", { time });
   }, [broadcast]);
@@ -266,7 +263,7 @@ function PlayerPage() {
                 </span>
                 <Users className="size-4 text-muted-foreground" />
                 <span className="text-xs font-medium">
-                  {onlineUsers.length} {onlineUsers.length === 1 ? "online" : "online"}
+                  {onlineUsers.length} online
                 </span>
               </Button>
             </PopoverTrigger>
