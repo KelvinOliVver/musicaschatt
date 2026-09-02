@@ -66,7 +66,6 @@ export function usePlayerQueue(): PlayerQueue {
   currentRef.current = current;
   queueRef.current = queue;
 
-  // Trava em memória para impedir spam rápido na mesma aba
   const pendingAddsRef = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
@@ -75,7 +74,7 @@ export function usePlayerQueue(): PlayerQueue {
       .select("*")
       .order("priority", { ascending: false })
       .order("added_at", { ascending: true })
-      .order("id", { ascending: true }); // Desempate perfeito para itens inseridos no mesmo segundo
+      .order("id", { ascending: true });
 
     if (error || !data) return;
 
@@ -83,7 +82,6 @@ export function usePlayerQueue(): PlayerQueue {
     const playing = rows.find((row) => row.status === "playing");
     setCurrent(playing ? toItem(playing) : null);
     
-    // Filtra enfileiradas (exclui a que está tocando e as já tocadas)
     setQueue(rows.filter((row) => row.status === "queued").map(toItem));
     
     setHistory(
@@ -103,7 +101,7 @@ export function usePlayerQueue(): PlayerQueue {
     }
     void refresh();
     const channel = supabase
-      .channel("player-queue-sync-v3")
+      .channel("player-queue-sync-v4")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "player_queue" },
@@ -117,7 +115,6 @@ export function usePlayerQueue(): PlayerQueue {
     };
   }, [refresh]);
 
-  // Auto-play caso não tenha música tocando e haja itens na fila
   useEffect(() => {
     if (current || queue.length === 0) return;
     const head = queue[0]!;
@@ -142,9 +139,7 @@ export function usePlayerQueue(): PlayerQueue {
           .eq("id", id);
         void refresh();
       })
-      .catch(() => {
-        /* metadata é cosmético */
-      });
+      .catch(() => {});
   }, [refresh]);
 
   const addTrack = useCallback(
@@ -155,10 +150,7 @@ export function usePlayerQueue(): PlayerQueue {
       options?: { priority?: boolean },
     ) => {
       const trackId = track.trackId;
-
-      if (pendingAddsRef.current.has(trackId)) {
-        return false;
-      }
+      if (pendingAddsRef.current.has(trackId)) return false;
       pendingAddsRef.current.add(trackId);
 
       try {
@@ -175,13 +167,12 @@ export function usePlayerQueue(): PlayerQueue {
             requester_color: requesterColor,
             priority: isVip,
             status: "queued",
+            added_at: new Date().toISOString(),
           })
           .select("id")
           .maybeSingle();
 
-        if (error || !data) {
-          return false;
-        }
+        if (error || !data) return false;
 
         await refresh();
         applyMetadata((data as { id: string }).id, track);
@@ -231,15 +222,9 @@ export function usePlayerQueue(): PlayerQueue {
       const playing = currentRef.current;
 
       if (playing) {
-        // CORREÇÃO: Pegamos a música que está no topo atual da fila (se houver) 
-        // e colocamos a música atual com um timestamp menor para garantir que ela vire o novo topo exato.
-        const firstItem = queueRef.current[0];
-        const baseTime = firstItem ? firstItem.addedAt : Date.now();
-        const safeAddedAt = new Date(baseTime - 2000).toISOString();
-
         await supabase
           .from("player_queue")
-          .update({ status: "queued", played_at: null, added_at: safeAddedAt })
+          .update({ status: "queued", played_at: null, added_at: new Date().toISOString() })
           .eq("id", playing.id);
       }
 
@@ -295,22 +280,32 @@ export function usePlayerQueue(): PlayerQueue {
       const items = queueRef.current;
       const index = items.findIndex((item) => item.id === id);
       const targetIndex = direction === "up" ? index - 1 : index + 1;
+      
       if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return;
+      
       const item = items[index]!;
       const target = items[targetIndex]!;
+      
       if (item.priority !== target.priority) return;
 
       void (async () => {
-        // Inverte os timestamps de adição para fazer a troca exata de posição de forma segura
-        const tempTime = item.addedAt;
-        await supabase
+        const currentTime = new Date(item.addedAt).toISOString();
+        const targetTime = new Date(target.addedAt).toISOString();
+
+        const { error: err1 } = await supabase
           .from("player_queue")
-          .update({ added_at: new Date(target.addedAt).toISOString() })
+          .update({ added_at: targetTime })
           .eq("id", item.id);
-        await supabase
+
+        if (err1) return;
+
+        const { error: err2 } = await supabase
           .from("player_queue")
-          .update({ added_at: new Date(tempTime).toISOString() })
+          .update({ added_at: currentTime })
           .eq("id", target.id);
+
+        if (err2) return;
+
         await refresh();
       })();
     },
