@@ -119,6 +119,7 @@ function PlayerPage() {
             onPlayNow={queue.playNow}
             onRemove={queue.removeItem}
             onClear={queue.clearQueue}
+            onMove={queue.moveItem}
           />
         </div>
 
@@ -144,6 +145,7 @@ function PlayerPage() {
               onPlayNow={queue.playNow}
               onRemove={queue.removeItem}
               onClear={queue.clearQueue}
+              onMove={queue.moveItem}
             />
           </TabsContent>
           <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
