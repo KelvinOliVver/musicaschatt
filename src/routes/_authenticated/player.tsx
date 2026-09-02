@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle, ListMusic, MessageSquare, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useKickChat } from "@/lib/kick-chat";
 import { extractTracks, parseTrackInput } from "@/lib/link-parser";
 import { usePlayerQueue } from "@/lib/use-player-queue";
+import { supabase } from "@/integrations/supabase/client";
 import type { KickChatMessage } from "@/lib/types";
 
 const DEFAULT_CHANNEL = "roceiraplay";
@@ -42,29 +43,90 @@ function PlayerPage() {
   const [slug, setSlug] = useState(DEFAULT_CHANNEL);
   const [manual, setManual] = useState("");
   const queue = usePlayerQueue();
-  const { addTrack, playNext, playPrevious } = queue;
+  
+  // Referência para o canal do Supabase
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // ------------------------------------------------------------------
+  // SUPABASE REALTIME: O "CHEFÃO" DA SINCRONIZAÇÃO
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    // Cria uma sala única baseada no nome do canal da Kick
+    const channel = supabase.channel(`player-room-${slug}`, {
+      config: { broadcast: { ack: false } }
+    });
+
+    channel
+      .on("broadcast", { event: "sync-action" }, ({ payload }) => {
+        switch (payload.action) {
+          case "ADD_TRACK":
+            queue.addTrack(payload.track, payload.username, payload.color, payload.options);
+            break;
+          case "PLAY_NEXT":
+            // Só pula se estiver na mesma música de quem mandou o comando (evita skips fantasmas/duplos)
+            if (queue.current?.id === payload.currentId || !payload.currentId) {
+              queue.playNext();
+            }
+            break;
+          case "PLAY_PREVIOUS":
+            queue.playPrevious();
+            break;
+          case "PLAY_NOW":
+            queue.playNow(payload.id);
+            break;
+          case "REMOVE_ITEM":
+            queue.removeItem(payload.id);
+            break;
+          case "CLEAR_QUEUE":
+            queue.clearQueue();
+            break;
+          case "MOVE_ITEM":
+            queue.moveItem(payload.from, payload.to);
+            break;
+        }
+      })
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [slug, queue]);
+
+  // Função ajudante para disparar ações para todo mundo conectado
+  const broadcast = useCallback((action: string, data?: any) => {
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "sync-action",
+      payload: { action, ...data },
+    });
+  }, []);
+  // ------------------------------------------------------------------
 
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
       for (const track of extractTracks(message.content)) {
-        addTrack(track, message.username, message.color);
+        queue.addTrack(track, message.username, message.color);
       }
     },
-    [addTrack],
+    [queue],
   );
 
-  // Adicionado o terceiro parâmetro para tratar comandos exclusivos do Pitee4
   const handleCommand = useCallback(
     (command: string) => {
       if (command === "!skip" || command === "!proxima") {
-        playNext();
+        // Avisa o Supabase para pular para todo mundo!
+        broadcast("PLAY_NEXT", { currentId: queue.current?.id });
+        queue.playNext();
         toast.info("Música pulada pelo comando do chat!");
       } else if (command === "!back" || command === "!anterior") {
-        playPrevious();
+        broadcast("PLAY_PREVIOUS");
+        queue.playPrevious();
         toast.info("Voltando para a música anterior pelo chat!");
       }
     },
-    [playNext, playPrevious],
+    [broadcast, queue],
   );
 
   const chat = useKickChat(slug, handleMessage, handleCommand);
@@ -76,12 +138,53 @@ function PlayerPage() {
       toast.error("Link inválido", { description: "Cole um link ou ID de vídeo do YouTube." });
       return;
     }
-    const added = addTrack(track, "você", null, { priority: true });
+    
+    // Avisa o Supabase que você colocou uma música na mão
+    broadcast("ADD_TRACK", {
+      track,
+      username: "você",
+      color: null,
+      options: { priority: true }
+    });
+    
+    const added = queue.addTrack(track, "você", null, { priority: true });
     toast[added ? "success" : "info"](
       added ? "Música adicionada à fila" : "Essa música já está na fila",
     );
     setManual("");
   }
+
+  // --- WRAPPERS DA INTERFACE PARA AVISAR O SUPABASE ---
+  const handlePlayNext = useCallback(() => {
+    broadcast("PLAY_NEXT", { currentId: queue.current?.id });
+    queue.playNext();
+  }, [broadcast, queue]);
+
+  const handlePlayPrevious = useCallback(() => {
+    broadcast("PLAY_PREVIOUS");
+    queue.playPrevious();
+  }, [broadcast, queue]);
+
+  const handlePlayNow = useCallback((id: string) => {
+    broadcast("PLAY_NOW", { id });
+    queue.playNow(id);
+  }, [broadcast, queue]);
+
+  const handleRemoveItem = useCallback((id: string) => {
+    broadcast("REMOVE_ITEM", { id });
+    queue.removeItem(id);
+  }, [broadcast, queue]);
+
+  const handleClearQueue = useCallback(() => {
+    broadcast("CLEAR_QUEUE");
+    queue.clearQueue();
+  }, [broadcast, queue]);
+
+  const handleMoveItem = useCallback((from: number, to: number) => {
+    broadcast("MOVE_ITEM", { from, to });
+    queue.moveItem(from, to);
+  }, [broadcast, queue]);
+  // ----------------------------------------------------
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
@@ -122,18 +225,18 @@ function PlayerPage() {
           next={queue.queue[0] ?? null}
           hasPrevious={queue.history.length > 0}
           hasNext={queue.queue.length > 0}
-          onNext={queue.playNext}
-          onPrevious={queue.playPrevious}
+          onNext={handlePlayNext} // Usando o wrapper do Supabase!
+          onPrevious={handlePlayPrevious} // Usando o wrapper do Supabase!
         />
 
         {/* Desktop: fila e chat lado a lado. */}
         <div className="hidden min-h-[420px] flex-col lg:flex">
           <QueueList
             items={queue.queue}
-            onPlayNow={queue.playNow}
-            onRemove={queue.removeItem}
-            onClear={queue.clearQueue}
-            onMove={queue.moveItem}
+            onPlayNow={handlePlayNow}
+            onRemove={handleRemoveItem}
+            onClear={handleClearQueue}
+            onMove={handleMoveItem}
           />
         </div>
 
@@ -156,10 +259,10 @@ function PlayerPage() {
           <TabsContent value="fila" className="mt-3 flex min-h-0 flex-1 flex-col">
             <QueueList
               items={queue.queue}
-              onPlayNow={queue.playNow}
-              onRemove={queue.removeItem}
-              onClear={queue.clearQueue}
-              onMove={queue.moveItem}
+              onPlayNow={handlePlayNow}
+              onRemove={handleRemoveItem}
+              onClear={handleClearQueue}
+              onMove={handleMoveItem}
             />
           </TabsContent>
           <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
