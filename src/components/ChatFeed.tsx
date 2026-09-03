@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, Music2, MessageSquare } from "lucide-react";
 import { hasTrackLink } from "@/lib/link-parser";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,56 @@ function formatTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+// A Kick manda emotes dentro do texto da mensagem nesse formato:
+// "boa jogada [emote:39590:PogChamp] muito bom"
+// Esse regex encontra cada ocorrência e captura o id e o nome do emote.
+const EMOTE_PATTERN = /\[emote:(\d+):([^\]]+)\]/g;
+
+/**
+ * Divide o texto da mensagem em pedaços de texto normal e emotes, trocando
+ * cada código [emote:ID:Nome] pela imagem correspondente vinda da CDN da Kick.
+ */
+function renderMessageContent(content: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  EMOTE_PATTERN.lastIndex = 0;
+  while ((match = EMOTE_PATTERN.exec(content)) !== null) {
+    const [full, emoteId, emoteName] = match;
+
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+
+    parts.push(
+      <img
+        key={`emote-${key++}-${emoteId}`}
+        src={`https://files.kick.com/emotes/${emoteId}/fullsize`}
+        alt={emoteName}
+        title={emoteName}
+        loading="lazy"
+        className="mx-0.5 inline-block h-5 w-5 align-text-bottom object-contain"
+        onError={(event) => {
+          // Se o emote não carregar (id inválido, CDN fora do ar), mostra o
+          // nome como texto em vez de deixar um ícone de imagem quebrada.
+          const target = event.currentTarget;
+          target.outerHTML = full;
+        }}
+      />,
+    );
+
+    lastIndex = match.index + full.length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [content];
 }
 
 export function ChatFeed({ messages }: ChatFeedProps) {
@@ -114,7 +164,9 @@ export function ChatFeed({ messages }: ChatFeedProps) {
                     {message.username}
                   </span>
                   <span className="text-muted-foreground">: </span>
-                  <span className="text-foreground/90">{message.content}</span>
+                  <span className="text-foreground/90">
+                    {renderMessageContent(message.content)}
+                  </span>
                 </li>
               );
             })}
