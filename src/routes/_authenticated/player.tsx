@@ -87,7 +87,7 @@ function PlayerPage() {
             queue.clearQueue();
             break;
           case "MOVE_ITEM":
-            queue.moveItem(payload.from, payload.to);
+            queue.moveItem(payload.id, payload.toIndex);
             break;
           case "SEEK":
             setRemoteSeek(payload.time + Math.random() * 0.0001);
@@ -171,22 +171,22 @@ function PlayerPage() {
 
   const chat = useKickChat(slug, handleMessage, handleCommand);
 
-  function handleManualAdd(event: FormEvent) {
+  async function handleManualAdd(event: FormEvent) {
     event.preventDefault();
     const track = parseTrackInput(manual);
     if (!track) {
       toast.error("Link inválido", { description: "Cole um link ou ID de vídeo do YouTube." });
       return;
     }
-    
+
     broadcast("ADD_TRACK", {
       track,
       username: "você",
       color: null,
       options: { priority: true }
     });
-    
-    const added = queue.addTrack(track, "você", null, { priority: true });
+
+    const added = await queue.addTrack(track, "você", null, { priority: true });
     toast[added ? "success" : "info"](
       added ? "Música adicionada à fila" : "Essa música já está na fila",
     );
@@ -219,9 +219,9 @@ function PlayerPage() {
     queue.clearQueue();
   }, [broadcast, queue]);
 
-  const handleMoveItem = useCallback((from: number, to: number) => {
-    broadcast("MOVE_ITEM", { from, to });
-    queue.moveItem(from, to);
+  const handleMoveItem = useCallback((id: string, toIndex: number) => {
+    broadcast("MOVE_ITEM", { id, toIndex });
+    queue.moveItem(id, toIndex);
   }, [broadcast, queue]);
 
   // Controles remotos do player
@@ -258,8 +258,8 @@ function PlayerPage() {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 bg-card/50 backdrop-blur-sm">
                 <span className="relative flex size-2">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-online opacity-75"></span>
+                  <span className="relative inline-flex size-2 rounded-full bg-online"></span>
                 </span>
                 <Users className="size-4 text-muted-foreground" />
                 <span className="text-xs font-medium">
@@ -275,7 +275,7 @@ function PlayerPage() {
                 <div className="max-h-48 overflow-y-auto space-y-1.5">
                   {onlineUsers.map((user, idx) => (
                     <div key={user.presence_ref || idx} className="flex items-center gap-2 text-sm py-1 px-2 rounded-md hover:bg-muted/50 transition-colors">
-                      <div className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                      <div className="size-2 shrink-0 rounded-full bg-online" />
                       <span className="truncate font-medium">{user.username}</span>
                     </div>
                   ))}
