@@ -48,6 +48,28 @@ function toItem(row: QueueRow): QueueItem {
   };
 }
 
+/**
+ * Um "heartbeat" muda só a posição/pausa/timestamp de playback — usados apenas
+ * para quem entra na sala depois calcular onde a música está. Não muda nada que
+ * afete a ordem da fila, o item tocando ou os metadados. Diferenciar isso evita
+ * refazer a busca inteira da fila a cada poucos segundos (o que pode causar
+ * engasgos perceptíveis de áudio/vídeo, já que recarrega e re-renderiza tudo).
+ */
+function isHeartbeatOnlyChange(oldRow: QueueRow, newRow: QueueRow): boolean {
+  return (
+    oldRow.status === newRow.status &&
+    oldRow.priority === newRow.priority &&
+    oldRow.position === newRow.position &&
+    oldRow.title === newRow.title &&
+    oldRow.author === newRow.author &&
+    oldRow.thumbnail === newRow.thumbnail &&
+    oldRow.requested_by === newRow.requested_by &&
+    (oldRow.playback_position !== newRow.playback_position ||
+      oldRow.is_paused !== newRow.is_paused ||
+      oldRow.state_updated_at !== newRow.state_updated_at)
+  );
+}
+
 export interface PlayerQueue {
   current: QueueItem | null;
   queue: QueueItem[];
@@ -63,7 +85,7 @@ export interface PlayerQueue {
   removeItem: (id: string) => void;
   playNow: (id: string) => void;
   clearQueue: () => void;
-  /** Move o item para o índice alvo dentro da lista `queue` (drag-and-drop). */
+  /** Move o item para o índice alvo dentro da lista `queue` (drag-and-drop ou setinhas). */
   moveItem: (id: string, toIndex: number) => void;
   /** Gravado periodicamente pelo host para os que entrarem depois saberem onde a música está. */
   updatePlaybackHeartbeat: (itemId: string, playbackPosition: number, isPaused: boolean) => void;
@@ -113,7 +135,20 @@ export function usePlayerQueue(): PlayerQueue {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "player_queue" },
-        () => {
+        (payload) => {
+          const eventType = (payload as any).eventType as string | undefined;
+          const newRow = (payload as any).new as QueueRow | undefined;
+          const oldRow = (payload as any).old as QueueRow | undefined;
+
+          if (eventType === "UPDATE" && newRow && oldRow && isHeartbeatOnlyChange(oldRow, newRow)) {
+            // Atualiza só localmente, sem refazer a busca da fila inteira nem
+            // re-renderizar tudo — evita o engasgo periódico de áudio/vídeo.
+            const patched = toItem(newRow);
+            setCurrent((prev) => (prev && prev.id === patched.id ? patched : prev));
+            setQueue((prev) => prev.map((item) => (item.id === patched.id ? patched : item)));
+            return;
+          }
+
           void refresh();
         },
       )
@@ -293,7 +328,6 @@ export function usePlayerQueue(): PlayerQueue {
     })();
   }, [refresh]);
 
-  /** Reordenação livre por drag-and-drop usando posição fracionária. */
   const moveItem = useCallback(
     (id: string, toIndex: number) => {
       const items = queueRef.current;
