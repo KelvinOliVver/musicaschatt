@@ -17,6 +17,14 @@ export interface QueueItem {
   /** True when the requester is on the priority (VIP) list. */
   priority: boolean;
   addedAt: number;
+  /** Posição fracionária usada para ordenar/reordenar a fila. */
+  position: number;
+  /** Última posição de playback gravada pelo host (segundos). */
+  playbackPosition: number;
+  /** Se o host marcou a música como pausada. */
+  isPaused: boolean;
+  /** Timestamp (ms) do último heartbeat de playback. */
+  stateUpdatedAt: number;
 }
 
 export interface KickChatMessage {

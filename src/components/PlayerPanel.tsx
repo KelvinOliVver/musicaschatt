@@ -23,13 +23,15 @@ interface PlayerPanelProps {
   next: QueueItem | null;
   hasPrevious: boolean;
   hasNext: boolean;
-  isHost: boolean;
+  isHost?: boolean;
   onNext: () => void;
   onPrevious: () => void;
   remoteSeek?: number | null;
   remotePaused?: boolean | null;
+  remoteVolume?: number | null;
   onSeekChange?: (time: number) => void;
   onTogglePlayChange?: (paused: boolean) => void;
+  onVolumeChange?: (volume: number) => void;
   onPlaybackHeartbeat?: (position: number, paused: boolean) => void;
   controlsRef?: React.MutableRefObject<StageControls | null>;
 }
