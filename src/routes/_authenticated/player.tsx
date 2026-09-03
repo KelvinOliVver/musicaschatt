@@ -77,7 +77,7 @@ function PlayerPage() {
   useEffect(() => {
     const channel = supabase.channel(`player-room-${slug}`, {
       config: {
-        broadcast: { ack: false },
+        broadcast: { ack: false, self: true },
         presence: { key: clientIdRef.current },
       },
     });
