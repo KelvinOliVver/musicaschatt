@@ -18,6 +18,11 @@ import type { QueueItem } from "@/lib/types";
 
 const VOLUME_KEY = "musicas-chat-volume";
 
+// Diferença mínima (em segundos) para valer a pena forçar um seek quando a
+// correção vem de um heartbeat de rotina. Abaixo disso, o buffering natural
+// do próprio YouTube já resolve, e forçar o seek só causa engasgo visível.
+const DRIFT_THRESHOLD_SECONDS = 1.5;
+
 interface PlayerPanelProps {
   current: QueueItem | null;
   next: QueueItem | null;
@@ -88,8 +93,19 @@ export function PlayerPanel({
   }, [remoteVolume]);
 
   // Sincroniza o tempo (seek) remoto vindo do broadcast.
+  // Antes: forçava seekTo em toda mudança de remoteSeek, inclusive nos
+  // heartbeats de rotina (a cada ~4s) — isso causava engasgo visível mesmo
+  // com drift pequeno, porque seekTo() sempre gera um pequeno buffering.
+  // Agora: só força o seek se a diferença para o tempo local for maior que
+  // DRIFT_THRESHOLD_SECONDS. Seeks manuais e comandos do chat normalmente
+  // pulam vários segundos de uma vez, então continuam passando do threshold
+  // e aplicando na hora; só o heartbeat de correção fina é que passa a ser
+  // ignorado quando o player já está no lugar certo.
   useEffect(() => {
-    if (remoteSeek !== null && remoteSeek !== undefined) {
+    if (remoteSeek === null || remoteSeek === undefined) return;
+    const localTime = controlsRef.current?.getCurrentTime() ?? 0;
+    const drift = Math.abs(localTime - remoteSeek);
+    if (drift > DRIFT_THRESHOLD_SECONDS) {
       controlsRef.current?.seekTo(remoteSeek);
     }
   }, [remoteSeek, controlsRef]);
@@ -127,6 +143,8 @@ export function PlayerPanel({
 
   // Só o host grava periodicamente a posição da música no banco, para quem
   // entrar depois conseguir calcular onde ela está sem depender de outro cliente online.
+  // (O broadcast em tempo real desse mesmo heartbeat é feito no player.tsx, que
+  // também chama onPlaybackHeartbeat.)
   useEffect(() => {
     if (!isHost || !current) return;
     const interval = setInterval(() => {
