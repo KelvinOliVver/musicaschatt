@@ -141,11 +141,11 @@ export function usePlayerQueue(): PlayerQueue {
           const oldRow = (payload as any).old as QueueRow | undefined;
 
           if (eventType === "UPDATE" && newRow && oldRow && isHeartbeatOnlyChange(oldRow, newRow)) {
-            // Atualiza só localmente, sem refazer a busca da fila inteira nem
-            // re-renderizar tudo — evita o engasgo periódico de áudio/vídeo.
-            const patched = toItem(newRow);
-            setCurrent((prev) => (prev && prev.id === patched.id ? patched : prev));
-            setQueue((prev) => prev.map((item) => (item.id === patched.id ? patched : item)));
+            // Ignora completamente: quem já está com a página aberta não precisa
+            // reagir a um heartbeat — a posição só importa para calcular o ponto
+            // de partida de quem ENTRA na sala (isso já é feito no carregamento
+            // inicial). Nenhum setState aqui = zero re-render causado por isso,
+            // eliminando o engasgo periódico de áudio/vídeo.
             return;
           }
 
