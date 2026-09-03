@@ -24,6 +24,7 @@ interface QueueRow {
   playback_position: number | null;
   is_paused: boolean | null;
   state_updated_at: string | null;
+  duration_seconds: number | null;
 }
 
 function toItem(row: QueueRow): QueueItem {
@@ -48,28 +49,6 @@ function toItem(row: QueueRow): QueueItem {
   };
 }
 
-/**
- * Um "heartbeat" muda só a posição/pausa/timestamp de playback — usados apenas
- * para quem entra na sala depois calcular onde a música está. Não muda nada que
- * afete a ordem da fila, o item tocando ou os metadados. Diferenciar isso evita
- * refazer a busca inteira da fila a cada poucos segundos (o que pode causar
- * engasgos perceptíveis de áudio/vídeo, já que recarrega e re-renderiza tudo).
- */
-function isHeartbeatOnlyChange(oldRow: QueueRow, newRow: QueueRow): boolean {
-  return (
-    oldRow.status === newRow.status &&
-    oldRow.priority === newRow.priority &&
-    oldRow.position === newRow.position &&
-    oldRow.title === newRow.title &&
-    oldRow.author === newRow.author &&
-    oldRow.thumbnail === newRow.thumbnail &&
-    oldRow.requested_by === newRow.requested_by &&
-    (oldRow.playback_position !== newRow.playback_position ||
-      oldRow.is_paused !== newRow.is_paused ||
-      oldRow.state_updated_at !== newRow.state_updated_at)
-  );
-}
-
 export interface PlayerQueue {
   current: QueueItem | null;
   queue: QueueItem[];
@@ -85,10 +64,20 @@ export interface PlayerQueue {
   removeItem: (id: string) => void;
   playNow: (id: string) => void;
   clearQueue: () => void;
-  /** Move o item para o índice alvo dentro da lista `queue` (drag-and-drop ou setinhas). */
+  /** Move o item para o índice alvo dentro da lista `queue` (drag-and-drop). */
   moveItem: (id: string, toIndex: number) => void;
-  /** Gravado periodicamente pelo host para os que entrarem depois saberem onde a música está. */
-  updatePlaybackHeartbeat: (itemId: string, playbackPosition: number, isPaused: boolean) => void;
+  /**
+   * Gravado periodicamente pelo host para os que entrarem depois saberem onde
+   * a música está. Também grava `duration_seconds` (quando conhecida) para
+   * que o cron job no servidor (advance_player_queue) consiga avançar a fila
+   * sozinho, mesmo sem nenhuma aba do site aberta.
+   */
+  updatePlaybackHeartbeat: (
+    itemId: string,
+    playbackPosition: number,
+    isPaused: boolean,
+    durationSeconds?: number,
+  ) => void;
 }
 
 export function usePlayerQueue(): PlayerQueue {
@@ -135,20 +124,7 @@ export function usePlayerQueue(): PlayerQueue {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "player_queue" },
-        (payload) => {
-          const eventType = (payload as any).eventType as string | undefined;
-          const newRow = (payload as any).new as QueueRow | undefined;
-          const oldRow = (payload as any).old as QueueRow | undefined;
-
-          if (eventType === "UPDATE" && newRow && oldRow && isHeartbeatOnlyChange(oldRow, newRow)) {
-            // Ignora completamente: quem já está com a página aberta não precisa
-            // reagir a um heartbeat — a posição só importa para calcular o ponto
-            // de partida de quem ENTRA na sala (isso já é feito no carregamento
-            // inicial). Nenhum setState aqui = zero re-render causado por isso,
-            // eliminando o engasgo periódico de áudio/vídeo.
-            return;
-          }
-
+        () => {
           void refresh();
         },
       )
@@ -234,7 +210,12 @@ export function usePlayerQueue(): PlayerQueue {
   );
 
   function resetPlaybackFields() {
-    return { playback_position: 0, is_paused: false, state_updated_at: new Date().toISOString() };
+    return {
+      playback_position: 0,
+      is_paused: false,
+      state_updated_at: new Date().toISOString(),
+      duration_seconds: null, // nova música: duração ainda desconhecida até o próximo heartbeat
+    };
   }
 
   const playNext = useCallback(() => {
@@ -328,6 +309,7 @@ export function usePlayerQueue(): PlayerQueue {
     })();
   }, [refresh]);
 
+  /** Reordenação livre por drag-and-drop usando posição fracionária. */
   const moveItem = useCallback(
     (id: string, toIndex: number) => {
       const items = queueRef.current;
@@ -362,13 +344,18 @@ export function usePlayerQueue(): PlayerQueue {
   );
 
   const updatePlaybackHeartbeat = useCallback(
-    (itemId: string, playbackPosition: number, isPaused: boolean) => {
+    (itemId: string, playbackPosition: number, isPaused: boolean, durationSeconds?: number) => {
       void supabase
         .from("player_queue")
         .update({
           playback_position: playbackPosition,
           is_paused: isPaused,
           state_updated_at: new Date().toISOString(),
+          // Só grava a duração quando ela for um número válido — evita
+          // sobrescrever com null caso algum chamador não a informe.
+          ...(typeof durationSeconds === "number" && durationSeconds > 0
+            ? { duration_seconds: Math.round(durationSeconds) }
+            : {}),
         })
         .eq("id", itemId)
         .eq("status", "playing");
