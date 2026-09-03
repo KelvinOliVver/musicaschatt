@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { KickChatMessage } from "@/lib/types";
 import type { StageControls } from "@/components/YouTubeStage";
 
-const DEFAULT_CHANNEL = "sweetiefox";
+const DEFAULT_CHANNEL = "roceiraplay";
 
 export const Route = createFileRoute("/_authenticated/player")({
   component: PlayerPage,
