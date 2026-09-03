@@ -171,22 +171,22 @@ function PlayerPage() {
 
   const chat = useKickChat(slug, handleMessage, handleCommand);
 
-  function handleManualAdd(event: FormEvent) {
+  async function handleManualAdd(event: FormEvent) {
     event.preventDefault();
     const track = parseTrackInput(manual);
     if (!track) {
       toast.error("Link inválido", { description: "Cole um link ou ID de vídeo do YouTube." });
       return;
     }
-    
+
     broadcast("ADD_TRACK", {
       track,
       username: "você",
       color: null,
       options: { priority: true }
     });
-    
-    const added = queue.addTrack(track, "você", null, { priority: true });
+
+    const added = await queue.addTrack(track, "você", null, { priority: true });
     toast[added ? "success" : "info"](
       added ? "Música adicionada à fila" : "Essa música já está na fila",
     );
