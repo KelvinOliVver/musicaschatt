@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, ListMusic, MessageSquare, Plus, Users } from "lucide-react";
+import { AlertTriangle, Crown, ListMusic, MessageSquare, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { ChannelBar } from "@/components/ChannelBar";
 import { ChatFeed } from "@/components/ChatFeed";
@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { KickChatMessage } from "@/lib/types";
 import type { StageControls } from "@/components/YouTubeStage";
 
-const DEFAULT_CHANNEL = "sweetiefox";
+const DEFAULT_CHANNEL = "roceiraplay";
 
 export const Route = createFileRoute("/_authenticated/player")({
   component: PlayerPage,
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/_authenticated/player")({
 
 interface OnlineUser {
   presence_ref: string;
+  clientId: string;
   username: string;
   joined_at: string;
 }
@@ -33,19 +34,35 @@ function PlayerPage() {
   const [slug, setSlug] = useState(DEFAULT_CHANNEL);
   const [manual, setManual] = useState("");
   const queue = usePlayerQueue();
-  
+
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  
-  // Referência para controlar o tempo do player vinda de dentro do PlayerPanel
   const playerControlsRef = useRef<StageControls | null>(null);
 
-  // Estados remotos para forçar sincronização de player (tempo, play/pause, volume)
+  // Identidade estável desta aba/cliente, usada para eleger o host.
+  const clientIdRef = useRef<string>(crypto.randomUUID());
+
+  // Estados remotos efêmeros (não persistidos), só para reação imediata de play/pause/seek.
   const [remoteSeek, setRemoteSeek] = useState<number | null>(null);
   const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
-  const [remoteVolume, setRemoteVolume] = useState<number | null>(null);
 
-  // Estado para armazenar os usuários conectados na sala
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+
+  // Host = quem entrou primeiro na sala (desempate por clientId para ser determinístico
+  // e evitar que duas pessoas se considerem host ao mesmo tempo).
+  const hostClientId = useMemo(() => {
+    if (onlineUsers.length === 0) return null;
+    const sorted = [...onlineUsers].sort((a, b) => {
+      const byTime = a.joined_at.localeCompare(b.joined_at);
+      return byTime !== 0 ? byTime : a.clientId.localeCompare(b.clientId);
+    });
+    return sorted[0]?.clientId ?? null;
+  }, [onlineUsers]);
+
+  const isHost = hostClientId === clientIdRef.current;
+
+  // Ref para os handlers do chat lerem o valor mais recente sem precisar reconectar o socket.
+  const isHostRef = useRef(isHost);
+  isHostRef.current = isHost;
 
   const broadcast = useCallback((action: string, data?: any) => {
     channelRef.current?.send({
@@ -57,81 +74,47 @@ function PlayerPage() {
 
   useEffect(() => {
     const channel = supabase.channel(`player-room-${slug}`, {
-      config: { 
+      config: {
         broadcast: { ack: false },
-        presence: { key: crypto.randomUUID() }
-      }
+        presence: { key: clientIdRef.current },
+      },
     });
 
     channel
       .on("broadcast", { event: "sync-action" }, ({ payload }) => {
+        // Só o que é efêmero (não vive no banco) precisa de broadcast manual.
+        // Fila, música atual e posição de playback já vêm sincronizadas via
+        // postgres_changes dentro do usePlayerQueue.
         switch (payload.action) {
-          case "ADD_TRACK":
-            queue.addTrack(payload.track, payload.username, payload.color, payload.options);
-            break;
-          case "PLAY_NEXT":
-            if (queue.current?.id === payload.currentId || !payload.currentId) {
-              queue.playNext();
-            }
-            break;
-          case "PLAY_PREVIOUS":
-            queue.playPrevious();
-            break;
-          case "PLAY_NOW":
-            queue.playNow(payload.id);
-            break;
-          case "REMOVE_ITEM":
-            queue.removeItem(payload.id);
-            break;
-          case "CLEAR_QUEUE":
-            queue.clearQueue();
-            break;
-          case "MOVE_ITEM":
-            queue.moveItem(payload.id, payload.toIndex);
-            break;
           case "SEEK":
             setRemoteSeek(payload.time + Math.random() * 0.0001);
             break;
           case "TOGGLE_PLAY":
             setRemotePaused(payload.paused);
             break;
-          case "CHANGE_VOLUME":
-            setRemoteVolume(payload.volume);
-            break;
-          case "REQUEST_TIME":
-            if (playerControlsRef.current) {
-              const currentTime = playerControlsRef.current.getCurrentTime();
-              if (currentTime > 0) {
-                broadcast("PROVIDE_TIME", { time: currentTime });
-              }
-            }
-            break;
-          case "PROVIDE_TIME":
-            setRemoteSeek(payload.time + Math.random() * 0.0001);
-            setRemotePaused(false);
-            break;
         }
       })
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
         const users: OnlineUser[] = [];
-        
+
         Object.values(state).forEach((presences: any) => {
           presences.forEach((p: any) => {
             users.push({
               presence_ref: p.presence_ref,
+              clientId: p.clientId,
               username: p.username || "Ouvinte Anônimo",
               joined_at: p.joined_at,
             });
           });
         });
-        
+
         setOnlineUsers(users);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          broadcast("REQUEST_TIME");
           await channel.track({
+            clientId: clientIdRef.current,
             username: `Ouvinte (${slug.slice(0, 4)}...)`,
             joined_at: new Date().toISOString(),
           });
@@ -143,10 +126,13 @@ function PlayerPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [slug, queue, broadcast]);
+  }, [slug]);
 
+  // Só o host processa mensagens/comandos do chat da Kick — evita adicionar
+  // música ou pular em duplicidade quando várias pessoas estão com a página aberta.
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
+      if (!isHostRef.current) return;
       for (const track of extractTracks(message.content)) {
         queue.addTrack(track, message.username, message.color);
       }
@@ -156,22 +142,21 @@ function PlayerPage() {
 
   const handleCommand = useCallback(
     (command: string) => {
+      if (!isHostRef.current) return;
       if (command === "!skip" || command === "!proxima") {
-        broadcast("PLAY_NEXT", { currentId: queue.current?.id });
         queue.playNext();
         toast.info("Música pulada pelo comando do chat!");
       } else if (command === "!back" || command === "!anterior") {
-        broadcast("PLAY_PREVIOUS");
         queue.playPrevious();
         toast.info("Voltando para a música anterior pelo chat!");
       }
     },
-    [broadcast, queue],
+    [queue],
   );
 
   const chat = useKickChat(slug, handleMessage, handleCommand);
 
-  async function handleManualAdd(event: FormEvent) {
+  function handleManualAdd(event: FormEvent) {
     event.preventDefault();
     const track = parseTrackInput(manual);
     if (!track) {
@@ -179,63 +164,41 @@ function PlayerPage() {
       return;
     }
 
-    broadcast("ADD_TRACK", {
-      track,
-      username: "você",
-      color: null,
-      options: { priority: true }
+    void queue.addTrack(track, "você", null, { priority: true }).then((added) => {
+      toast[added ? "success" : "info"](
+        added ? "Música adicionada à fila" : "Essa música já está na fila",
+      );
     });
-
-    const added = await queue.addTrack(track, "você", null, { priority: true });
-    toast[added ? "success" : "info"](
-      added ? "Música adicionada à fila" : "Essa música já está na fila",
-    );
     setManual("");
   }
 
-  // Wrappers com Broadcast para sincronizar a fila em tempo real para todos na sala
-  const handlePlayNext = useCallback(() => {
-    broadcast("PLAY_NEXT", { currentId: queue.current?.id });
-    queue.playNext();
-  }, [broadcast, queue]);
+  // Ações manuais escrevem direto no banco; todo mundo recebe a atualização
+  // automaticamente via postgres_changes (dentro do usePlayerQueue).
+  const handlePlayNext = useCallback(() => queue.playNext(), [queue]);
+  const handlePlayPrevious = useCallback(() => queue.playPrevious(), [queue]);
+  const handlePlayNow = useCallback((id: string) => queue.playNow(id), [queue]);
+  const handleRemoveItem = useCallback((id: string) => queue.removeItem(id), [queue]);
+  const handleClearQueue = useCallback(() => queue.clearQueue(), [queue]);
+  const handleMoveItem = useCallback(
+    (id: string, toIndex: number) => queue.moveItem(id, toIndex),
+    [queue],
+  );
 
-  const handlePlayPrevious = useCallback(() => {
-    broadcast("PLAY_PREVIOUS");
-    queue.playPrevious();
-  }, [broadcast, queue]);
+  // Play/pause/seek continuam sendo "watch party": qualquer um pode controlar para todos,
+  // com efeito imediato via broadcast (não precisa esperar o banco).
+  const handleSeekBroadcast = useCallback((time: number) => broadcast("SEEK", { time }), [broadcast]);
+  const handleTogglePlayBroadcast = useCallback(
+    (paused: boolean) => broadcast("TOGGLE_PLAY", { paused }),
+    [broadcast],
+  );
 
-  const handlePlayNow = useCallback((id: string) => {
-    broadcast("PLAY_NOW", { id });
-    queue.playNow(id);
-  }, [broadcast, queue]);
-
-  const handleRemoveItem = useCallback((id: string) => {
-    broadcast("REMOVE_ITEM", { id });
-    queue.removeItem(id);
-  }, [broadcast, queue]);
-
-  const handleClearQueue = useCallback(() => {
-    broadcast("CLEAR_QUEUE");
-    queue.clearQueue();
-  }, [broadcast, queue]);
-
-  const handleMoveItem = useCallback((id: string, toIndex: number) => {
-    broadcast("MOVE_ITEM", { id, toIndex });
-    queue.moveItem(id, toIndex);
-  }, [broadcast, queue]);
-
-  // Controles remotos do player
-  const handleSeekBroadcast = useCallback((time: number) => {
-    broadcast("SEEK", { time });
-  }, [broadcast]);
-
-  const handleTogglePlayBroadcast = useCallback((paused: boolean) => {
-    broadcast("TOGGLE_PLAY", { paused });
-  }, [broadcast]);
-
-  const handleVolumeBroadcast = useCallback((volume: number) => {
-    broadcast("CHANGE_VOLUME", { volume });
-  }, [broadcast]);
+  const handlePlaybackHeartbeat = useCallback(
+    (position: number, paused: boolean) => {
+      if (!queue.current) return;
+      queue.updatePlaybackHeartbeat(queue.current.id, position, paused);
+    },
+    [queue],
+  );
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
@@ -252,19 +215,25 @@ function PlayerPage() {
           />
         </div>
 
-        {/* Indicador de Usuários Online */}
-        <div className="flex items-center self-end sm:self-auto">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          {isHost && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full border border-vip/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-vip"
+              title="Você está monitorando o chat da Kick e controlando o avanço automático da fila"
+            >
+              <Crown className="size-3" aria-hidden />
+              Host
+            </span>
+          )}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 bg-card/50 backdrop-blur-sm">
                 <span className="relative flex size-2">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-online opacity-75"></span>
-                  <span className="relative inline-flex size-2 rounded-full bg-online"></span>
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
                 </span>
                 <Users className="size-4 text-muted-foreground" />
-                <span className="text-xs font-medium">
-                  {onlineUsers.length} online
-                </span>
+                <span className="text-xs font-medium">{onlineUsers.length} online</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-3" align="end">
@@ -274,9 +243,15 @@ function PlayerPage() {
                 </h4>
                 <div className="max-h-48 overflow-y-auto space-y-1.5">
                   {onlineUsers.map((user, idx) => (
-                    <div key={user.presence_ref || idx} className="flex items-center gap-2 text-sm py-1 px-2 rounded-md hover:bg-muted/50 transition-colors">
-                      <div className="size-2 shrink-0 rounded-full bg-online" />
+                    <div
+                      key={user.presence_ref || idx}
+                      className="flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted/50"
+                    >
+                      <div className="size-2 shrink-0 rounded-full bg-emerald-500" />
                       <span className="truncate font-medium">{user.username}</span>
+                      {user.clientId === hostClientId && (
+                        <Crown className="size-3 shrink-0 text-vip" aria-hidden />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -313,14 +288,14 @@ function PlayerPage() {
           next={queue.queue[0] ?? null}
           hasPrevious={queue.history.length > 0}
           hasNext={queue.queue.length > 0}
+          isHost={isHost}
           onNext={handlePlayNext}
           onPrevious={handlePlayPrevious}
           remoteSeek={remoteSeek}
           remotePaused={remotePaused}
-          remoteVolume={remoteVolume}
           onSeekChange={handleSeekBroadcast}
           onTogglePlayChange={handleTogglePlayBroadcast}
-          onVolumeChange={handleVolumeBroadcast}
+          onPlaybackHeartbeat={handlePlaybackHeartbeat}
           controlsRef={playerControlsRef}
         />
 
