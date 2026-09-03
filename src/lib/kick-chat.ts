@@ -120,20 +120,24 @@ export function useKickChat(
 
         // =========================================================================
         // FILTRO ROBUSTO DE COMANDO (Ignora maiúsculas/minúsculas e espaços extras)
+        // Só o usuário "Pitee4" (streamer) consegue disparar comandos de controle.
         // =========================================================================
         const cleanUsername = username.trim().toLowerCase();
-        
+
         if (cleanUsername === "pitee4") {
           const lowerContent = content.toLowerCase();
           if (
-            lowerContent === "!skip" || 
-            lowerContent === "!proxima" || 
-            lowerContent === "!back" || 
-            lowerContent === "!anterior"
+            lowerContent === "!skip" ||
+            lowerContent === "!proxima" ||
+            lowerContent === "!back" ||
+            lowerContent === "!anterior" ||
+            lowerContent === "!pausar" ||
+            lowerContent === "!continuar" ||
+            lowerContent === "!limpar"
           ) {
             console.log(`[KickChat] Comando aceito de ${username}: ${lowerContent}`);
             onCommandRef.current?.(lowerContent, username);
-            return; 
+            return;
           }
         }
         // =========================================================================
