@@ -87,7 +87,7 @@ function PlayerPage() {
             queue.clearQueue();
             break;
           case "MOVE_ITEM":
-            queue.moveItem(payload.from, payload.to);
+            queue.moveItem(payload.id, payload.toIndex);
             break;
           case "SEEK":
             setRemoteSeek(payload.time + Math.random() * 0.0001);
