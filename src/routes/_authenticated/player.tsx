@@ -49,6 +49,9 @@ function PlayerPage() {
 
   // Host = quem entrou primeiro na sala (desempate por clientId para ser determinístico
   // e evitar que duas pessoas se considerem host ao mesmo tempo).
+  // Isso controla só o avanço automático da fila quando o vídeo termina — não tem
+  // relação com quem pode usar comandos do chat (isso é checado no kick-chat.ts,
+  // que só aceita comandos vindos do usuário "Pitee4").
   const hostClientId = useMemo(() => {
     if (onlineUsers.length === 0) return null;
     const sorted = [...onlineUsers].sort((a, b) => {
@@ -60,7 +63,6 @@ function PlayerPage() {
 
   const isHost = hostClientId === clientIdRef.current;
 
-  // Ref para os handlers do chat lerem o valor mais recente sem precisar reconectar o socket.
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
 
@@ -128,8 +130,8 @@ function PlayerPage() {
     };
   }, [slug]);
 
-  // Só o host processa mensagens/comandos do chat da Kick — evita adicionar
-  // música ou pular em duplicidade quando várias pessoas estão com a página aberta.
+  // Só o host processa mensagens do chat para adicionar músicas à fila —
+  // evita duplicar quando várias abas estão abertas ao mesmo tempo.
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
       if (!isHostRef.current) return;
@@ -140,18 +142,30 @@ function PlayerPage() {
     [queue],
   );
 
+  // Comandos (!skip, !pausar, !limpar, etc.) já chegam filtrados pelo kick-chat.ts,
+  // que só aceita comandos vindos do usuário "Pitee4". Aqui não checamos "isHost"
+  // para comandos — isso é sobre qual aba controla o avanço automático da fila,
+  // não sobre quem pode usar os comandos do chat.
   const handleCommand = useCallback(
     (command: string) => {
-      if (!isHostRef.current) return;
       if (command === "!skip" || command === "!proxima") {
         queue.playNext();
         toast.info("Música pulada pelo comando do chat!");
       } else if (command === "!back" || command === "!anterior") {
         queue.playPrevious();
         toast.info("Voltando para a música anterior pelo chat!");
+      } else if (command === "!pausar") {
+        broadcast("TOGGLE_PLAY", { paused: true });
+        toast.info("Pausado pelo comando do chat!");
+      } else if (command === "!continuar") {
+        broadcast("TOGGLE_PLAY", { paused: false });
+        toast.info("Retomado pelo comando do chat!");
+      } else if (command === "!limpar") {
+        queue.clearQueue();
+        toast.info("Fila limpa pelo comando do chat!");
       }
     },
-    [queue],
+    [queue, broadcast],
   );
 
   const chat = useKickChat(slug, handleMessage, handleCommand);
