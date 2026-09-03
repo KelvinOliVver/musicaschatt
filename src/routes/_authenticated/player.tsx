@@ -282,17 +282,17 @@ function PlayerPage() {
         </div>
       )}
 
-      <form onSubmit={handleManualAdd} className="panel flex items-center gap-2 px-4 py-3">
+      <form onSubmit={handleManualAdd} className="panel flex items-center gap-2 px-3 py-2">
+        <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         <Input
           value={manual}
           onChange={(event) => setManual(event.target.value)}
-          placeholder="Cole um link do YouTube para tocar agora na fila"
+          placeholder="Link ou ID do YouTube"
           aria-label="Adicionar música manualmente"
-          className="h-9 flex-1"
+          className="h-8 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
         />
-        <Button type="submit" size="sm" className="bg-gradient-primary h-9 text-primary-foreground">
-          <Plus className="size-4" aria-hidden />
-          Adicionar
+        <Button type="submit" size="sm" className="bg-gradient-primary h-8 px-3 text-primary-foreground">
+          Tocar
         </Button>
       </form>
 
