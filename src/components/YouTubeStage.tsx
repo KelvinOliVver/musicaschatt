@@ -61,6 +61,20 @@ export function YouTubeStage({
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
 
+  // Evita chamar onEnded mais de uma vez para o mesmo vídeo (o evento oficial da
+  // API do YouTube e a verificação de segurança por tempo podem disparar quase
+  // juntos).
+  const endedTriggeredRef = useRef(false);
+
+  const onEndedRef = useRef(onEnded);
+  onEndedRef.current = onEnded;
+
+  function triggerEndedOnce() {
+    if (endedTriggeredRef.current) return;
+    endedTriggeredRef.current = true;
+    onEndedRef.current();
+  }
+
   useEffect(() => {
     if (controlsRef) {
       controlsRef.current = {
@@ -88,6 +102,7 @@ export function YouTubeStage({
   useEffect(() => {
     let isMounted = true;
     let progressTimer: number | null = null;
+    endedTriggeredRef.current = false;
 
     function initPlayer() {
       if (!isMounted || !containerRef.current) return;
@@ -138,16 +153,26 @@ export function YouTubeStage({
 
             if (progressTimer) clearInterval(progressTimer);
             progressTimer = window.setInterval(() => {
-              if (playerRef.current?.getCurrentTime) {
-                try {
-                  const current = playerRef.current.getCurrentTime() || 0;
-                  const duration = playerRef.current.getDuration() || 0;
-                  onProgress(current, duration);
-                } catch {
-                  // ignora
+              if (!playerRef.current?.getCurrentTime) return;
+              try {
+                const current = playerRef.current.getCurrentTime() || 0;
+                const duration = playerRef.current.getDuration() || 0;
+                onProgress(current, duration);
+
+                // Verificação de segurança: quando a aba fica em segundo plano por
+                // muito tempo (ex: usuário jogando com o navegador minimizado), o
+                // evento oficial "ENDED" da API do YouTube às vezes não chega até a
+                // aba voltar ao primeiro plano. Como esse timer usa o tempo relatado
+                // pelo próprio player (não depende de renderizar o vídeo na tela),
+                // ele continua funcionando e serve de rede de segurança: se o tempo
+                // atual já bateu na duração, avançamos mesmo sem o evento oficial.
+                if (duration > 0 && current >= duration - 0.75) {
+                  triggerEndedOnce();
                 }
+              } catch {
+                // ignora
               }
-            }, 500);
+            }, 1000);
           },
           onStateChange: (event) => {
             if (!isMounted) return;
@@ -156,11 +181,11 @@ export function YouTubeStage({
             } else if (event.data === window.YT.PlayerState.PAUSED) {
               onPlayingChange(false);
             } else if (event.data === window.YT.PlayerState.ENDED) {
-              onEnded();
+              triggerEndedOnce();
             }
           },
           onError: () => {
-            if (isMounted) onEnded();
+            if (isMounted) triggerEndedOnce();
           },
         },
       });
