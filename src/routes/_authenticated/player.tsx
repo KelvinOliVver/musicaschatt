@@ -219,9 +219,9 @@ function PlayerPage() {
     queue.clearQueue();
   }, [broadcast, queue]);
 
-  const handleMoveItem = useCallback((from: number, to: number) => {
-    broadcast("MOVE_ITEM", { from, to });
-    queue.moveItem(from, to);
+  const handleMoveItem = useCallback((id: string, toIndex: number) => {
+    broadcast("MOVE_ITEM", { id, toIndex });
+    queue.moveItem(id, toIndex);
   }, [broadcast, queue]);
 
   // Controles remotos do player
