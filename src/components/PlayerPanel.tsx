@@ -37,7 +37,13 @@ interface PlayerPanelProps {
   onSeekChange?: (time: number) => void;
   onTogglePlayChange?: (paused: boolean) => void;
   onVolumeChange?: (volume: number) => void;
-  onPlaybackHeartbeat?: (position: number, paused: boolean) => void;
+  /**
+   * `duration` é a duração total da faixa (em segundos), quando já
+   * conhecida. É gravada no banco junto com a posição, para o cron job do
+   * servidor (advance_player_queue) conseguir avançar a fila sozinho mesmo
+   * sem nenhuma aba do site aberta.
+   */
+  onPlaybackHeartbeat?: (position: number, paused: boolean, duration?: number) => void;
   controlsRef?: React.MutableRefObject<StageControls | null>;
 }
 
@@ -79,6 +85,12 @@ export function PlayerPanel({
   const internalControlsRef = useRef<StageControls | null>(null);
   const controlsRef = externalControlsRef || internalControlsRef;
 
+  // Espelha `progress` e `paused` em refs para o setInterval do heartbeat
+  // (mais abaixo) sempre ler o valor mais atual sem precisar recriar o
+  // interval a cada render (o que reiniciaria a contagem dos 4s).
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
+
   // Sincroniza pause/play remoto vindo do broadcast (efeito imediato, tipo "watch party").
   useEffect(() => {
     if (remotePaused !== null && remotePaused !== undefined && remotePaused !== paused) {
@@ -93,14 +105,11 @@ export function PlayerPanel({
   }, [remoteVolume]);
 
   // Sincroniza o tempo (seek) remoto vindo do broadcast.
-  // Antes: forçava seekTo em toda mudança de remoteSeek, inclusive nos
-  // heartbeats de rotina (a cada ~4s) — isso causava engasgo visível mesmo
-  // com drift pequeno, porque seekTo() sempre gera um pequeno buffering.
-  // Agora: só força o seek se a diferença para o tempo local for maior que
-  // DRIFT_THRESHOLD_SECONDS. Seeks manuais e comandos do chat normalmente
-  // pulam vários segundos de uma vez, então continuam passando do threshold
-  // e aplicando na hora; só o heartbeat de correção fina é que passa a ser
-  // ignorado quando o player já está no lugar certo.
+  // Só força o seek se a diferença para o tempo local for maior que
+  // DRIFT_THRESHOLD_SECONDS — evita engasgo nos heartbeats de rotina (a cada
+  // ~4s), que mandam uma correção fina mesmo quando o player já está no
+  // lugar certo. Seeks manuais e comandos do chat pulam vários segundos de
+  // uma vez, então continuam passando do threshold e aplicando na hora.
   useEffect(() => {
     if (remoteSeek === null || remoteSeek === undefined) return;
     const localTime = controlsRef.current?.getCurrentTime() ?? 0;
@@ -141,16 +150,21 @@ export function PlayerPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
-  // Só o host grava periodicamente a posição da música no banco, para quem
-  // entrar depois conseguir calcular onde ela está sem depender de outro cliente online.
-  // (O broadcast em tempo real desse mesmo heartbeat é feito no player.tsx, que
-  // também chama onPlaybackHeartbeat.)
+  // Só o host grava periodicamente a posição (e a duração, quando já
+  // conhecida) no banco. Isso serve pra:
+  // 1. Quem entrar depois calcular onde a música está (client-side).
+  // 2. O cron job do servidor (advance_player_queue) saber quando a música
+  //    termina e avançar a fila sozinho — inclusive com o navegador
+  //    minimizado, em segundo plano jogando, ou até com a aba fechada,
+  //    já que essa parte roda inteiramente no Supabase, sem depender do
+  //    JavaScript do navegador continuar executando.
   useEffect(() => {
     if (!isHost || !current) return;
     const interval = setInterval(() => {
       const time = controlsRef.current?.getCurrentTime();
       if (typeof time === "number" && time > 0) {
-        onPlaybackHeartbeat?.(time, paused);
+        const duration = progressRef.current.duration;
+        onPlaybackHeartbeat?.(time, paused, duration > 0 ? duration : undefined);
       }
     }, 4000);
     return () => clearInterval(interval);
@@ -158,7 +172,9 @@ export function PlayerPanel({
 
   useEffect(() => {
     // Só o host força o avanço automático ao voltar pra aba — evita todo mundo
-    // com a página aberta tentando pular a fila ao mesmo tempo.
+    // com a página aberta tentando pular a fila ao mesmo tempo. Isso é só um
+    // reforço para quando a aba está aberta; o avanço "de verdade" enquanto
+    // ninguém está com o site aberto é feito pelo cron job do servidor.
     function handleVisibilityChange() {
       if (!isHost) return;
       if (document.visibilityState === "visible" && current && progress.duration > 0) {
