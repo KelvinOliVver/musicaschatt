@@ -85,14 +85,22 @@ function PlayerPage() {
     channel
       .on("broadcast", { event: "sync-action" }, ({ payload }) => {
         // Só o que é efêmero (não vive no banco) precisa de broadcast manual.
-        // Fila, música atual e posição de playback já vêm sincronizadas via
-        // postgres_changes dentro do usePlayerQueue.
+        // Fila e música atual já vêm sincronizadas via postgres_changes dentro
+        // do usePlayerQueue. A posição de playback (heartbeat) agora também
+        // chega por aqui, além de ser gravada no banco, para corrigir o drift
+        // entre players sem depender do round-trip do banco.
         switch (payload.action) {
           case "SEEK":
             setRemoteSeek(payload.time + Math.random() * 0.0001);
             break;
           case "TOGGLE_PLAY":
             setRemotePaused(payload.paused);
+            break;
+          case "HEARTBEAT":
+            // Correção periódica de drift enviada pelo host a cada poucos
+            // segundos. O PlayerPanel decide se a diferença é grande o
+            // suficiente para valer um seek (ver threshold em PlayerPanel.tsx).
+            setRemoteSeek(payload.time + Math.random() * 0.0001);
             break;
         }
       })
@@ -206,12 +214,16 @@ function PlayerPage() {
     [broadcast],
   );
 
+  // Só o host grava o heartbeat no banco (para quem entrar depois calcular a
+  // posição) E manda um broadcast em tempo real (para corrigir o drift de
+  // quem já está na sala, sem esperar o próximo postgres_changes).
   const handlePlaybackHeartbeat = useCallback(
     (position: number, paused: boolean) => {
       if (!queue.current) return;
       queue.updatePlaybackHeartbeat(queue.current.id, position, paused);
+      broadcast("HEARTBEAT", { time: position });
     },
-    [queue],
+    [queue, broadcast],
   );
 
   return (
