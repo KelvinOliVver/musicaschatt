@@ -77,7 +77,7 @@ function PlayerPage() {
   useEffect(() => {
     const channel = supabase.channel(`player-room-${slug}`, {
       config: {
-        broadcast: { ack: false, self: true },
+        broadcast: { ack: false },
         presence: { key: clientIdRef.current },
       },
     });
@@ -215,12 +215,14 @@ function PlayerPage() {
   );
 
   // Só o host grava o heartbeat no banco (para quem entrar depois calcular a
-  // posição) E manda um broadcast em tempo real (para corrigir o drift de
-  // quem já está na sala, sem esperar o próximo postgres_changes).
+  // posição, e para o cron job do servidor saber quando avançar a fila
+  // sozinho — ver advance_player_queue no Supabase) E manda um broadcast em
+  // tempo real (para corrigir o drift de quem já está na sala, sem esperar
+  // o próximo postgres_changes).
   const handlePlaybackHeartbeat = useCallback(
-    (position: number, paused: boolean) => {
+    (position: number, paused: boolean, duration?: number) => {
       if (!queue.current) return;
-      queue.updatePlaybackHeartbeat(queue.current.id, position, paused);
+      queue.updatePlaybackHeartbeat(queue.current.id, position, paused, duration);
       broadcast("HEARTBEAT", { time: position });
     },
     [queue, broadcast],
