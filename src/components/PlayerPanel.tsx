@@ -49,13 +49,15 @@ export function PlayerPanel({
   next,
   hasPrevious,
   hasNext,
-  isHost,
+  isHost = true,
   onNext,
   onPrevious,
   remoteSeek,
   remotePaused,
+  remoteVolume,
   onSeekChange,
   onTogglePlayChange,
+  onVolumeChange,
   onPlaybackHeartbeat,
   controlsRef: externalControlsRef,
 }: PlayerPanelProps) {
@@ -78,6 +80,12 @@ export function PlayerPanel({
       setPaused(remotePaused);
     }
   }, [remotePaused]);
+
+  useEffect(() => {
+    if (remoteVolume !== null && remoteVolume !== undefined) {
+      setVolume(remoteVolume);
+    }
+  }, [remoteVolume]);
 
   // Sincroniza o tempo (seek) remoto vindo do broadcast.
   useEffect(() => {
@@ -361,6 +369,7 @@ export function PlayerPanel({
               const newVol = value ?? 0;
               setVolume(newVol);
               if (newVol > 0) setMuted(false);
+              onVolumeChange?.(newVol);
             }}
             max={100}
             step={1}
