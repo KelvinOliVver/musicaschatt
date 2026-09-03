@@ -43,7 +43,7 @@ const FEATURES = [
   {
     icon: Crown,
     title: "Prioridade VIP",
-    text: "Pedidos do Pitee4 sobem direto para o topo da fila, na frente de todo mundo.",
+    text: "Pedidos dos VIPS  sobem direto para o topo da fila, na frente de todo mundo.",
   },
 ];
 
