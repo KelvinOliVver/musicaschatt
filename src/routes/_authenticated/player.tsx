@@ -258,8 +258,8 @@ function PlayerPage() {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 bg-card/50 backdrop-blur-sm">
                 <span className="relative flex size-2">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-online opacity-75"></span>
+                  <span className="relative inline-flex size-2 rounded-full bg-online"></span>
                 </span>
                 <Users className="size-4 text-muted-foreground" />
                 <span className="text-xs font-medium">
@@ -275,7 +275,7 @@ function PlayerPage() {
                 <div className="max-h-48 overflow-y-auto space-y-1.5">
                   {onlineUsers.map((user, idx) => (
                     <div key={user.presence_ref || idx} className="flex items-center gap-2 text-sm py-1 px-2 rounded-md hover:bg-muted/50 transition-colors">
-                      <div className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                      <div className="size-2 shrink-0 rounded-full bg-online" />
                       <span className="truncate font-medium">{user.username}</span>
                     </div>
                   ))}
