@@ -253,3 +253,7 @@
     transform: scale(0.82);
   }
 }
+
+#lovable-badge {
+  display: none !important;
+}
