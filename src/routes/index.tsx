@@ -64,11 +64,19 @@ function LandingPage() {
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
       <div
-        className="absolute inset-0 scale-110 bg-cover bg-center blur-2xl"
+        className="absolute inset-0 scale-110 bg-cover bg-center blur-2xl saturate-150"
         style={{ backgroundImage: `url(${bgAsset.url})` }}
         aria-hidden
       />
-      <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" aria-hidden />
+      <div
+        className="absolute inset-0 bg-primary/40 mix-blend-multiply backdrop-blur-sm"
+        aria-hidden
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-primary/25 to-background/80" aria-hidden />
+      <div
+        className="absolute inset-0 shadow-[inset_0_0_200px_60px_var(--color-primary)] opacity-60"
+        aria-hidden
+      />
       <main className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center gap-14 px-6 py-20">
       <section className="flex flex-col items-start gap-6">
         <span className="panel-raised inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium uppercase tracking-widest text-muted-foreground">
