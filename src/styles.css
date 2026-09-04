@@ -69,35 +69,37 @@
 :root {
   --radius: 0.75rem;
 
-  --background: oklch(0.14 0.012 300);
+  /* Deep midnight-purple background (#0C0A10 → #181520) */
+  --background: oklch(0.11 0.014 300);
   --foreground: oklch(0.97 0.004 295);
 
-  --surface: oklch(0.185 0.015 300);
-  --surface-raised: oklch(0.23 0.018 300);
+  --surface: oklch(0.16 0.018 300);
+  --surface-raised: oklch(0.21 0.022 300);
 
-  --card: oklch(0.185 0.015 300);
+  --card: oklch(0.16 0.018 300);
   --card-foreground: oklch(0.97 0.004 295);
-  --popover: oklch(0.205 0.016 300);
+  --popover: oklch(0.185 0.02 300);
   --popover-foreground: oklch(0.97 0.004 295);
 
-  --primary: oklch(0.75 0.21 293);
-  --primary-foreground: oklch(0.16 0.03 295);
+  /* Lavender accent (#BE94FF) */
+  --primary: oklch(0.74 0.165 300);
+  --primary-foreground: oklch(0.16 0.03 300);
 
-  --secondary: oklch(0.265 0.02 300);
+  --secondary: oklch(0.24 0.025 300);
   --secondary-foreground: oklch(0.97 0.004 295);
 
-  --muted: oklch(0.245 0.018 300);
-  --muted-foreground: oklch(0.7 0.03 300);
+  --muted: oklch(0.22 0.02 300);
+  --muted-foreground: oklch(0.68 0.03 300);
 
-  --accent: oklch(0.29 0.022 300);
+  --accent: oklch(0.27 0.03 300);
   --accent-foreground: oklch(0.97 0.004 295);
 
   --destructive: oklch(0.63 0.23 25);
   --destructive-foreground: oklch(0.98 0.005 25);
 
-  --border: oklch(0.29 0.022 300);
-  --input: oklch(0.29 0.022 300);
-  --ring: oklch(0.75 0.21 293);
+  --border: oklch(0.27 0.025 300);
+  --input: oklch(0.27 0.025 300);
+  --ring: oklch(0.74 0.165 300);
 
   --vip: oklch(0.83 0.17 84);
   --vip-foreground: oklch(0.2 0.05 70);
