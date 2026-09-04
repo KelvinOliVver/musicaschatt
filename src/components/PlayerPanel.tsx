@@ -253,7 +253,7 @@ export function PlayerPanel({
   const shown = scrubbing ?? progress.current;
 
   return (
-    <section className="panel relative flex flex-col gap-5 overflow-hidden p-5">
+    <section className="panel relative z-0 flex flex-col gap-5 overflow-hidden p-5">
       {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
           troca suavemente (fade) a cada nova faixa via a key no current.id. */}
       {current?.thumbnail && (
