@@ -57,7 +57,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
           </p>
         </div>
       ) : (
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className="min-h-0 flex-1 [&>div>div]:!block [&>div]:!w-full">
           <ol className="divide-y divide-border">
             {items.map((item, index) => {
               const isNext = index === 0;
