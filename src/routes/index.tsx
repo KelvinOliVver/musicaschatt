@@ -109,6 +109,7 @@ function LandingPage() {
           </article>
         ))}
       </section>
-    </main>
+      </main>
+    </div>
   );
 }
