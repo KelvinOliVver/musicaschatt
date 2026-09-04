@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           added_at: string
           author: string | null
+          duration_seconds: number | null
           id: string
           is_paused: boolean | null
           playback_position: number | null
@@ -37,6 +38,7 @@ export type Database = {
         Insert: {
           added_at?: string
           author?: string | null
+          duration_seconds?: number | null
           id?: string
           is_paused?: boolean | null
           playback_position?: number | null
@@ -56,6 +58,7 @@ export type Database = {
         Update: {
           added_at?: string
           author?: string | null
+          duration_seconds?: number | null
           id?: string
           is_paused?: boolean | null
           playback_position?: number | null
@@ -103,7 +106,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      advance_player_queue: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
