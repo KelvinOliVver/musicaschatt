@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useKickChat } from "@/lib/kick-chat";
 import { extractTracks, parseTrackInput } from "@/lib/link-parser";
 import { usePlayerQueue } from "@/lib/use-player-queue";
+import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import type { KickChatMessage } from "@/lib/types";
 import type { StageControls } from "@/components/YouTubeStage";
@@ -94,25 +95,14 @@ function PlayerPage() {
 
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
 
-  // Nome e foto reais da conta logada (Supabase Auth), usados na lista de
-  // "quem tá ouvindo agora" em vez de um nome inventado.
-  const [profile, setProfile] = useState<{ name: string; avatarUrl: string | null } | null>(null);
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (!active) return;
-      const user = data.user;
-      if (!user) return;
-      const meta = user.user_metadata ?? {};
-      const name =
-        meta.full_name ?? meta.name ?? user.email?.split("@")[0] ?? getFriendlyListenerName(clientIdRef.current);
-      const avatarUrl = meta.avatar_url ?? meta.picture ?? null;
-      setProfile({ name, avatarUrl });
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  // Nome e foto reais da conta (tabela "profiles" — "Nome de exibição" e
+  // avatar configurados em /conta), usados na lista de "quem tá ouvindo
+  // agora" em vez de um nome inventado. Derivados como valores primitivos
+  // (não um objeto novo a cada render) pra não disparar o efeito de
+  // atualização de presença sem necessidade.
+  const { data: userProfile } = useProfile();
+  const profileName = userProfile?.display_name || null;
+  const profileAvatarUrl = userProfile?.avatar_url || null;
 
   // Host = quem entrou primeiro na sala (desempate por clientId para ser determinístico
   // e evitar que duas pessoas se considerem host ao mesmo tempo).
@@ -193,8 +183,8 @@ function PlayerPage() {
         if (status === "SUBSCRIBED") {
           await channel.track({
             clientId: clientIdRef.current,
-            username: profile?.name ?? getFriendlyListenerName(clientIdRef.current),
-            avatarUrl: profile?.avatarUrl ?? null,
+            username: profileName ?? getFriendlyListenerName(clientIdRef.current),
+            avatarUrl: profileAvatarUrl,
             joined_at: joinedAtRef.current,
           });
         }
@@ -207,20 +197,20 @@ function PlayerPage() {
     };
   }, [slug]);
 
-  // A busca do nome/foto reais (supabase.auth.getUser()) é assíncrona e pode
-  // terminar DEPOIS do track() inicial acima (que nesse caso já teria saído
-  // com o nome inventado como fallback). Assim que o perfil chega, atualiza
-  // a presença com os dados reais — reusando o mesmo joined_at, pra não
-  // mexer em quem é host.
+  // A busca do perfil (react-query) pode terminar DEPOIS do track() inicial
+  // acima (que nesse caso já teria saído com o nome inventado como
+  // fallback). Assim que o nome/avatar chegam, atualiza a presença com os
+  // dados reais — reusando o mesmo joined_at, pra não mexer em quem é host.
   useEffect(() => {
-    if (!profile || !channelRef.current) return;
+    if (!profileName && !profileAvatarUrl) return;
+    if (!channelRef.current) return;
     void channelRef.current.track({
       clientId: clientIdRef.current,
-      username: profile.name,
-      avatarUrl: profile.avatarUrl,
+      username: profileName ?? getFriendlyListenerName(clientIdRef.current),
+      avatarUrl: profileAvatarUrl,
       joined_at: joinedAtRef.current,
     });
-  }, [profile]);
+  }, [profileName, profileAvatarUrl]);
 
   // Só o host processa mensagens do chat para adicionar músicas à fila —
   // evita duplicar quando várias abas estão abertas ao mesmo tempo.
