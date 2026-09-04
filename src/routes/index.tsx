@@ -64,15 +64,9 @@ function LandingPage() {
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
       <div
-  className="absolute inset-0 bg-cover bg-center blur-2xl saturate-150"
-  style={{ backgroundImage: "url('/assets/cyberpunk-driver.jpg')" }}
-  aria-hidden
-/>
-<div
-  className="absolute inset-0 bg-gradient-to-b from-purple-900/60 via-purple-700/40 to-purple-900/80 mix-blend-multiply"
-  aria-hidden
-/>
-
+        className="absolute inset-0 scale-110 bg-cover bg-center blur-2xl saturate-150"
+        style={{ backgroundImage: `url(${bgAsset.url})` }}
+        aria-hidden
       />
       <div
         className="absolute inset-0 bg-primary/40 mix-blend-multiply backdrop-blur-sm"
