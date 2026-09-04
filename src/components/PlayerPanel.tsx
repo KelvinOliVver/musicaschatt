@@ -14,36 +14,27 @@ import {
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
+import { SpotifyStage } from "@/components/SpotifyStage";
+import { isSpotifyConnected, startSpotifyLogin, clearStoredTokens } from "@/lib/spotify-auth";
+import { useDominantColor } from "@/lib/use-dominant-color";
+import { EqualizerBars } from "@/components/EqualizerBars";
 import type { QueueItem } from "@/lib/types";
 
 const VOLUME_KEY = "musicas-chat-volume";
-
-// Diferença mínima (em segundos) para valer a pena forçar um seek quando a
-// correção vem de um heartbeat de rotina. Abaixo disso, o buffering natural
-// do próprio YouTube já resolve, e forçar o seek só causa engasgo visível.
-const DRIFT_THRESHOLD_SECONDS = 1.5;
 
 interface PlayerPanelProps {
   current: QueueItem | null;
   next: QueueItem | null;
   hasPrevious: boolean;
   hasNext: boolean;
-  isHost?: boolean;
+  isHost: boolean;
   onNext: () => void;
   onPrevious: () => void;
   remoteSeek?: number | null;
   remotePaused?: boolean | null;
-  remoteVolume?: number | null;
   onSeekChange?: (time: number) => void;
   onTogglePlayChange?: (paused: boolean) => void;
-  onVolumeChange?: (volume: number) => void;
-  /**
-   * `duration` é a duração total da faixa (em segundos), quando já
-   * conhecida. É gravada no banco junto com a posição, para o cron job do
-   * servidor (advance_player_queue) conseguir avançar a fila sozinho mesmo
-   * sem nenhuma aba do site aberta.
-   */
-  onPlaybackHeartbeat?: (position: number, paused: boolean, duration?: number) => void;
+  onPlaybackHeartbeat?: (position: number, paused: boolean) => void;
   controlsRef?: React.MutableRefObject<StageControls | null>;
 }
 
@@ -60,15 +51,13 @@ export function PlayerPanel({
   next,
   hasPrevious,
   hasNext,
-  isHost = true,
+  isHost,
   onNext,
   onPrevious,
   remoteSeek,
   remotePaused,
-  remoteVolume,
   onSeekChange,
   onTogglePlayChange,
-  onVolumeChange,
   onPlaybackHeartbeat,
   controlsRef: externalControlsRef,
 }: PlayerPanelProps) {
@@ -85,11 +74,13 @@ export function PlayerPanel({
   const internalControlsRef = useRef<StageControls | null>(null);
   const controlsRef = externalControlsRef || internalControlsRef;
 
-  // Espelha `progress` e `paused` em refs para o setInterval do heartbeat
-  // (mais abaixo) sempre ler o valor mais atual sem precisar recriar o
-  // interval a cada render (o que reiniciaria a contagem dos 4s).
-  const progressRef = useRef(progress);
-  progressRef.current = progress;
+  const isSpotify = current?.source === "spotify";
+  const dominantColor = useDominantColor(current?.thumbnail);
+
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  useEffect(() => {
+    setSpotifyConnected(isSpotifyConnected());
+  }, []);
 
   // Sincroniza pause/play remoto vindo do broadcast (efeito imediato, tipo "watch party").
   useEffect(() => {
@@ -98,23 +89,9 @@ export function PlayerPanel({
     }
   }, [remotePaused]);
 
-  useEffect(() => {
-    if (remoteVolume !== null && remoteVolume !== undefined) {
-      setVolume(remoteVolume);
-    }
-  }, [remoteVolume]);
-
   // Sincroniza o tempo (seek) remoto vindo do broadcast.
-  // Só força o seek se a diferença para o tempo local for maior que
-  // DRIFT_THRESHOLD_SECONDS — evita engasgo nos heartbeats de rotina (a cada
-  // ~4s), que mandam uma correção fina mesmo quando o player já está no
-  // lugar certo. Seeks manuais e comandos do chat pulam vários segundos de
-  // uma vez, então continuam passando do threshold e aplicando na hora.
   useEffect(() => {
-    if (remoteSeek === null || remoteSeek === undefined) return;
-    const localTime = controlsRef.current?.getCurrentTime() ?? 0;
-    const drift = Math.abs(localTime - remoteSeek);
-    if (drift > DRIFT_THRESHOLD_SECONDS) {
+    if (remoteSeek !== null && remoteSeek !== undefined) {
       controlsRef.current?.seekTo(remoteSeek);
     }
   }, [remoteSeek, controlsRef]);
@@ -128,8 +105,10 @@ export function PlayerPanel({
   }, [volume]);
 
   // Ao trocar de música (inclusive ao entrar na sala com uma música já rolando),
-  // calcula onde ela deveria estar com base no que o host gravou no banco,
-  // assim quem entra no meio da música já cai no tempo certo.
+  // calcula onde ela deveria estar com base no que o host gravou no banco.
+  // Isso só se aplica a faixas do YouTube: no Spotify a posição real vem
+  // direto do player_state_changed do próprio SDK, então não precisamos
+  // calcular nada aqui.
   useEffect(() => {
     if (!current) {
       setProgress({ current: 0, duration: 0 });
@@ -138,45 +117,42 @@ export function PlayerPanel({
 
     setProgress({ current: 0, duration: 0 });
 
-    const elapsedSinceHeartbeat = current.isPaused
-      ? 0
-      : (Date.now() - current.stateUpdatedAt) / 1000;
-    const target = current.playbackPosition + elapsedSinceHeartbeat;
+    if (current.source === "youtube") {
+      const elapsedSinceHeartbeat = current.isPaused
+        ? 0
+        : (Date.now() - current.stateUpdatedAt) / 1000;
+      const target = current.playbackPosition + elapsedSinceHeartbeat;
 
-    if (target > 1) {
-      controlsRef.current?.seekTo(target);
+      if (target > 1) {
+        controlsRef.current?.seekTo(target);
+      }
     }
     setPaused(current.isPaused);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
-  // Só o host grava periodicamente a posição (e a duração, quando já
-  // conhecida) no banco. Isso serve pra:
-  // 1. Quem entrar depois calcular onde a música está (client-side).
-  // 2. O cron job do servidor (advance_player_queue) saber quando a música
-  //    termina e avançar a fila sozinho — inclusive com o navegador
-  //    minimizado, em segundo plano jogando, ou até com a aba fechada,
-  //    já que essa parte roda inteiramente no Supabase, sem depender do
-  //    JavaScript do navegador continuar executando.
+  // Só o host grava periodicamente a posição no banco, e só faz sentido para
+  // faixas do YouTube (cada viewer tem seu próprio vídeo, então quem entra
+  // depois precisa saber onde ela está). No Spotify existe um único
+  // dispositivo tocando de verdade, então essa gravação não é necessária.
   useEffect(() => {
-    if (!isHost || !current) return;
+    if (!isHost || !current || current.source !== "youtube") return;
     const interval = setInterval(() => {
       const time = controlsRef.current?.getCurrentTime();
       if (typeof time === "number" && time > 0) {
-        const duration = progressRef.current.duration;
-        onPlaybackHeartbeat?.(time, paused, duration > 0 ? duration : undefined);
+        onPlaybackHeartbeat?.(time, paused);
       }
     }, 4000);
     return () => clearInterval(interval);
-  }, [isHost, current?.id, paused, onPlaybackHeartbeat, controlsRef]);
+  }, [isHost, current?.id, current?.source, paused, onPlaybackHeartbeat, controlsRef]);
 
   useEffect(() => {
     // Só o host força o avanço automático ao voltar pra aba — evita todo mundo
-    // com a página aberta tentando pular a fila ao mesmo tempo. Isso é só um
-    // reforço para quando a aba está aberta; o avanço "de verdade" enquanto
-    // ninguém está com o site aberto é feito pelo cron job do servidor.
+    // com a página aberta tentando pular a fila ao mesmo tempo. Só relevante
+    // para YouTube; o Spotify já avisa sozinho quando a faixa termina via
+    // player_state_changed dentro do SpotifyStage.
     function handleVisibilityChange() {
-      if (!isHost) return;
+      if (!isHost || current?.source !== "youtube") return;
       if (document.visibilityState === "visible" && current && progress.duration > 0) {
         if (progress.current >= progress.duration - 1) {
           onNext();
@@ -253,51 +229,80 @@ export function PlayerPanel({
   const shown = scrubbing ?? progress.current;
 
   return (
-    <section className="panel relative z-0 flex flex-col gap-5 overflow-hidden p-5">
-      {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
-          troca suavemente (fade) a cada nova faixa via a key no current.id. */}
-      {current?.thumbnail && (
-        <div
-          key={current.id}
-          className="pointer-events-none absolute inset-0 -z-10 scale-110 bg-cover bg-center opacity-45 blur-2xl transition-opacity duration-700"
-          style={{ backgroundImage: `url(${current.thumbnail})` }}
-          aria-hidden
-        />
-      )}
-      {/* Escurece de forma gradual (mais forte perto de baixo, onde ficam
-          texto e controles) pra manter legibilidade sem apagar a cor da capa
-          no topo do painel. */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/20 via-background/60 to-background"
-        aria-hidden
-      />
+    <section className="panel flex flex-col gap-5 p-5">
+      <div className="flex items-center justify-end">
+        {spotifyConnected ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("Desconectar sua conta do Spotify deste site?")) {
+                clearStoredTokens();
+                setSpotifyConnected(false);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#1DB954]/40 bg-[#1DB954]/10 px-2.5 py-1 text-[11px] font-medium text-[#1DB954] transition-colors hover:bg-[#1DB954]/20"
+          >
+            <span className="size-1.5 rounded-full bg-[#1DB954]" aria-hidden />
+            Spotify conectado
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void startSpotifyLogin()}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <svg viewBox="0 0 24 24" className="size-3 fill-current text-[#1DB954]" aria-hidden>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.586 14.424a.622.622 0 0 1-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.622.622 0 1 1-.277-1.215c3.809-.871 7.077-.496 9.712 1.115.293.18.386.564.207.857zm1.223-2.723a.78.78 0 0 1-1.072.257c-2.688-1.652-6.786-2.13-9.965-1.166a.78.78 0 1 1-.452-1.494c3.632-1.102 8.147-.568 11.232 1.331.367.226.482.708.257 1.072zm.105-2.835C14.692 9.15 9.375 8.978 6.297 9.912a.936.936 0 1 1-.543-1.79c3.532-1.072 9.404-.865 13.115 1.338a.936.936 0 0 1-.955 1.606z" />
+            </svg>
+            Conectar Spotify
+          </button>
+        )}
+      </div>
 
       <div className="relative overflow-hidden rounded-lg">
         {current ? (
-          <YouTubeStage
-            key={current.id}
-            videoId={current.trackId}
-            volume={volume}
-            muted={muted}
-            paused={paused}
-            onEnded={() => {
-              // Só o host avança a fila quando o vídeo termina naturalmente,
-              // evitando que todas as abas abertas pulem a música ao mesmo tempo.
-              if (isHost) onNext();
-            }}
-            onPlayingChange={(playing) => {
-              const newPaused = !playing;
-              setPaused(newPaused);
-              onTogglePlayChange?.(newPaused);
-            }}
-            onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
-            controlsRef={controlsRef}
-          />
+          isSpotify ? (
+            <SpotifyStage
+              key={current.id}
+              trackId={current.trackId}
+              volume={volume}
+              muted={muted}
+              paused={paused}
+              onEnded={onNext}
+              onPlayingChange={(playing) => {
+                const newPaused = !playing;
+                setPaused(newPaused);
+                onTogglePlayChange?.(newPaused);
+              }}
+              onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+              controlsRef={controlsRef}
+            />
+          ) : (
+            <YouTubeStage
+              key={current.id}
+              videoId={current.trackId}
+              volume={volume}
+              muted={muted}
+              paused={paused}
+              onEnded={() => {
+                // Só o host avança a fila quando o vídeo termina naturalmente,
+                // evitando que todas as abas abertas pulem a música ao mesmo tempo.
+                if (isHost) onNext();
+              }}
+              onPlayingChange={(playing) => {
+                const newPaused = !playing;
+                setPaused(newPaused);
+                onTogglePlayChange?.(newPaused);
+              }}
+              onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+              controlsRef={controlsRef}
+            />
+          )
         ) : (
           <div className="bg-surface-raised flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-lg">
             <Music2 className="size-10 text-muted-foreground" aria-hidden />
             <p className="max-w-xs text-center text-sm text-muted-foreground">
-              Cole um link do YouTube no chat da Kick (ou aqui no campo de cima) para começar.
+              Cole um link do YouTube ou do Spotify no chat da Kick (ou aqui no campo de cima) para começar.
             </p>
           </div>
         )}
@@ -313,11 +318,28 @@ export function PlayerPanel({
                   VIP
                 </span>
               )}
-              <Youtube className="size-4 text-youtube" aria-hidden />
+              {isSpotify ? (
+                <svg viewBox="0 0 24 24" className="size-4 fill-current text-[#1DB954]" aria-hidden>
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.586 14.424a.622.622 0 0 1-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.622.622 0 1 1-.277-1.215c3.809-.871 7.077-.496 9.712 1.115.293.18.386.564.207.857zm1.223-2.723a.78.78 0 0 1-1.072.257c-2.688-1.652-6.786-2.13-9.965-1.166a.78.78 0 1 1-.452-1.494c3.632-1.102 8.147-.568 11.232 1.331.367.226.482.708.257 1.072zm.105-2.835C14.692 9.15 9.375 8.978 6.297 9.912a.936.936 0 1 1-.543-1.79c3.532-1.072 9.404-.865 13.115 1.338a.936.936 0 0 1-.955 1.606z" />
+                </svg>
+              ) : (
+                <Youtube className="size-4 text-youtube" aria-hidden />
+              )}
               <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
                 {current.title ?? `Tocando ${current.trackId}`}
               </h2>
-              <ExternalLinkButton url={current.url} />
+              {!paused && <EqualizerBars color={dominantColor} size="sm" />}
+              {!isSpotify && (
+                <a
+                  href={current.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-muted-foreground transition-colors hover:text-primary"
+                  aria-label="Abrir no YouTube"
+                >
+                  <ExternalLink className="size-4" aria-hidden />
+                </a>
+              )}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               Pedido por{" "}
@@ -421,7 +443,6 @@ export function PlayerPanel({
               const newVol = value ?? 0;
               setVolume(newVol);
               if (newVol > 0) setMuted(false);
-              onVolumeChange?.(newVol);
             }}
             max={100}
             step={1}
@@ -446,24 +467,5 @@ export function PlayerPanel({
         <span className="hidden sm:inline">Espaço: pausar · Shift + ← → : pular · M: mudo</span>
       </div>
     </section>
-  );
-}
-
-/**
- * Extraído em componente separado de propósito: em alguns editores/colar via chat,
- * uma tag <a> solta no meio do JSX acaba sendo "comida" (interpretada como HTML real
- * em vez de texto). Isolando em um componente próprio isso deixa de acontecer.
- */
-function ExternalLinkButton({ url }: { url: string }) {
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      className="text-muted-foreground transition-colors hover:text-primary"
-      aria-label="Abrir no YouTube"
-    >
-      <ExternalLink className="size-4" aria-hidden />
-    </a>
   );
 }
