@@ -30,7 +30,7 @@ interface QueueRow {
 function toItem(row: QueueRow): QueueItem {
   return {
     id: row.id,
-    source: "youtube",
+    source: (row.source === "spotify" ? "spotify" : "youtube") as QueueItem["source"],
     trackId: row.track_id,
     url: row.url,
     title: row.title,
