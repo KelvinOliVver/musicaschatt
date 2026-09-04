@@ -116,13 +116,13 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-0.5">
                     {onMove && (
-                      <div className="flex flex-col">
+                      <div className="hidden flex-col group-hover:flex">
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-4"
+                          className="size-5"
                           disabled={!canMoveUp}
                           onClick={() => onMove(item.id, index - 1)}
                           aria-label={`Subir na fila: ${item.title ?? item.trackId}`}
@@ -132,7 +132,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-4"
+                          className="size-5"
                           disabled={!canMoveDown}
                           onClick={() => onMove(item.id, index + 1)}
                           aria-label={`Descer na fila: ${item.title ?? item.trackId}`}
