@@ -45,7 +45,7 @@ export function ChannelBar({
         <span className="bg-gradient-primary flex size-8 items-center justify-center rounded-md text-primary-foreground">
           <Radio className="size-4" aria-hidden />
         </span>
-        <span className="font-display text-base font-bold tracking-tight">Kick Player</span>
+        <span className="font-display text-base font-bold tracking-tight">Music Chat</span>
       </Link>
 
       <form onSubmit={handleSubmit} className="flex min-w-52 flex-1 items-center gap-2">
