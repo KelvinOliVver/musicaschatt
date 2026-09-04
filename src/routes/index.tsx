@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Crown, ListMusic, Radio, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import bgAsset from "@/assets/wallhaven-d6ldqm.jpg.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -61,7 +62,14 @@ function LandingPage() {
   }, []);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center gap-14 px-6 py-20">
+    <div className="relative min-h-screen w-full overflow-hidden">
+      <div
+        className="absolute inset-0 scale-110 bg-cover bg-center blur-2xl"
+        style={{ backgroundImage: `url(${bgAsset.url})` }}
+        aria-hidden
+      />
+      <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" aria-hidden />
+      <main className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center gap-14 px-6 py-20">
       <section className="flex flex-col items-start gap-6">
         <span className="panel-raised inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium uppercase tracking-widest text-muted-foreground">
           <span className="pulse-dot size-2 rounded-full bg-online" aria-hidden />
@@ -101,6 +109,7 @@ function LandingPage() {
           </article>
         ))}
       </section>
-    </main>
+      </main>
+    </div>
   );
 }
