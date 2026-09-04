@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Crown, ListMusic, Radio, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import bgAsset from "@/assets/wallhaven-d6ldqm.jpg.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
