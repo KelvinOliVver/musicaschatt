@@ -143,10 +143,10 @@
   --sidebar-foreground: oklch(0.97 0.004 295);
   --sidebar-primary: oklch(0.74 0.165 300);
   --sidebar-primary-foreground: oklch(0.16 0.03 300);
-  --sidebar-accent: oklch(0.245 0.018 300);
+  --sidebar-accent: oklch(0.22 0.02 300);
   --sidebar-accent-foreground: oklch(0.97 0.004 295);
-  --sidebar-border: oklch(0.29 0.022 300);
-  --sidebar-ring: oklch(0.75 0.21 293);
+  --sidebar-border: oklch(0.27 0.025 300);
+  --sidebar-ring: oklch(0.74 0.165 300);
 }
 
 /* Single dark identity: .dark mirrors :root so shadcn variants stay consistent. */
