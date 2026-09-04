@@ -57,7 +57,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
           </p>
         </div>
       ) : (
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className="min-h-0 flex-1 [&>div>div]:!block [&>div]:!w-full">
           <ol className="divide-y divide-border">
             {items.map((item, index) => {
               const isNext = index === 0;
@@ -118,7 +118,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
 
                   <div className="flex shrink-0 items-center gap-0.5">
                     {onMove && (
-                      <div className="hidden flex-col group-hover:flex">
+                      <div className="flex flex-col">
                         <Button
                           size="icon"
                           variant="ghost"
