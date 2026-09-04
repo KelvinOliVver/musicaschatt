@@ -1,94 +1,97 @@
-import type { TrackSource } from "./types";
+export type TrackSource = "youtube" | "spotify";
 
 export interface DetectedTrack {
   source: TrackSource;
+  /** ID do vídeo (YouTube) ou da faixa (Spotify). */
   trackId: string;
   url: string;
 }
 
-/**
- * Users that always jump the queue. Compared lowercased, so casing in chat
- * ("Pitee4", "PITEE4", "pitee4") does not matter.
- */
-export const PRIORITY_USERS = [] as const;
+const YOUTUBE_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+const SPOTIFY_TRACK_ID_PATTERN = /^[A-Za-z0-9]{22}$/;
 
-export function isPriorityUser(username: string): boolean {
-  const normalized = username.trim().toLowerCase();
-  return (PRIORITY_USERS as readonly string[]).includes(normalized);
-}
+function parseYoutubeUrl(url: URL): DetectedTrack | null {
+  const hostname = url.hostname.replace(/^www\./, "").toLowerCase();
+  let videoId: string | null = null;
 
-const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
-
-function parseYouTube(url: URL): DetectedTrack | null {
-  const host = url.hostname.replace(/^www\./, "").toLowerCase();
-  let trackId: string | null = null;
-
-  if (host === "youtu.be") {
+  if (hostname === "youtu.be") {
     const id = url.pathname.slice(1).split("/")[0] ?? "";
-    if (YOUTUBE_ID.test(id)) {
-      trackId = id;
-    }
-  } else if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
-    const watchId = url.searchParams.get("v");
-    if (watchId && YOUTUBE_ID.test(watchId)) {
-      trackId = watchId;
+    if (YOUTUBE_ID_PATTERN.test(id)) videoId = id;
+  } else if (hostname === "youtube.com" || hostname === "m.youtube.com" || hostname === "music.youtube.com") {
+    const v = url.searchParams.get("v");
+    if (v && YOUTUBE_ID_PATTERN.test(v)) {
+      videoId = v;
     } else {
       const segments = url.pathname.split("/").filter(Boolean);
-      if (
-        segments.length >= 2 &&
-        (segments[0] === "shorts" || segments[0] === "embed" || segments[0] === "live")
-      ) {
+      if (segments.length >= 2 && (segments[0] === "shorts" || segments[0] === "embed" || segments[0] === "live")) {
         const id = segments[1]!;
-        if (YOUTUBE_ID.test(id)) {
-          trackId = id;
-        }
+        if (YOUTUBE_ID_PATTERN.test(id)) videoId = id;
       }
     }
   }
 
-  if (!trackId) return null;
-
-  // Normaliza a URL para sempre salvar limpa, eliminando parâmetros de playlist (&list=, etc.)
-  const cleanUrl = `https://www.youtube.com/watch?v=${trackId}`;
-
+  if (!videoId) return null;
   return {
     source: "youtube",
-    trackId,
-    url: cleanUrl,
+    trackId: videoId,
+    url: `https://www.youtube.com/watch?v=${videoId}`,
   };
 }
 
-/** Parses a single pasted link (or bare video id) into a track. */
-export function parseTrackInput(input: string): DetectedTrack | null {
-  const value = input.trim();
-  if (!value) return null;
+function parseSpotifyUrl(url: URL): DetectedTrack | null {
+  const hostname = url.hostname.replace(/^www\./, "").toLowerCase();
+  if (hostname !== "open.spotify.com") return null;
 
-  if (YOUTUBE_ID.test(value)) {
+  // Aceita tanto /track/ID quanto formatos com prefixo de idioma, tipo
+  // /intl-pt/track/ID, que a Spotify às vezes usa.
+  const segments = url.pathname.split("/").filter(Boolean);
+  const trackIndex = segments.indexOf("track");
+  if (trackIndex === -1 || trackIndex + 1 >= segments.length) return null;
+
+  const trackId = segments[trackIndex + 1]!;
+  if (!SPOTIFY_TRACK_ID_PATTERN.test(trackId)) return null;
+
+  return {
+    source: "spotify",
+    trackId,
+    url: `https://open.spotify.com/track/${trackId}`,
+  };
+}
+
+function parseUrl(url: URL): DetectedTrack | null {
+  return parseYoutubeUrl(url) ?? parseSpotifyUrl(url);
+}
+
+/** Usado no campo de adicionar música manualmente. Aceita link completo ou ID solto do YouTube. */
+export function parseTrackInput(input: string): DetectedTrack | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  if (YOUTUBE_ID_PATTERN.test(trimmed)) {
     return {
       source: "youtube",
-      trackId: value,
-      url: `https://www.youtube.com/watch?v=${value}`,
+      trackId: trimmed,
+      url: `https://www.youtube.com/watch?v=${trimmed}`,
     };
   }
 
-  const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
   try {
-    return parseYouTube(new URL(withProtocol));
+    return parseUrl(new URL(withProtocol));
   } catch {
     return null;
   }
 }
 
-/** Extracts every supported music link found in a chat message. */
+/** Extrai todos os links de música (YouTube ou Spotify) de uma mensagem de chat. */
 export function extractTracks(content: string): DetectedTrack[] {
-  const matches = content.match(/https?:\/\/[^\s<>"']+/gi);
-  if (!matches) return [];
+  const urlMatches = content.match(/https?:\/\/[^\s<>"']+/gi);
+  if (!urlMatches) return [];
 
-  const found: DetectedTrack[] = [];
+  const results: DetectedTrack[] = [];
   const seen = new Set<string>();
 
-  for (const raw of matches) {
-    // Chat clients often glue punctuation onto the end of a pasted link.
+  for (const raw of urlMatches) {
     const cleaned = raw.replace(/[.,;:!?)\]}]+$/, "");
     let url: URL;
     try {
@@ -97,15 +100,14 @@ export function extractTracks(content: string): DetectedTrack[] {
       continue;
     }
 
-    const track = parseYouTube(url);
-    if (!track) continue;
-
-    if (seen.has(track.trackId)) continue;
-    seen.add(track.trackId);
-    found.push(track);
+    const track = parseUrl(url);
+    if (track && !seen.has(`${track.source}:${track.trackId}`)) {
+      seen.add(`${track.source}:${track.trackId}`);
+      results.push(track);
+    }
   }
 
-  return found;
+  return results;
 }
 
 export function hasTrackLink(content: string): boolean {
