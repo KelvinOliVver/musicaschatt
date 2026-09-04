@@ -259,15 +259,16 @@ export function PlayerPanel({
       {current?.thumbnail && (
         <div
           key={current.id}
-          className="pointer-events-none absolute inset-0 -z-10 scale-110 bg-cover bg-center opacity-30 blur-3xl transition-opacity duration-700"
+          className="pointer-events-none absolute inset-0 -z-10 scale-110 bg-cover bg-center opacity-45 blur-2xl transition-opacity duration-700"
           style={{ backgroundImage: `url(${current.thumbnail})` }}
           aria-hidden
         />
       )}
-      {/* Escurece por cima do blur pra manter o texto e os controles legíveis,
-          sem depender da cor específica da capa. */}
+      {/* Escurece de forma gradual (mais forte perto de baixo, onde ficam
+          texto e controles) pra manter legibilidade sem apagar a cor da capa
+          no topo do painel. */}
       <div
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/50 via-background/75 to-background"
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/20 via-background/60 to-background"
         aria-hidden
       />
 
