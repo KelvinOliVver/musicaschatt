@@ -104,20 +104,20 @@
   --vip: oklch(0.83 0.17 84);
   --vip-foreground: oklch(0.2 0.05 70);
   --youtube: oklch(0.63 0.24 27);
-  --online: oklch(0.75 0.21 293);
+  --online: oklch(0.74 0.165 300);
   --offline: oklch(0.6 0.02 300);
 
   --gradient-stage: radial-gradient(
       120% 90% at 50% -10%,
-      color-mix(in oklab, var(--primary) 20%, transparent) 0%,
+      color-mix(in oklab, var(--primary) 22%, transparent) 0%,
       transparent 60%
     ),
     radial-gradient(
       80% 60% at 100% 100%,
-      color-mix(in oklab, oklch(0.7 0.2 320) 10%, transparent) 0%,
+      color-mix(in oklab, oklch(0.72 0.2 320) 12%, transparent) 0%,
       transparent 70%
     ),
-    linear-gradient(180deg, oklch(0.165 0.014 300) 0%, oklch(0.13 0.011 300) 100%);
+    linear-gradient(180deg, oklch(0.14 0.016 300) 0%, oklch(0.1 0.012 300) 100%);
   --gradient-primary: linear-gradient(
     135deg,
     var(--primary) 0%,
