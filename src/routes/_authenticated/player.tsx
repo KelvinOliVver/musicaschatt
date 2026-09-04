@@ -19,6 +19,48 @@ import type { StageControls } from "@/components/YouTubeStage";
 
 const DEFAULT_CHANNEL = "roceiraplay";
 
+// Nomes usados pra dar uma identidade amigável a cada ouvinte (em vez de
+// "Ouvinte (roce...)" repetido pra todo mundo, que não distinguia ninguém).
+const LISTENER_NAMES = [
+  "Foguete", "Cometa", "Nebulosa", "Aurora", "Vulcão", "Tempestade", "Bússola", "Farol",
+  "Corvo", "Lince", "Falcão", "Pantera", "Coiote", "Tucano", "Onça", "Coral",
+  "Girassol", "Cactos", "Vagalume", "Cristal",
+];
+
+/**
+ * Gera (e persiste no navegador) um nome amigável pra esta aba/pessoa. Fica
+ * salvo no localStorage, então continua o mesmo entre recarregamentos da
+ * página — cada pessoa mantém seu nome e cor consistentes.
+ */
+function getFriendlyListenerName(clientId: string): string {
+  const KEY = "musicas-chat-listener-name";
+  try {
+    const stored = window.localStorage.getItem(KEY);
+    if (stored) return stored;
+  } catch {
+    /* storage indisponível, cai no fallback abaixo */
+  }
+
+  let hash = 0;
+  for (const ch of clientId) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const name = `Ouvinte ${LISTENER_NAMES[hash % LISTENER_NAMES.length]}`;
+
+  try {
+    window.localStorage.setItem(KEY, name);
+  } catch {
+    /* ignora se não conseguir salvar */
+  }
+  return name;
+}
+
+/** Cor estável do avatar, derivada do clientId — a mesma pessoa sempre com a mesma cor. */
+function colorForClient(clientId: string): string {
+  let hash = 0;
+  for (const ch of clientId) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const hue = hash % 360;
+  return `hsl(${hue}, 70%, 55%)`;
+}
+
 export const Route = createFileRoute("/_authenticated/player")({
   component: PlayerPage,
 });
@@ -125,7 +167,7 @@ function PlayerPage() {
         if (status === "SUBSCRIBED") {
           await channel.track({
             clientId: clientIdRef.current,
-            username: `Ouvinte (${slug.slice(0, 4)}...)`,
+            username: getFriendlyListenerName(clientIdRef.current),
             joined_at: new Date().toISOString(),
           });
         }
@@ -281,7 +323,13 @@ function PlayerPage() {
                       key={user.presence_ref || idx}
                       className="flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted/50"
                     >
-                      <div className="size-2 shrink-0 rounded-full bg-emerald-500" />
+                      <span
+                        className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                        style={{ backgroundColor: colorForClient(user.clientId) }}
+                        aria-hidden
+                      >
+                        {user.username.replace("Ouvinte ", "").charAt(0)}
+                      </span>
                       <span className="truncate font-medium">{user.username}</span>
                       {user.clientId === hostClientId && (
                         <Crown className="size-3 shrink-0 text-vip" aria-hidden />
