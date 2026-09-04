@@ -230,7 +230,18 @@ export function usePlayerQueue(): PlayerQueue {
           .select("id")
           .maybeSingle();
 
-        if (error || !data) return false;
+        // DIAGNÓSTICO TEMPORÁRIO: antes, um erro aqui era silenciosamente
+        // engolido (só "if (error || !data) return false"), então qualquer
+        // rejeição do banco (RLS, coluna faltando, tipo errado, etc.) nunca
+        // aparecia em lugar nenhum. Agora ele vai pro console.
+        if (error) {
+          console.error("[ADD TRACK ERROR]", error.message, error);
+          return false;
+        }
+        if (!data) {
+          console.warn("[ADD TRACK] Insert não retornou erro, mas também não retornou dados.");
+          return false;
+        }
 
         await refresh();
         applyMetadata((data as { id: string }).id, track);
