@@ -31,15 +31,22 @@ export async function getSpotifyTrackMetadata(trackId: string): Promise<SpotifyT
 }
 
 /**
- * Manda o dispositivo Spotify ativo (o app aberto no computador/celular
- * conectado com a conta) tocar essa faixa imediatamente, substituindo o que
- * estava tocando.
+ * Manda tocar essa faixa no dispositivo indicado (o player criado dentro do
+ * site, via Web Playback SDK). Se `deviceId` for omitido, usa o dispositivo
+ * Spotify ativo no momento (útil como fallback).
  */
-export async function playSpotifyTrack(trackId: string, positionMs = 0): Promise<void> {
+export async function playSpotifyTrack(
+  trackId: string,
+  options?: { deviceId?: string; positionMs?: number },
+): Promise<void> {
   const token = await getValidAccessToken();
   if (!token) throw new Error("Spotify não conectado.");
 
-  const response = await fetch("https://api.spotify.com/v1/me/player/play", {
+  const params = new URLSearchParams();
+  if (options?.deviceId) params.set("device_id", options.deviceId);
+  const query = params.toString() ? `?${params.toString()}` : "";
+
+  const response = await fetch(`https://api.spotify.com/v1/me/player/play${query}`, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -47,13 +54,13 @@ export async function playSpotifyTrack(trackId: string, positionMs = 0): Promise
     },
     body: JSON.stringify({
       uris: [`spotify:track:${trackId}`],
-      position_ms: positionMs,
+      position_ms: options?.positionMs ?? 0,
     }),
   });
 
   if (response.status === 404) {
     throw new Error(
-      "Nenhum dispositivo Spotify ativo encontrado. Abra o app do Spotify no dispositivo que vai tocar a música.",
+      "Dispositivo Spotify não encontrado. Verifique se o player do site terminou de conectar.",
     );
   }
   if (!response.ok && response.status !== 204) {
@@ -61,51 +68,47 @@ export async function playSpotifyTrack(trackId: string, positionMs = 0): Promise
   }
 }
 
-export async function pauseSpotify(): Promise<void> {
+export async function pauseSpotify(deviceId?: string): Promise<void> {
   const token = await getValidAccessToken();
   if (!token) return;
-  await fetch("https://api.spotify.com/v1/me/player/pause", {
+  const query = deviceId ? `?device_id=${deviceId}` : "";
+  await fetch(`https://api.spotify.com/v1/me/player/pause${query}`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}` },
   });
 }
 
-export async function resumeSpotify(): Promise<void> {
+export async function resumeSpotify(deviceId?: string): Promise<void> {
   const token = await getValidAccessToken();
   if (!token) return;
-  await fetch("https://api.spotify.com/v1/me/player/play", {
+  const query = deviceId ? `?device_id=${deviceId}` : "";
+  await fetch(`https://api.spotify.com/v1/me/player/play${query}`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}` },
   });
 }
 
-/** Consulta o que está tocando agora e em que ponto (segundos), direto do Spotify. */
-export async function getSpotifyPlaybackState(): Promise<{
-  isPlaying: boolean;
-  progressMs: number;
-  durationMs: number;
-  trackId: string | null;
-} | null> {
+export async function seekSpotify(positionMs: number, deviceId?: string): Promise<void> {
   const token = await getValidAccessToken();
-  if (!token) return null;
-
-  const response = await fetch("https://api.spotify.com/v1/me/player", {
+  if (!token) return;
+  const params = new URLSearchParams({ position_ms: String(Math.round(positionMs)) });
+  if (deviceId) params.set("device_id", deviceId);
+  await fetch(`https://api.spotify.com/v1/me/player/seek?${params.toString()}`, {
+    method: "PUT",
     headers: { Authorization: `Bearer ${token}` },
   });
+}
 
-  // 204 = nada tocando no momento.
-  if (response.status === 204 || !response.ok) return null;
-
-  const data = (await response.json()) as {
-    is_playing?: boolean;
-    progress_ms?: number;
-    item?: { id?: string; duration_ms?: number };
-  };
-
-  return {
-    isPlaying: data.is_playing ?? false,
-    progressMs: data.progress_ms ?? 0,
-    durationMs: data.item?.duration_ms ?? 0,
-    trackId: data.item?.id ?? null,
-  };
+/** Transfere a reprodução ativa para o dispositivo indicado (o player do site). */
+export async function transferPlaybackToDevice(deviceId: string, play = false): Promise<void> {
+  const token = await getValidAccessToken();
+  if (!token) return;
+  await fetch("https://api.spotify.com/v1/me/player", {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ device_ids: [deviceId], play }),
+  });
 }
