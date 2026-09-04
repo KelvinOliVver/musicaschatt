@@ -14,8 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
-import { SpotifyStage } from "@/components/SpotifyStage";
-import { isSpotifyConnected, startSpotifyLogin, clearStoredTokens } from "@/lib/spotify-auth";
 import { useDominantColor } from "@/lib/use-dominant-color";
 import { EqualizerBars } from "@/components/EqualizerBars";
 import type { QueueItem } from "@/lib/types";
@@ -74,13 +72,8 @@ export function PlayerPanel({
   const internalControlsRef = useRef<StageControls | null>(null);
   const controlsRef = externalControlsRef || internalControlsRef;
 
-  const isSpotify = current?.source === "spotify";
+  // Cor dominante da capa da música atual, usada no equalizador ao lado do título.
   const dominantColor = useDominantColor(current?.thumbnail);
-
-  const [spotifyConnected, setSpotifyConnected] = useState(false);
-  useEffect(() => {
-    setSpotifyConnected(isSpotifyConnected());
-  }, []);
 
   // Sincroniza pause/play remoto vindo do broadcast (efeito imediato, tipo "watch party").
   useEffect(() => {
@@ -105,10 +98,8 @@ export function PlayerPanel({
   }, [volume]);
 
   // Ao trocar de música (inclusive ao entrar na sala com uma música já rolando),
-  // calcula onde ela deveria estar com base no que o host gravou no banco.
-  // Isso só se aplica a faixas do YouTube: no Spotify a posição real vem
-  // direto do player_state_changed do próprio SDK, então não precisamos
-  // calcular nada aqui.
+  // calcula onde ela deveria estar com base no que o host gravou no banco,
+  // assim quem entra no meio da música já cai no tempo certo.
   useEffect(() => {
     if (!current) {
       setProgress({ current: 0, duration: 0 });
@@ -117,26 +108,22 @@ export function PlayerPanel({
 
     setProgress({ current: 0, duration: 0 });
 
-    if (current.source === "youtube") {
-      const elapsedSinceHeartbeat = current.isPaused
-        ? 0
-        : (Date.now() - current.stateUpdatedAt) / 1000;
-      const target = current.playbackPosition + elapsedSinceHeartbeat;
+    const elapsedSinceHeartbeat = current.isPaused
+      ? 0
+      : (Date.now() - current.stateUpdatedAt) / 1000;
+    const target = current.playbackPosition + elapsedSinceHeartbeat;
 
-      if (target > 1) {
-        controlsRef.current?.seekTo(target);
-      }
+    if (target > 1) {
+      controlsRef.current?.seekTo(target);
     }
     setPaused(current.isPaused);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
-  // Só o host grava periodicamente a posição no banco, e só faz sentido para
-  // faixas do YouTube (cada viewer tem seu próprio vídeo, então quem entra
-  // depois precisa saber onde ela está). No Spotify existe um único
-  // dispositivo tocando de verdade, então essa gravação não é necessária.
+  // Só o host grava periodicamente a posição da música no banco, para quem
+  // entrar depois conseguir calcular onde ela está sem depender de outro cliente online.
   useEffect(() => {
-    if (!isHost || !current || current.source !== "youtube") return;
+    if (!isHost || !current) return;
     const interval = setInterval(() => {
       const time = controlsRef.current?.getCurrentTime();
       if (typeof time === "number" && time > 0) {
@@ -144,15 +131,13 @@ export function PlayerPanel({
       }
     }, 4000);
     return () => clearInterval(interval);
-  }, [isHost, current?.id, current?.source, paused, onPlaybackHeartbeat, controlsRef]);
+  }, [isHost, current?.id, paused, onPlaybackHeartbeat, controlsRef]);
 
   useEffect(() => {
     // Só o host força o avanço automático ao voltar pra aba — evita todo mundo
-    // com a página aberta tentando pular a fila ao mesmo tempo. Só relevante
-    // para YouTube; o Spotify já avisa sozinho quando a faixa termina via
-    // player_state_changed dentro do SpotifyStage.
+    // com a página aberta tentando pular a fila ao mesmo tempo.
     function handleVisibilityChange() {
-      if (!isHost || current?.source !== "youtube") return;
+      if (!isHost) return;
       if (document.visibilityState === "visible" && current && progress.duration > 0) {
         if (progress.current >= progress.duration - 1) {
           onNext();
@@ -230,79 +215,32 @@ export function PlayerPanel({
 
   return (
     <section className="panel flex flex-col gap-5 p-5">
-      <div className="flex items-center justify-end">
-        {spotifyConnected ? (
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm("Desconectar sua conta do Spotify deste site?")) {
-                clearStoredTokens();
-                setSpotifyConnected(false);
-              }
-            }}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#1DB954]/40 bg-[#1DB954]/10 px-2.5 py-1 text-[11px] font-medium text-[#1DB954] transition-colors hover:bg-[#1DB954]/20"
-          >
-            <span className="size-1.5 rounded-full bg-[#1DB954]" aria-hidden />
-            Spotify conectado
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void startSpotifyLogin()}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <svg viewBox="0 0 24 24" className="size-3 fill-current text-[#1DB954]" aria-hidden>
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.586 14.424a.622.622 0 0 1-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.622.622 0 1 1-.277-1.215c3.809-.871 7.077-.496 9.712 1.115.293.18.386.564.207.857zm1.223-2.723a.78.78 0 0 1-1.072.257c-2.688-1.652-6.786-2.13-9.965-1.166a.78.78 0 1 1-.452-1.494c3.632-1.102 8.147-.568 11.232 1.331.367.226.482.708.257 1.072zm.105-2.835C14.692 9.15 9.375 8.978 6.297 9.912a.936.936 0 1 1-.543-1.79c3.532-1.072 9.404-.865 13.115 1.338a.936.936 0 0 1-.955 1.606z" />
-            </svg>
-            Conectar Spotify
-          </button>
-        )}
-      </div>
-
       <div className="relative overflow-hidden rounded-lg">
         {current ? (
-          isSpotify ? (
-            <SpotifyStage
-              key={current.id}
-              trackId={current.trackId}
-              volume={volume}
-              muted={muted}
-              paused={paused}
-              onEnded={onNext}
-              onPlayingChange={(playing) => {
-                const newPaused = !playing;
-                setPaused(newPaused);
-                onTogglePlayChange?.(newPaused);
-              }}
-              onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
-              controlsRef={controlsRef}
-            />
-          ) : (
-            <YouTubeStage
-              key={current.id}
-              videoId={current.trackId}
-              volume={volume}
-              muted={muted}
-              paused={paused}
-              onEnded={() => {
-                // Só o host avança a fila quando o vídeo termina naturalmente,
-                // evitando que todas as abas abertas pulem a música ao mesmo tempo.
-                if (isHost) onNext();
-              }}
-              onPlayingChange={(playing) => {
-                const newPaused = !playing;
-                setPaused(newPaused);
-                onTogglePlayChange?.(newPaused);
-              }}
-              onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
-              controlsRef={controlsRef}
-            />
-          )
+          <YouTubeStage
+            key={current.id}
+            videoId={current.trackId}
+            volume={volume}
+            muted={muted}
+            paused={paused}
+            onEnded={() => {
+              // Só o host avança a fila quando o vídeo termina naturalmente,
+              // evitando que todas as abas abertas pulem a música ao mesmo tempo.
+              if (isHost) onNext();
+            }}
+            onPlayingChange={(playing) => {
+              const newPaused = !playing;
+              setPaused(newPaused);
+              onTogglePlayChange?.(newPaused);
+            }}
+            onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+            controlsRef={controlsRef}
+          />
         ) : (
           <div className="bg-surface-raised flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-lg">
             <Music2 className="size-10 text-muted-foreground" aria-hidden />
             <p className="max-w-xs text-center text-sm text-muted-foreground">
-              Cole um link do YouTube ou do Spotify no chat da Kick (ou aqui no campo de cima) para começar.
+              Cole um link do YouTube no chat da Kick (ou aqui no campo de cima) para começar.
             </p>
           </div>
         )}
@@ -318,28 +256,20 @@ export function PlayerPanel({
                   VIP
                 </span>
               )}
-              {isSpotify ? (
-                <svg viewBox="0 0 24 24" className="size-4 fill-current text-[#1DB954]" aria-hidden>
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.586 14.424a.622.622 0 0 1-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.622.622 0 1 1-.277-1.215c3.809-.871 7.077-.496 9.712 1.115.293.18.386.564.207.857zm1.223-2.723a.78.78 0 0 1-1.072.257c-2.688-1.652-6.786-2.13-9.965-1.166a.78.78 0 1 1-.452-1.494c3.632-1.102 8.147-.568 11.232 1.331.367.226.482.708.257 1.072zm.105-2.835C14.692 9.15 9.375 8.978 6.297 9.912a.936.936 0 1 1-.543-1.79c3.532-1.072 9.404-.865 13.115 1.338a.936.936 0 0 1-.955 1.606z" />
-                </svg>
-              ) : (
-                <Youtube className="size-4 text-youtube" aria-hidden />
-              )}
+              <Youtube className="size-4 text-youtube" aria-hidden />
               <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
                 {current.title ?? `Tocando ${current.trackId}`}
               </h2>
               {!paused && <EqualizerBars color={dominantColor} size="sm" />}
-              {!isSpotify && (
-                <a
-                  href={current.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-muted-foreground transition-colors hover:text-primary"
-                  aria-label="Abrir no YouTube"
-                >
-                  <ExternalLink className="size-4" aria-hidden />
-                </a>
-              )}
+              <a
+                href={current.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-muted-foreground transition-colors hover:text-primary"
+                aria-label="Abrir no YouTube"
+              >
+                <ExternalLink className="size-4" aria-hidden />
+              </a>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               Pedido por{" "}
