@@ -89,6 +89,26 @@ function PlayerPage() {
 
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
 
+  // Nome e foto reais da conta logada (Supabase Auth), usados na lista de
+  // "quem tá ouvindo agora" em vez de um nome inventado.
+  const [profile, setProfile] = useState<{ name: string; avatarUrl: string | null } | null>(null);
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!active) return;
+      const user = data.user;
+      if (!user) return;
+      const meta = user.user_metadata ?? {};
+      const name =
+        meta.full_name ?? meta.name ?? user.email?.split("@")[0] ?? getFriendlyListenerName(clientIdRef.current);
+      const avatarUrl = meta.avatar_url ?? meta.picture ?? null;
+      setProfile({ name, avatarUrl });
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Host = quem entrou primeiro na sala (desempate por clientId para ser determinístico
   // e evitar que duas pessoas se considerem host ao mesmo tempo).
   // Isso controla só o avanço automático da fila quando o vídeo termina — não tem
