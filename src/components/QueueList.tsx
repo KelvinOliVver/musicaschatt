@@ -118,7 +118,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
 
                   <div className="flex shrink-0 items-center gap-0.5">
                     {onMove && (
-                      <div className="hidden flex-col group-hover:flex">
+                      <div className="flex flex-col">
                         <Button
                           size="icon"
                           variant="ghost"
