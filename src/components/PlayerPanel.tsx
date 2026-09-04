@@ -253,7 +253,24 @@ export function PlayerPanel({
   const shown = scrubbing ?? progress.current;
 
   return (
-    <section className="panel flex flex-col gap-5 p-5">
+    <section className="panel relative flex flex-col gap-5 overflow-hidden p-5">
+      {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
+          troca suavemente (fade) a cada nova faixa via a key no current.id. */}
+      {current?.thumbnail && (
+        <div
+          key={current.id}
+          className="pointer-events-none absolute inset-0 -z-10 scale-110 bg-cover bg-center opacity-30 blur-3xl transition-opacity duration-700"
+          style={{ backgroundImage: `url(${current.thumbnail})` }}
+          aria-hidden
+        />
+      )}
+      {/* Escurece por cima do blur pra manter o texto e os controles legíveis,
+          sem depender da cor específica da capa. */}
+      <div
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/50 via-background/75 to-background"
+        aria-hidden
+      />
+
       <div className="relative overflow-hidden rounded-lg">
         {current ? (
           <YouTubeStage
