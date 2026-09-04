@@ -69,6 +69,7 @@ interface OnlineUser {
   presence_ref: string;
   clientId: string;
   username: string;
+  avatarUrl: string | null;
   joined_at: string;
 }
 
@@ -82,12 +83,36 @@ function PlayerPage() {
 
   // Identidade estável desta aba/cliente, usada para eleger o host.
   const clientIdRef = useRef<string>(crypto.randomUUID());
+  // Guarda o horário de entrada UMA vez — reusado em toda atualização de
+  // presença (ex: quando o nome/foto reais carregam depois), pra não mudar
+  // a ordem de quem é host toda vez que o perfil atualiza.
+  const joinedAtRef = useRef<string>(new Date().toISOString());
 
   // Estados remotos efêmeros (não persistidos), só para reação imediata de play/pause/seek.
   const [remoteSeek, setRemoteSeek] = useState<number | null>(null);
   const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
 
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+
+  // Nome e foto reais da conta logada (Supabase Auth), usados na lista de
+  // "quem tá ouvindo agora" em vez de um nome inventado.
+  const [profile, setProfile] = useState<{ name: string; avatarUrl: string | null } | null>(null);
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!active) return;
+      const user = data.user;
+      if (!user) return;
+      const meta = user.user_metadata ?? {};
+      const name =
+        meta.full_name ?? meta.name ?? user.email?.split("@")[0] ?? getFriendlyListenerName(clientIdRef.current);
+      const avatarUrl = meta.avatar_url ?? meta.picture ?? null;
+      setProfile({ name, avatarUrl });
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Host = quem entrou primeiro na sala (desempate por clientId para ser determinístico
   // e evitar que duas pessoas se considerem host ao mesmo tempo).
@@ -156,6 +181,7 @@ function PlayerPage() {
               presence_ref: p.presence_ref,
               clientId: p.clientId,
               username: p.username || "Ouvinte Anônimo",
+              avatarUrl: p.avatarUrl ?? null,
               joined_at: p.joined_at,
             });
           });
@@ -167,8 +193,9 @@ function PlayerPage() {
         if (status === "SUBSCRIBED") {
           await channel.track({
             clientId: clientIdRef.current,
-            username: getFriendlyListenerName(clientIdRef.current),
-            joined_at: new Date().toISOString(),
+            username: profile?.name ?? getFriendlyListenerName(clientIdRef.current),
+            avatarUrl: profile?.avatarUrl ?? null,
+            joined_at: joinedAtRef.current,
           });
         }
       });
@@ -179,6 +206,21 @@ function PlayerPage() {
       supabase.removeChannel(channel);
     };
   }, [slug]);
+
+  // A busca do nome/foto reais (supabase.auth.getUser()) é assíncrona e pode
+  // terminar DEPOIS do track() inicial acima (que nesse caso já teria saído
+  // com o nome inventado como fallback). Assim que o perfil chega, atualiza
+  // a presença com os dados reais — reusando o mesmo joined_at, pra não
+  // mexer em quem é host.
+  useEffect(() => {
+    if (!profile || !channelRef.current) return;
+    void channelRef.current.track({
+      clientId: clientIdRef.current,
+      username: profile.name,
+      avatarUrl: profile.avatarUrl,
+      joined_at: joinedAtRef.current,
+    });
+  }, [profile]);
 
   // Só o host processa mensagens do chat para adicionar músicas à fila —
   // evita duplicar quando várias abas estão abertas ao mesmo tempo.
@@ -323,13 +365,21 @@ function PlayerPage() {
                       key={user.presence_ref || idx}
                       className="flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted/50"
                     >
-                      <span
-                        className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                        style={{ backgroundColor: colorForClient(user.clientId) }}
-                        aria-hidden
-                      >
-                        {user.username.replace("Ouvinte ", "").charAt(0)}
-                      </span>
+                      {user.avatarUrl ? (
+                        <img
+                          src={user.avatarUrl}
+                          alt=""
+                          className="size-5 shrink-0 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span
+                          className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                          style={{ backgroundColor: colorForClient(user.clientId) }}
+                          aria-hidden
+                        >
+                          {user.username.replace("Ouvinte ", "").charAt(0)}
+                        </span>
+                      )}
                       <span className="truncate font-medium">{user.username}</span>
                       {user.clientId === hostClientId && (
                         <Crown className="size-3 shrink-0 text-vip" aria-hidden />
