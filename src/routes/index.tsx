@@ -38,4 +38,14 @@ const FEATURES = [
   {
     icon: ListMusic,
     title: "Fila automática",
-    text: "Terminou uma música, começa a próxima. Sem clique
+    text: "Terminou uma música, começa a próxima. Sem clique, sem pausa no meio da live.",
+  },
+  {
+    icon: Crown,
+    title: "Prioridade VIP",
+    text: "Pedidos dos VIPs sobem direto para o topo da fila, na frente de todo mundo.",
+  },
+];
+
+function LandingPage() {
+  const [signedIn, setSignedIn] = useState(false
