@@ -343,7 +343,7 @@ export function usePlayerQueue(): PlayerQueue {
     [refresh],
   );
 
-  const updatePlaybackHeartbeat = useCallback(
+    const updatePlaybackHeartbeat = useCallback(
     (itemId: string, playbackPosition: number, isPaused: boolean, durationSeconds?: number) => {
       void supabase
         .from("player_queue")
@@ -351,17 +351,24 @@ export function usePlayerQueue(): PlayerQueue {
           playback_position: playbackPosition,
           is_paused: isPaused,
           state_updated_at: new Date().toISOString(),
-          // Só grava a duração quando ela for um número válido — evita
-          // sobrescrever com null caso algum chamador não a informe.
           ...(typeof durationSeconds === "number" && durationSeconds > 0
             ? { duration_seconds: Math.round(durationSeconds) }
             : {}),
         })
         .eq("id", itemId)
-        .eq("status", "playing");
+        .eq("status", "playing")
+        .then(({ error }) => {
+          // DIAGNÓSTICO TEMPORÁRIO: loga qualquer erro do heartbeat no console.
+          if (error) {
+            console.error("[HEARTBEAT ERROR]", error.message, error);
+          } else {
+            console.log("[HEARTBEAT OK]", playbackPosition, durationSeconds);
+          }
+        });
     },
     [],
   );
+
 
   return {
     current,
