@@ -17,7 +17,6 @@ import { useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import type { KickChatMessage } from "@/lib/types";
 import type { StageControls } from "@/components/YouTubeStage";
-import playerBg from "@/assets/player-bg.jpg";
 
 const DEFAULT_CHANNEL = "roceiraplay";
 
@@ -310,27 +309,7 @@ function PlayerPage() {
   );
 
   return (
-    <main className="relative z-0 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 overflow-hidden p-4">
-      {/* Arte de fundo, em blur — mesmo tratamento visual da landing page.
-          Fica atrás de tudo; os painéis (player, fila, chat) têm fundo
-          sólido próprio e cobrem ela normalmente, então ela só "respira"
-          nas bordas e nos espaços entre os painéis. */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 scale-105 bg-cover bg-center opacity-60 blur-md"
-        style={{ backgroundImage: `url(${playerBg})` }}
-        aria-hidden
-      />
-      {/* Tingimento roxo, na mesma cor do --primary do site. */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 bg-[color-mix(in_oklab,var(--primary)_30%,transparent)] mix-blend-multiply"
-        aria-hidden
-      />
-      {/* Escurece nas bordas pra manter o foco nos painéis do meio. */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/30 via-transparent to-background/60"
-        aria-hidden
-      />
-
+    <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
       <h1 className="sr-only">Player de músicas do chat da Kick</h1>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
