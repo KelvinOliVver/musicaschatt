@@ -151,11 +151,17 @@ function PlayerPage() {
   );
 
   // Comandos (!skip, !pausar, !limpar, etc.) já chegam filtrados pelo kick-chat.ts,
-  // que só aceita comandos vindos do usuário "Pitee4". Aqui não checamos "isHost"
-  // para comandos — isso é sobre qual aba controla o avanço automático da fila,
-  // não sobre quem pode usar os comandos do chat.
+  // que só aceita comandos vindos do usuário "Pitee4". Quem pode DIGITAR o
+  // comando no chat não muda (sempre só o Pitee4) — mas antes, toda aba aberta
+  // no site executava o comando de forma independente. Com 2+ pessoas com o
+  // site aberto ao mesmo tempo, um único "!skip" podia disparar duas chamadas
+  // de playNext() quase simultâneas, cada uma lendo a fila local um instante
+  // antes da outra atualizar — resultado: pulava 2 músicas em vez de 1.
+  // Agora só a aba host executa, igual já era feito pros pedidos de música.
   const handleCommand = useCallback(
     (command: string) => {
+      if (!isHostRef.current) return;
+
       if (command === "!skip" || command === "!proxima") {
         queue.playNext();
         toast.info("Música pulada pelo comando do chat!");
