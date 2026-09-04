@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Crown, ListMusic, Radio, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import bgAsset from "@/assets/wallhaven-d6ldqm.jpg.asset.json";
+import heroImage from "@/assets/hero-bg.jpg";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -44,13 +44,12 @@ const FEATURES = [
   {
     icon: Crown,
     title: "Prioridade VIP",
-    text: "Pedidos dos VIPS  sobem direto para o topo da fila, na frente de todo mundo.",
+    text: "Pedidos dos VIPS  sobem direto para o topo da fila, na frente de todo mundo.",
   },
 ];
 
 function LandingPage() {
   const [signedIn, setSignedIn] = useState(false);
-
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -62,62 +61,65 @@ function LandingPage() {
   }, []);
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden">
+    <main className="relative z-0 min-h-screen w-full overflow-hidden">
+      {/* Arte de fundo, com blur leve — ambienta a página sem disputar
+          atenção com o texto. */}
       <div
-        className="absolute inset-0 scale-110 bg-cover bg-center blur-2xl saturate-150"
-        style={{ backgroundImage: `url(${bgAsset.url})` }}
+        className="pointer-events-none absolute inset-0 -z-10 scale-105 bg-cover bg-center opacity-70 blur-sm"
+        style={{ backgroundImage: `url(${heroImage})` }}
         aria-hidden
       />
+      {/* Tingimento roxo, na mesma cor do --primary do site, pra integrar a
+          imagem com a identidade visual roxa em vez de deixá-la "solta". */}
       <div
-        className="absolute inset-0 bg-primary/40 mix-blend-multiply backdrop-blur-sm"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[color-mix(in_oklab,var(--primary)_35%,transparent)] mix-blend-multiply"
         aria-hidden
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-primary/25 to-background/80" aria-hidden />
+      {/* Escurece gradualmente de cima pra baixo, garantindo que o conteúdo
+          (texto, botão, cards de recursos) fique sempre legível — a imagem
+          aparece mais perto do topo, e desaparece perto dos cards. */}
       <div
-        className="absolute inset-0 shadow-[inset_0_0_200px_60px_var(--color-primary)] opacity-60"
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/40 via-background/85 to-background"
         aria-hidden
       />
-      <main className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center gap-14 px-6 py-20">
-      <section className="flex flex-col items-start gap-6">
-        <span className="panel-raised inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          <span className="pulse-dot size-2 rounded-full bg-online" aria-hidden />
-          Chat da Kick em tempo real
-        </span>
 
-        <h1 className="max-w-3xl text-5xl leading-[1.05] font-bold sm:text-6xl">
-          A trilha sonora da sua live sai{" "}
-          <span className="text-gradient-primary">direto do chat</span>.
-        </h1>
-
-        <p className="max-w-xl text-lg text-muted-foreground">
-          Cada link de YouTube que a galera manda no chat da Kick entra na fila e
-          toca sozinho. Você só assiste — e o VIP fura fila.
-        </p>
-
-        <div className="flex flex-wrap gap-3">
-          <Button asChild size="lg" className="bg-gradient-primary glow text-primary-foreground">
-            <Link to={signedIn ? "/player" : "/auth"}>
-              {signedIn ? "Abrir o player" : "Entrar no player"}
-            </Link>
-          </Button>
-        </div>
-      </section>
-
-      <section className="grid gap-4 sm:grid-cols-2">
-        <h2 className="sr-only">Recursos</h2>
-        {FEATURES.map((feature) => (
-          <article key={feature.title} className="panel flex gap-4 p-5">
-            <span className="panel-raised flex size-10 shrink-0 items-center justify-center text-primary">
-              <feature.icon className="size-5" aria-hidden />
-            </span>
-            <div>
-              <h3 className="font-semibold">{feature.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{feature.text}</p>
-            </div>
-          </article>
-        ))}
-      </section>
-      </main>
-    </div>
+      <div className="mx-auto flex w-full max-w-5xl flex-col justify-center gap-14 px-6 py-20">
+        <section className="flex flex-col items-start gap-6">
+          <span className="panel-raised inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+            <span className="pulse-dot size-2 rounded-full bg-online" aria-hidden />
+            Chat da Kick em tempo real
+          </span>
+          <h1 className="max-w-3xl text-5xl leading-[1.05] font-bold sm:text-6xl">
+            A trilha sonora da sua live sai{" "}
+            <span className="text-gradient-primary">direto do chat</span>.
+          </h1>
+          <p className="max-w-xl text-lg text-muted-foreground">
+            Cada link de YouTube que a galera manda no chat da Kick entra na fila e
+            toca sozinho. Você só assiste — e o VIP fura fila.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild size="lg" className="bg-gradient-primary glow text-primary-foreground">
+              <Link to={signedIn ? "/player" : "/auth"}>
+                {signedIn ? "Abrir o player" : "Entrar no player"}
+              </Link>
+            </Button>
+          </div>
+        </section>
+        <section className="grid gap-4 sm:grid-cols-2">
+          <h2 className="sr-only">Recursos</h2>
+          {FEATURES.map((feature) => (
+            <article key={feature.title} className="panel flex gap-4 p-5">
+              <span className="panel-raised flex size-10 shrink-0 items-center justify-center text-primary">
+                <feature.icon className="size-5" aria-hidden />
+              </span>
+              <div>
+                <h3 className="font-semibold">{feature.title}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{feature.text}</p>
+              </div>
+            </article>
+          ))}
+        </section>
+      </div>
+    </main>
   );
 }
