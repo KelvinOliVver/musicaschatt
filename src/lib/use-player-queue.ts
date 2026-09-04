@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getTrackMetadata } from "./kick.functions";
-import { getSpotifyTrackMetadata } from "./spotify-api";
 import type { DetectedTrack } from "./link-parser";
 import type { QueueItem } from "./types";
 
@@ -25,12 +24,13 @@ interface QueueRow {
   playback_position: number | null;
   is_paused: boolean | null;
   state_updated_at: string | null;
+  duration_seconds: number | null;
 }
 
 function toItem(row: QueueRow): QueueItem {
   return {
     id: row.id,
-    source: (row.source === "spotify" ? "spotify" : "youtube") as QueueItem["source"],
+    source: "youtube",
     trackId: row.track_id,
     url: row.url,
     title: row.title,
@@ -51,10 +51,8 @@ function toItem(row: QueueRow): QueueItem {
 
 /**
  * Um "heartbeat" muda só a posição/pausa/timestamp de playback — usados apenas
- * para quem entra na sala depois calcular onde a música está. Não muda nada que
- * afete a ordem da fila, o item tocando ou os metadados. Diferenciar isso evita
- * refazer a busca inteira da fila a cada poucos segundos (o que pode causar
- * engasgos perceptíveis de áudio/vídeo, já que recarrega e re-renderiza tudo).
+ * para quem entra na sala depois calcular onde a música está. Diferenciar isso
+ * evita refazer a busca inteira da fila a cada poucos segundos.
  */
 function isHeartbeatOnlyChange(oldRow: QueueRow, newRow: QueueRow): boolean {
   return (
@@ -88,8 +86,18 @@ export interface PlayerQueue {
   clearQueue: () => void;
   /** Move o item para o índice alvo dentro da lista `queue` (drag-and-drop ou setinhas). */
   moveItem: (id: string, toIndex: number) => void;
-  /** Gravado periodicamente pelo host para os que entrarem depois saberem onde a música está. */
-  updatePlaybackHeartbeat: (itemId: string, playbackPosition: number, isPaused: boolean) => void;
+  /**
+   * Gravado periodicamente pelo host para os que entrarem depois saberem onde
+   * a música está. Também grava `duration_seconds` (quando conhecida) para o
+   * cron job do servidor (advance_player_queue) avançar a fila sozinho, mesmo
+   * sem nenhuma aba do site aberta.
+   */
+  updatePlaybackHeartbeat: (
+    itemId: string,
+    playbackPosition: number,
+    isPaused: boolean,
+    durationSeconds?: number,
+  ) => void;
 }
 
 export function usePlayerQueue(): PlayerQueue {
@@ -143,10 +151,7 @@ export function usePlayerQueue(): PlayerQueue {
 
           if (eventType === "UPDATE" && newRow && oldRow && isHeartbeatOnlyChange(oldRow, newRow)) {
             // Ignora completamente: quem já está com a página aberta não precisa
-            // reagir a um heartbeat — a posição só importa para calcular o ponto
-            // de partida de quem ENTRA na sala (isso já é feito no carregamento
-            // inicial). Nenhum setState aqui = zero re-render causado por isso,
-            // eliminando o engasgo periódico de áudio/vídeo.
+            // reagir a um heartbeat. Zero re-render causado por isso.
             return;
           }
 
@@ -171,12 +176,7 @@ export function usePlayerQueue(): PlayerQueue {
   }, [current, queue, refresh]);
 
   const applyMetadata = useCallback((id: string, track: DetectedTrack) => {
-    const metadataPromise =
-      track.source === "spotify"
-        ? getSpotifyTrackMetadata(track.trackId)
-        : getTrackMetadata({ data: { source: track.source, trackId: track.trackId } });
-
-    metadataPromise
+    getTrackMetadata({ data: { source: track.source, trackId: track.trackId } })
       .then(async (meta) => {
         await supabase
           .from("player_queue")
@@ -216,10 +216,7 @@ export function usePlayerQueue(): PlayerQueue {
             source: track.source,
             track_id: trackId,
             url: track.url,
-            thumbnail:
-              track.source === "youtube"
-                ? `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg`
-                : null,
+            thumbnail: `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg`,
             requested_by: requestedBy,
             requester_color: requesterColor,
             priority: isVip,
@@ -230,18 +227,11 @@ export function usePlayerQueue(): PlayerQueue {
           .select("id")
           .maybeSingle();
 
-        // DIAGNÓSTICO TEMPORÁRIO: antes, um erro aqui era silenciosamente
-        // engolido (só "if (error || !data) return false"), então qualquer
-        // rejeição do banco (RLS, coluna faltando, tipo errado, etc.) nunca
-        // aparecia em lugar nenhum. Agora ele vai pro console.
         if (error) {
           console.error("[ADD TRACK ERROR]", error.message, error);
           return false;
         }
-        if (!data) {
-          console.warn("[ADD TRACK] Insert não retornou erro, mas também não retornou dados.");
-          return false;
-        }
+        if (!data) return false;
 
         await refresh();
         applyMetadata((data as { id: string }).id, track);
@@ -254,7 +244,12 @@ export function usePlayerQueue(): PlayerQueue {
   );
 
   function resetPlaybackFields() {
-    return { playback_position: 0, is_paused: false, state_updated_at: new Date().toISOString() };
+    return {
+      playback_position: 0,
+      is_paused: false,
+      state_updated_at: new Date().toISOString(),
+      duration_seconds: null, // nova música: duração ainda desconhecida até o próximo heartbeat
+    };
   }
 
   const playNext = useCallback(() => {
@@ -382,13 +377,16 @@ export function usePlayerQueue(): PlayerQueue {
   );
 
   const updatePlaybackHeartbeat = useCallback(
-    (itemId: string, playbackPosition: number, isPaused: boolean) => {
+    (itemId: string, playbackPosition: number, isPaused: boolean, durationSeconds?: number) => {
       void supabase
         .from("player_queue")
         .update({
           playback_position: playbackPosition,
           is_paused: isPaused,
           state_updated_at: new Date().toISOString(),
+          ...(typeof durationSeconds === "number" && durationSeconds > 0
+            ? { duration_seconds: Math.round(durationSeconds) }
+            : {}),
         })
         .eq("id", itemId)
         .eq("status", "playing");
