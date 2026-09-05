@@ -338,9 +338,11 @@ export function PlayerPanel({
                 </span>
               )}
               <Youtube className="size-4 text-youtube" aria-hidden />
+              <Equalizer color={accent ?? undefined} paused={paused} className="shrink-0" />
               <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
                 {current.title ?? `Tocando ${current.trackId}`}
               </h2>
+
               <ExternalLinkButton url={current.url} />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
