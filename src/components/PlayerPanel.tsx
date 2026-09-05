@@ -254,8 +254,20 @@ export function PlayerPanel({
 
   const shown = scrubbing ?? progress.current;
 
+  // Cor dominante da capa da música atual — substitui o roxo fixo no brilho
+  // e no fundo desfocado, mudando a cada faixa.
+  const accent = useDominantColor(current?.thumbnail);
+  const accentSoft = accent ? accent.replace("rgb(", "rgba(").replace(")", ", 0.35)") : null;
+
   return (
-    <section className="panel relative z-0 flex flex-col gap-5 overflow-hidden p-5">
+    <section
+      className="panel relative z-0 flex flex-col gap-5 overflow-hidden p-5 transition-shadow duration-700"
+      style={
+        accentSoft
+          ? { boxShadow: `0 0 0 1px ${accentSoft}, 0 0 60px -10px ${accentSoft}` }
+          : undefined
+      }
+    >
       {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
           troca suavemente (fade) a cada nova faixa via a key no current.id. */}
       {current?.thumbnail && (
@@ -266,6 +278,14 @@ export function PlayerPanel({
           aria-hidden
         />
       )}
+      {/* Tingimento com a cor dominante da capa (antes era roxo fixo). */}
+      {accentSoft && (
+        <div
+          className="pointer-events-none absolute inset-0 -z-10 transition-colors duration-700"
+          style={{ backgroundColor: accentSoft, mixBlendMode: "soft-light" }}
+          aria-hidden
+        />
+      )}
       {/* Escurece de forma gradual (mais forte perto de baixo, onde ficam
           texto e controles) pra manter legibilidade sem apagar a cor da capa
           no topo do painel. */}
@@ -273,6 +293,8 @@ export function PlayerPanel({
         className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/20 via-background/60 to-background"
         aria-hidden
       />
+
+
 
       <div className="relative overflow-hidden rounded-lg">
         {current ? (
