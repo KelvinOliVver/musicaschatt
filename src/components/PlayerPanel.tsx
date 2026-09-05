@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Equalizer } from "@/components/Equalizer";
+import { useDominantColor } from "@/hooks/use-dominant-color";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
 import type { QueueItem } from "@/lib/types";
 
