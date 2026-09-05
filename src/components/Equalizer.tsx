@@ -2,7 +2,7 @@ interface EqualizerProps {
   /** Quantidade de barrinhas (3 ou 4 fica melhor). */
   bars?: number;
   /** Cor das barras; por padrão usa a cor atual do texto. */
-  color?: string;
+  color?: string | undefined;
   className?: string;
   /** Congela a animação (ex.: quando a música está pausada). */
   paused?: boolean;
