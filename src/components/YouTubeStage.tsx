@@ -252,7 +252,7 @@ export function YouTubeStage({
       return () => {
         isMounted = false;
         clearInterval(check);
-        if (progressTimer) clearInterval(progressTimer);
+        if (stopTicker) stopTicker();
       };
     } else {
       initPlayer();
@@ -260,7 +260,7 @@ export function YouTubeStage({
 
     return () => {
       isMounted = false;
-      if (progressTimer) clearInterval(progressTimer);
+      if (stopTicker) stopTicker();
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
