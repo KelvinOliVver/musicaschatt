@@ -35,6 +35,34 @@ export interface StageControls {
   getCurrentTime: () => number;
 }
 
+/**
+ * Timer baseado em Web Worker. Quando a aba fica em segundo plano (site
+ * minimizado ou jogo em tela cheia), o navegador estrangula setInterval da
+ * página — chegando a disparar só 1x por minuto ou menos — e a música não
+ * avança sozinha. Timers dentro de um Worker NÃO sofrem esse estrangulamento,
+ * então usamos um Workerzinho (criado inline, sem arquivo extra) que envia um
+ * "tick" a cada 500ms para a página.
+ */
+function createWorkerTicker(onTick: () => void, intervalMs = 500): () => void {
+  const source = `let t=null;onmessage=(e)=>{if(e.data==="start"&&!t){t=setInterval(()=>postMessage("tick"),${intervalMs});}else if(e.data==="stop"&&t){clearInterval(t);t=null;}};`;
+  try {
+    const blob = new Blob([source], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    const worker = new Worker(url);
+    worker.onmessage = () => onTick();
+    worker.postMessage("start");
+    return () => {
+      worker.postMessage("stop");
+      worker.terminate();
+      URL.revokeObjectURL(url);
+    };
+  } catch {
+    // Fallback: se o navegador bloquear Workers por Blob, usa setInterval mesmo.
+    const id = window.setInterval(onTick, intervalMs);
+    return () => window.clearInterval(id);
+  }
+}
+
 interface YouTubeStageProps {
   videoId: string;
   volume: number;
