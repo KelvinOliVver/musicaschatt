@@ -129,7 +129,7 @@ export function YouTubeStage({
 
   useEffect(() => {
     let isMounted = true;
-    let progressTimer: number | null = null;
+    let stopTicker: (() => void) | null = null;
     endedTriggeredRef.current = false;
 
     function initPlayer() {
