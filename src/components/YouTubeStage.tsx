@@ -179,28 +179,38 @@ export function YouTubeStage({
               event.target.playVideo();
             }
 
-            if (progressTimer) clearInterval(progressTimer);
-            progressTimer = window.setInterval(() => {
-              if (!playerRef.current?.getCurrentTime) return;
+            if (stopTicker) stopTicker();
+            // O tick vem de um Web Worker (imune ao estrangulamento de timers
+            // em abas minimizadas), então a música avança mesmo com o site em
+            // segundo plano ou enquanto você joga em tela cheia.
+            let lastTickAt = Date.now();
+            stopTicker = createWorkerTicker(() => {
+              if (!isMounted || !playerRef.current?.getCurrentTime) return;
+              const now = Date.now();
+              // onProgress alimenta a barra de progresso da tela; limitamos a
+              // ~1x por segundo para não renderizar em excesso.
+              const shouldReport = now - lastTickAt >= 950;
               try {
                 const current = playerRef.current.getCurrentTime() || 0;
                 const duration = playerRef.current.getDuration() || 0;
-                onProgress(current, duration);
+                if (shouldReport) {
+                  lastTickAt = now;
+                  onProgress(current, duration);
+                }
 
-                // Verificação de segurança: quando a aba fica em segundo plano por
-                // muito tempo (ex: usuário jogando com o navegador minimizado), o
-                // evento oficial "ENDED" da API do YouTube às vezes não chega até a
-                // aba voltar ao primeiro plano. Como esse timer usa o tempo relatado
-                // pelo próprio player (não depende de renderizar o vídeo na tela),
-                // ele continua funcionando e serve de rede de segurança: se o tempo
-                // atual já bateu na duração, avançamos mesmo sem o evento oficial.
+                // Verificação de segurança: quando a aba fica em segundo plano,
+                // o evento oficial "ENDED" da API do YouTube às vezes não chega
+                // até a aba voltar ao primeiro plano. Como esse tick usa o tempo
+                // relatado pelo próprio player, ele continua funcionando e serve
+                // de rede de segurança: se o tempo atual já bateu na duração,
+                // avançamos mesmo sem o evento oficial.
                 if (duration > 0 && current >= duration - 0.75) {
                   triggerEndedOnce();
                 }
               } catch {
                 // ignora
               }
-            }, 1000);
+            });
           },
           onStateChange: (event) => {
             if (!isMounted) return;
