@@ -336,3 +336,56 @@
       0 0 28px 3px color-mix(in oklab, var(--track-accent, var(--primary)) 30%, transparent);
   }
 }
+/* Brilho ambiente abstrato (AmbientGlow) — manchas de luz que derivam
+   devagar e pulsam mais enquanto a música toca. */
+@utility animate-glow-drift-a {
+  animation: glow-drift-a 14s ease-in-out infinite;
+}
+@utility animate-glow-drift-b {
+  animation: glow-drift-b 18s ease-in-out infinite;
+}
+@utility animate-glow-drift-c {
+  animation: glow-drift-c 16s ease-in-out infinite;
+}
+
+@keyframes glow-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(40px, 30px) scale(1.15);
+    opacity: 0.85;
+  }
+}
+@keyframes glow-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate(-30px, 40px) scale(1.1);
+    opacity: 0.7;
+  }
+}
+@keyframes glow-drift-c {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translate(20px, -35px) scale(1.2);
+    opacity: 0.65;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-glow-drift-a,
+  .animate-glow-drift-b,
+  .animate-glow-drift-c {
+    animation: none;
+  }
+}
