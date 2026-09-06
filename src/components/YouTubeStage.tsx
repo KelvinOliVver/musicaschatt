@@ -63,6 +63,30 @@ function createWorkerTicker(onTick: () => void, intervalMs = 500): () => void {
   }
 }
 
+/**
+ * Timeout de disparo único dentro de um Web Worker. Com a aba minimizada, o
+ * setTimeout da página é estrangulado (pode atrasar minutos), então agendamos
+ * o avanço automático da música dentro de um Worker, que não sofre isso.
+ */
+function createWorkerTimeout(onFire: () => void, delayMs: number): () => void {
+  const source = `let t=null;onmessage=(e)=>{if(e.data.cmd==="start"){t=setTimeout(()=>postMessage("fire"),e.data.delay);}else if(e.data.cmd==="cancel"&&t){clearTimeout(t);t=null;}};`;
+  try {
+    const blob = new Blob([source], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    const worker = new Worker(url);
+    worker.onmessage = () => onFire();
+    worker.postMessage({ cmd: "start", delay: Math.max(0, delayMs) });
+    return () => {
+      worker.postMessage({ cmd: "cancel" });
+      worker.terminate();
+      URL.revokeObjectURL(url);
+    };
+  } catch {
+    const id = window.setTimeout(onFire, Math.max(0, delayMs));
+    return () => window.clearTimeout(id);
+  }
+}
+
 interface YouTubeStageProps {
   videoId: string;
   volume: number;
@@ -130,7 +154,39 @@ export function YouTubeStage({
   useEffect(() => {
     let isMounted = true;
     let stopTicker: (() => void) | null = null;
+    let cancelHiddenAdvance: (() => void) | null = null;
     endedTriggeredRef.current = false;
+
+    // Quando o site é minimizado (ou você entra em tela cheia num jogo), o
+    // navegador pode pausar o vídeo ou estrangular todos os timers da página —
+    // aí o relógio do player "congela" e a música nunca avança sozinha.
+    // Solução: ao esconder a aba, calculamos quanto falta pra música acabar
+    // (duração - tempo atual) e agendamos o avanço dentro de um Web Worker,
+    // cujos timers NÃO são estrangulados. Quando o tempo esgota, avançamos a
+    // fila mesmo sem nenhum evento do YouTube. Ao voltar pra aba, cancelamos
+    // (o evento/tick normais voltam a cuidar disso).
+    function handleVisibilityForAdvance() {
+      if (cancelHiddenAdvance) {
+        cancelHiddenAdvance();
+        cancelHiddenAdvance = null;
+      }
+      if (document.visibilityState !== "hidden") return;
+      if (!playerRef.current?.getCurrentTime) return;
+      try {
+        const current = playerRef.current.getCurrentTime() || 0;
+        const duration = playerRef.current.getDuration() || 0;
+        if (duration <= 0 || current >= duration) return;
+        const remainingMs = (duration - current + 0.5) * 1000;
+        cancelHiddenAdvance = createWorkerTimeout(() => {
+          if (!isMounted) return;
+          triggerEndedOnce();
+        }, remainingMs);
+      } catch {
+        // ignora
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityForAdvance);
 
     function initPlayer() {
       if (!isMounted || !containerRef.current) return;
