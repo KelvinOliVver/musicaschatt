@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
-import { EqualizerBars } from "@/components/EqualizerBars";
+import { Equalizer } from "@/components/Equalizer";
 import { useDominantColor } from "@/hooks/use-dominant-color";
 import type { QueueItem } from "@/lib/types";
 
@@ -369,7 +369,7 @@ export function PlayerPanel({
                 </span>
               )}
               <Youtube className="size-4 text-youtube" aria-hidden />
-              {!paused && <EqualizerBars size={12} color={accentColor ?? undefined} />}
+              {!paused && <Equalizer bars={4} className="h-3" />}
               <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
                 {current.title ?? `Tocando ${current.trackId}`}
               </h2>
