@@ -271,24 +271,31 @@ export function usePlayerQueue(): PlayerQueue {
     };
   }
 
+  /** Marca como tocadas todas as músicas que estejam em "playing". */
+  async function stopAllPlaying(exceptId?: string) {
+    let query = supabase
+      .from("player_queue")
+      .update({ status: "played", played_at: new Date().toISOString() })
+      .eq("status", "playing");
+    if (exceptId) query = query.neq("id", exceptId);
+    await query;
+  }
+
+  /** Garante exatamente uma música tocando. */
+  async function startPlaying(id: string) {
+    await stopAllPlaying(id);
+    await supabase
+      .from("player_queue")
+      .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
+      .eq("id", id);
+  }
+
   const playNext = useCallback(() => {
     void (async () => {
-      const playing = currentRef.current;
       const nextItem = queueRef.current[0];
 
-      if (playing) {
-        await supabase
-          .from("player_queue")
-          .update({ status: "played", played_at: new Date().toISOString() })
-          .eq("id", playing.id);
-      }
-
-      if (nextItem) {
-        await supabase
-          .from("player_queue")
-          .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
-          .eq("id", nextItem.id);
-      }
+      await stopAllPlaying();
+      if (nextItem) await startPlaying(nextItem.id);
 
       await refresh();
     })();
