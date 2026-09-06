@@ -91,8 +91,8 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                       </div>
                     )}
                     {isNext && (
-                      <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-primary/90 py-0.5 text-[8px] font-bold uppercase tracking-wider text-primary-foreground">
-                        <Equalizer bars={3} className="h-2" />
+                      <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-primary/90 py-0.5 text-[7px] font-bold uppercase text-primary-foreground">
+                        <Equalizer bars={3} className="h-1.5" />
                         Próxima
                       </span>
                     )}
