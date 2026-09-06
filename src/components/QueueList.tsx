@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { EqualizerBars } from "@/components/EqualizerBars";
+import { EqualizerBars } from "@/components/Equalizer";
 import type { QueueItem } from "@/lib/types";
 
 interface QueueListProps {

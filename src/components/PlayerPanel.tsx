@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
-import { EqualizerBars } from "@/components/EqualizerBars";
+import { EqualizerBars } from "@/components/Equalizer";
 import { useDominantColor } from "@/hooks/use-dominant-color";
 import type { QueueItem } from "@/lib/types";
 
