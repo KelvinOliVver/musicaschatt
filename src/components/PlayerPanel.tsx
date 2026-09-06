@@ -273,11 +273,17 @@ export function PlayerPanel({
 
   return (
     <section
-      className={`panel relative z-0 flex flex-col gap-5 overflow-hidden p-5 transition-shadow duration-700 ${
+      className={`panel relative z-0 transition-shadow duration-700 ${
         current && !paused ? "animate-player-glow" : ""
       }`}
       style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}
     >
+      {/* Wrapper interno: só ele tem overflow-hidden, pra cortar a capa
+          borrada nos cantos arredondados sem cortar também o brilho do
+          <section> pai (box-shadow "vazando" pra fora precisa de um
+          ancestral SEM overflow:hidden, senão fica com essa aparência de
+          "cortado" em vez de um brilho suave). */}
+      <div className="relative z-0 flex flex-col gap-5 overflow-hidden rounded-[inherit] p-5">
       {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
           troca suavemente (fade) a cada nova faixa via a key no current.id. */}
       {current?.thumbnail && (
@@ -502,6 +508,7 @@ export function PlayerPanel({
           )}
         </span>
         <span className="hidden sm:inline">Espaço: pausar · Shift + ← → : pular · M: mudo</span>
+      </div>
       </div>
     </section>
   );
