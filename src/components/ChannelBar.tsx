@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { Radio, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import type { ChatStatus, KickChannelInfo } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import logoIcon from "@/assets/logo-icon.jpg.asset.json";
 
 const STATUS_LABEL: Record<ChatStatus, string> = {
   idle: "Parado",
@@ -42,9 +43,11 @@ export function ChannelBar({
   return (
     <header className="panel flex flex-wrap items-center gap-3 px-4 py-3">
       <Link to="/" className="flex items-center gap-2">
-        <span className="bg-gradient-primary flex size-8 items-center justify-center rounded-md text-primary-foreground">
-          <Radio className="size-4" aria-hidden />
-        </span>
+        <img
+          src={logoIcon.url}
+          alt="Logo Music Chat"
+          className="size-8 rounded-md object-cover"
+        />
         <span className="font-display text-base font-bold tracking-tight">Music Chat</span>
       </Link>
 
