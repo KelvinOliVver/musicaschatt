@@ -13,9 +13,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Equalizer } from "@/components/Equalizer";
-import { useDominantColor } from "@/hooks/use-dominant-color";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
+import { EqualizerBars } from "@/components/EqualizerBars";
+import { useDominantColor } from "@/hooks/use-dominant-color";
 import type { QueueItem } from "@/lib/types";
 
 const VOLUME_KEY = "musicas-chat-volume";
@@ -254,19 +254,16 @@ export function PlayerPanel({
 
   const shown = scrubbing ?? progress.current;
 
-  // Cor dominante da capa da música atual — substitui o roxo fixo no brilho
-  // e no fundo desfocado, mudando a cada faixa.
-  const accent = useDominantColor(current?.thumbnail);
-  const accentSoft = accent ? accent.replace("rgb(", "rgba(").replace(")", ", 0.35)") : null;
+  // Cor dominante da capa atual, extraída via canvas — usada pra tingir o
+  // fundo do player com uma cor que muda a cada música, em vez do roxo fixo
+  // do tema (efeito "Now Playing" do Spotify/Apple Music). Cai de volta pro
+  // roxo padrão do site enquanto carrega ou se a extração falhar.
+  const accentColor = useDominantColor(current?.thumbnail);
 
   return (
     <section
-      className="panel relative z-0 flex flex-col gap-5 overflow-hidden p-5 transition-shadow duration-700"
-      style={
-        accentSoft
-          ? { boxShadow: `0 0 0 1px ${accentSoft}, 0 0 60px -10px ${accentSoft}` }
-          : undefined
-      }
+      className="panel relative z-0 flex flex-col gap-5 overflow-hidden p-5"
+      style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}
     >
       {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
           troca suavemente (fade) a cada nova faixa via a key no current.id. */}
@@ -278,14 +275,12 @@ export function PlayerPanel({
           aria-hidden
         />
       )}
-      {/* Tingimento com a cor dominante da capa (antes era roxo fixo). */}
-      {accentSoft && (
-        <div
-          className="pointer-events-none absolute inset-0 -z-10 transition-colors duration-700"
-          style={{ backgroundColor: accentSoft, mixBlendMode: "soft-light" }}
-          aria-hidden
-        />
-      )}
+      {/* Tingimento com a cor dominante da capa atual (ou o roxo padrão do
+          tema como fallback) — é isso que muda o "clima" a cada música. */}
+      <div
+        className="pointer-events-none absolute inset-0 -z-10 bg-[color-mix(in_oklab,var(--track-accent,var(--primary))_28%,transparent)] mix-blend-multiply transition-colors duration-700"
+        aria-hidden
+      />
       {/* Escurece de forma gradual (mais forte perto de baixo, onde ficam
           texto e controles) pra manter legibilidade sem apagar a cor da capa
           no topo do painel. */}
@@ -294,29 +289,54 @@ export function PlayerPanel({
         aria-hidden
       />
 
-
-
       <div className="relative overflow-hidden rounded-lg">
         {current ? (
-          <YouTubeStage
-            key={current.id}
-            videoId={current.trackId}
-            volume={volume}
-            muted={muted}
-            paused={paused}
-            onEnded={() => {
-              // Só o host avança a fila quando o vídeo termina naturalmente,
-              // evitando que todas as abas abertas pulem a música ao mesmo tempo.
-              if (isHost) onNext();
-            }}
-            onPlayingChange={(playing) => {
-              const newPaused = !playing;
-              setPaused(newPaused);
-              onTogglePlayChange?.(newPaused);
-            }}
-            onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
-            controlsRef={controlsRef}
-          />
+          <>
+            <YouTubeStage
+              key={current.id}
+              videoId={current.trackId}
+              volume={volume}
+              muted={muted}
+              paused={paused}
+              onEnded={() => {
+                // Só o host avança a fila quando o vídeo termina naturalmente,
+                // evitando que todas as abas abertas pulem a música ao mesmo tempo.
+                if (isHost) onNext();
+              }}
+              onPlayingChange={(playing) => {
+                const newPaused = !playing;
+                setPaused(newPaused);
+                onTogglePlayChange?.(newPaused);
+              }}
+              onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+              controlsRef={controlsRef}
+            />
+            {/* Camada transparente sobre o vídeo: intercepta todo clique/hover
+                ANTES de chegar no iframe do YouTube, então a barra nativa dele
+                (compartilhar, assistir mais tarde, "mais vídeos", logo) nunca
+                chega a aparecer. Mostra só o nosso próprio botão de
+                pausar/tocar, centralizado, ao passar o mouse. */}
+            <button
+              type="button"
+              onClick={() => {
+                setPaused((value) => {
+                  const nextVal = !value;
+                  onTogglePlayChange?.(nextVal);
+                  return nextVal;
+                });
+              }}
+              className="group absolute inset-0 flex items-center justify-center bg-black/0 transition-colors hover:bg-black/20"
+              aria-label={paused ? "Tocar" : "Pausar"}
+            >
+              <span className="flex size-14 items-center justify-center rounded-full bg-black/60 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
+                {paused ? (
+                  <Play className="size-6 translate-x-0.5" aria-hidden />
+                ) : (
+                  <Pause className="size-6" aria-hidden />
+                )}
+              </span>
+            </button>
+          </>
         ) : (
           <div className="bg-surface-raised flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-lg">
             <Music2 className="size-10 text-muted-foreground" aria-hidden />
@@ -338,11 +358,10 @@ export function PlayerPanel({
                 </span>
               )}
               <Youtube className="size-4 text-youtube" aria-hidden />
-              <Equalizer color={accent ?? undefined} paused={paused} className="shrink-0" />
+              {!paused && <EqualizerBars size={12} color={accentColor ?? undefined} />}
               <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
                 {current.title ?? `Tocando ${current.trackId}`}
               </h2>
-
               <ExternalLinkButton url={current.url} />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
