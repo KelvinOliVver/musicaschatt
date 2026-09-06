@@ -63,6 +63,30 @@ function createWorkerTicker(onTick: () => void, intervalMs = 500): () => void {
   }
 }
 
+/**
+ * Timeout de disparo único dentro de um Web Worker. Com a aba minimizada, o
+ * setTimeout da página é estrangulado (pode atrasar minutos), então agendamos
+ * o avanço automático da música dentro de um Worker, que não sofre isso.
+ */
+function createWorkerTimeout(onFire: () => void, delayMs: number): () => void {
+  const source = `let t=null;onmessage=(e)=>{if(e.data.cmd==="start"){t=setTimeout(()=>postMessage("fire"),e.data.delay);}else if(e.data.cmd==="cancel"&&t){clearTimeout(t);t=null;}};`;
+  try {
+    const blob = new Blob([source], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    const worker = new Worker(url);
+    worker.onmessage = () => onFire();
+    worker.postMessage({ cmd: "start", delay: Math.max(0, delayMs) });
+    return () => {
+      worker.postMessage({ cmd: "cancel" });
+      worker.terminate();
+      URL.revokeObjectURL(url);
+    };
+  } catch {
+    const id = window.setTimeout(onFire, Math.max(0, delayMs));
+    return () => window.clearTimeout(id);
+  }
+}
+
 interface YouTubeStageProps {
   videoId: string;
   volume: number;
