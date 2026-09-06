@@ -3,8 +3,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Equalizer } from "@/components/Equalizer";
-
+import { EqualizerBars } from "@/components/EqualizerBars";
 import type { QueueItem } from "@/lib/types";
 
 interface QueueListProps {
@@ -59,7 +58,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
           </p>
         </div>
       ) : (
-        <ScrollArea className="min-h-0 flex-1 [&>div>div]:!block [&>div]:!w-full">
+        <ScrollArea className="min-h-0 flex-1">
           <ol className="divide-y divide-border">
             {items.map((item, index) => {
               const isNext = index === 0;
@@ -91,12 +90,11 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                       </div>
                     )}
                     {isNext && (
-                      <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-primary/90 py-0.5 text-[8px] font-bold uppercase tracking-wider text-primary-foreground">
-                        <Equalizer bars={3} className="h-2" />
+                      <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-primary/90 py-0.5 text-center text-[8px] font-bold uppercase tracking-wider text-primary-foreground">
+                        <EqualizerBars size={7} color="currentColor" />
                         Próxima
                       </span>
                     )}
-
                   </div>
 
                   <div className="min-w-0 flex-1">
@@ -120,13 +118,13 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-0.5">
+                  <div className="flex shrink-0 items-center gap-1">
                     {onMove && (
                       <div className="flex flex-col">
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-5"
+                          className="size-4"
                           disabled={!canMoveUp}
                           onClick={() => onMove(item.id, index - 1)}
                           aria-label={`Subir na fila: ${item.title ?? item.trackId}`}
@@ -136,7 +134,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-5"
+                          className="size-4"
                           disabled={!canMoveDown}
                           onClick={() => onMove(item.id, index + 1)}
                           aria-label={`Descer na fila: ${item.title ?? item.trackId}`}
