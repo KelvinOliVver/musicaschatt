@@ -123,7 +123,26 @@ export function usePlayerQueue(): PlayerQueue {
     if (error || !data) return;
 
     const rows = data as unknown as QueueRow[];
-    const playing = rows.find((row) => row.status === "playing");
+    const playingRows = rows.filter((row) => row.status === "playing");
+    // Se por qualquer corrida entre abas sobrar mais de uma "tocando",
+    // mantém a mais recente e devolve as outras para o histórico.
+    const playing = playingRows.length
+      ? playingRows.reduce((a, b) =>
+          new Date(b.state_updated_at ?? b.added_at).getTime() >
+          new Date(a.state_updated_at ?? a.added_at).getTime()
+            ? b
+            : a,
+        )
+      : undefined;
+
+    if (playingRows.length > 1 && playing) {
+      const stale = playingRows.filter((row) => row.id !== playing.id).map((row) => row.id);
+      void supabase
+        .from("player_queue")
+        .update({ status: "played", played_at: new Date().toISOString() })
+        .in("id", stale);
+    }
+
     setCurrent(playing ? toItem(playing) : null);
 
     setQueue(rows.filter((row) => row.status === "queued").map(toItem));
@@ -252,24 +271,31 @@ export function usePlayerQueue(): PlayerQueue {
     };
   }
 
+  /** Marca como tocadas todas as músicas que estejam em "playing". */
+  async function stopAllPlaying(exceptId?: string) {
+    let query = supabase
+      .from("player_queue")
+      .update({ status: "played", played_at: new Date().toISOString() })
+      .eq("status", "playing");
+    if (exceptId) query = query.neq("id", exceptId);
+    await query;
+  }
+
+  /** Garante exatamente uma música tocando. */
+  async function startPlaying(id: string) {
+    await stopAllPlaying(id);
+    await supabase
+      .from("player_queue")
+      .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
+      .eq("id", id);
+  }
+
   const playNext = useCallback(() => {
     void (async () => {
-      const playing = currentRef.current;
       const nextItem = queueRef.current[0];
 
-      if (playing) {
-        await supabase
-          .from("player_queue")
-          .update({ status: "played", played_at: new Date().toISOString() })
-          .eq("id", playing.id);
-      }
-
-      if (nextItem) {
-        await supabase
-          .from("player_queue")
-          .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
-          .eq("id", nextItem.id);
-      }
+      await stopAllPlaying();
+      if (nextItem) await startPlaying(nextItem.id);
 
       await refresh();
     })();
@@ -290,16 +316,18 @@ export function usePlayerQueue(): PlayerQueue {
       const playing = currentRef.current;
 
       if (playing) {
+        // Volta para o topo da fila (ordenação usa `position`, não `added_at`).
+        const sameGroup = queueRef.current.filter((i) => i.priority === playing.priority);
+        const topPosition = sameGroup.length
+          ? Math.min(...sameGroup.map((i) => i.position)) - 1000
+          : Date.now();
         await supabase
           .from("player_queue")
-          .update({ status: "queued", played_at: null, added_at: new Date().toISOString() })
+          .update({ status: "queued", played_at: null, position: topPosition })
           .eq("id", playing.id);
       }
 
-      await supabase
-        .from("player_queue")
-        .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
-        .eq("id", previousRow.id);
+      await startPlaying(previousRow.id);
 
       await refresh();
     })();
@@ -319,17 +347,7 @@ export function usePlayerQueue(): PlayerQueue {
   const playNow = useCallback(
     (id: string) => {
       void (async () => {
-        const playing = currentRef.current;
-        if (playing) {
-          await supabase
-            .from("player_queue")
-            .update({ status: "played", played_at: new Date().toISOString() })
-            .eq("id", playing.id);
-        }
-        await supabase
-          .from("player_queue")
-          .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
-          .eq("id", id);
+        await startPlaying(id);
         await refresh();
       })();
     },
