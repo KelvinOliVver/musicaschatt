@@ -283,3 +283,26 @@
     animation: none;
   }
 }
+
+/* Pulso do fundo cyberpunk (CyberpunkBackdrop) — mais vivo enquanto a
+   música toca, calmo quando pausa. */
+@utility animate-backdrop-pulse {
+  animation: backdrop-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes backdrop-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-backdrop-pulse {
+    animation: none;
+    opacity: 0.55;
+  }
+}
