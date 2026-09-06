@@ -273,7 +273,9 @@ export function PlayerPanel({
 
   return (
     <section
-      className="panel relative z-0 flex flex-col gap-5 overflow-hidden p-5"
+      className={`panel relative z-0 flex flex-col gap-5 overflow-hidden p-5 transition-shadow duration-700 ${
+        current && !paused ? "animate-player-glow" : ""
+      }`}
       style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}
     >
       {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
