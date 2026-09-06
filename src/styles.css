@@ -389,3 +389,12 @@
     animation: none;
   }
 }
+/* Brilho discreto na bolinha do slider de PROGRESSO (não o de volume),
+   na cor dinâmica da capa atual. Escopado só pra .progress-slider, então
+   não afeta o slider de volume, que usa o mesmo componente Slider.
+   Mira a "bolinha" (Thumb) pela classe "border-primary/50", que só ela tem
+   dentro do Slider (a Track/Range não têm essa classe). */
+.progress-slider [class*="border-primary/50"] {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--track-accent, var(--primary)) 25%, transparent);
+  transition: box-shadow 0.4s ease;
+}
