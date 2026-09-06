@@ -306,3 +306,33 @@
     opacity: 0.55;
   }
 }
+
+/* Brilho/contorno pulsante ao redor do painel do player — mais forte
+   enquanto a música toca, some quando pausa. Usa a cor dinâmica da capa
+   (--track-accent) quando disponível. */
+@utility animate-player-glow {
+  animation: player-glow-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes player-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--track-accent, var(--primary)) 35%, transparent),
+      0 0 24px 2px color-mix(in oklab, var(--track-accent, var(--primary)) 25%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--track-accent, var(--primary)) 55%, transparent),
+      0 0 40px 6px color-mix(in oklab, var(--track-accent, var(--primary)) 45%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-player-glow {
+    animation: none;
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--track-accent, var(--primary)) 40%, transparent),
+      0 0 28px 3px color-mix(in oklab, var(--track-accent, var(--primary)) 30%, transparent);
+  }
+}
