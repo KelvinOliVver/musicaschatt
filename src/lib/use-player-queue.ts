@@ -347,17 +347,7 @@ export function usePlayerQueue(): PlayerQueue {
   const playNow = useCallback(
     (id: string) => {
       void (async () => {
-        const playing = currentRef.current;
-        if (playing) {
-          await supabase
-            .from("player_queue")
-            .update({ status: "played", played_at: new Date().toISOString() })
-            .eq("id", playing.id);
-        }
-        await supabase
-          .from("player_queue")
-          .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
-          .eq("id", id);
+        await startPlaying(id);
         await refresh();
       })();
     },
