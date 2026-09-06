@@ -154,7 +154,39 @@ export function YouTubeStage({
   useEffect(() => {
     let isMounted = true;
     let stopTicker: (() => void) | null = null;
+    let cancelHiddenAdvance: (() => void) | null = null;
     endedTriggeredRef.current = false;
+
+    // Quando o site é minimizado (ou você entra em tela cheia num jogo), o
+    // navegador pode pausar o vídeo ou estrangular todos os timers da página —
+    // aí o relógio do player "congela" e a música nunca avança sozinha.
+    // Solução: ao esconder a aba, calculamos quanto falta pra música acabar
+    // (duração - tempo atual) e agendamos o avanço dentro de um Web Worker,
+    // cujos timers NÃO são estrangulados. Quando o tempo esgota, avançamos a
+    // fila mesmo sem nenhum evento do YouTube. Ao voltar pra aba, cancelamos
+    // (o evento/tick normais voltam a cuidar disso).
+    function handleVisibilityForAdvance() {
+      if (cancelHiddenAdvance) {
+        cancelHiddenAdvance();
+        cancelHiddenAdvance = null;
+      }
+      if (document.visibilityState !== "hidden") return;
+      if (!playerRef.current?.getCurrentTime) return;
+      try {
+        const current = playerRef.current.getCurrentTime() || 0;
+        const duration = playerRef.current.getDuration() || 0;
+        if (duration <= 0 || current >= duration) return;
+        const remainingMs = (duration - current + 0.5) * 1000;
+        cancelHiddenAdvance = createWorkerTimeout(() => {
+          if (!isMounted) return;
+          triggerEndedOnce();
+        }, remainingMs);
+      } catch {
+        // ignora
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityForAdvance);
 
     function initPlayer() {
       if (!isMounted || !containerRef.current) return;
