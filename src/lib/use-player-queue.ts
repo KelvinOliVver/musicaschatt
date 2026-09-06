@@ -316,16 +316,18 @@ export function usePlayerQueue(): PlayerQueue {
       const playing = currentRef.current;
 
       if (playing) {
+        // Volta para o topo da fila (ordenação usa `position`, não `added_at`).
+        const sameGroup = queueRef.current.filter((i) => i.priority === playing.priority);
+        const topPosition = sameGroup.length
+          ? Math.min(...sameGroup.map((i) => i.position)) - 1000
+          : Date.now();
         await supabase
           .from("player_queue")
-          .update({ status: "queued", played_at: null, added_at: new Date().toISOString() })
+          .update({ status: "queued", played_at: null, position: topPosition })
           .eq("id", playing.id);
       }
 
-      await supabase
-        .from("player_queue")
-        .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
-        .eq("id", previousRow.id);
+      await startPlaying(previousRow.id);
 
       await refresh();
     })();
