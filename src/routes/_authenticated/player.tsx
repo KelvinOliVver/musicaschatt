@@ -14,6 +14,8 @@ import { useKickChat } from "@/lib/kick-chat";
 import { extractTracks, parseTrackInput } from "@/lib/link-parser";
 import { usePlayerQueue } from "@/lib/use-player-queue";
 import { useProfile } from "@/hooks/use-profile";
+import { useDominantColor } from "@/hooks/use-dominant-color";
+import { AmbientGlow } from "@/components/AmbientGlow";
 import { supabase } from "@/integrations/supabase/client";
 import type { KickChatMessage } from "@/lib/types";
 import type { StageControls } from "@/components/YouTubeStage";
@@ -94,6 +96,12 @@ function PlayerPage() {
   const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
 
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+
+  // Estado de play/pause "de verdade" (vindo do PlayerPanel via callback) e
+  // a cor dominante da capa atual — alimentam o brilho ambiente que fica
+  // atrás de toda a página, não só do painel do player.
+  const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
+  const accentColor = useDominantColor(queue.current?.thumbnail);
 
   // Nome e foto reais da conta (tabela "profiles" — "Nome de exibição" e
   // avatar configurados em /conta), usados na lista de "quem tá ouvindo
@@ -309,7 +317,9 @@ function PlayerPage() {
   );
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
+    <main className="relative z-0 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 overflow-hidden p-4">
+      <AmbientGlow isPlaying={isCurrentlyPlaying} accentColor={accentColor} />
+
       <h1 className="sr-only">Player de músicas do chat da Kick</h1>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -418,6 +428,7 @@ function PlayerPage() {
           onSeekChange={handleSeekBroadcast}
           onTogglePlayChange={handleTogglePlayBroadcast}
           onPlaybackHeartbeat={handlePlaybackHeartbeat}
+          onPlayingStateChange={setIsCurrentlyPlaying}
           controlsRef={playerControlsRef}
         />
 
