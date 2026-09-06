@@ -1,38 +1,37 @@
-import { cn } from "@/lib/utils";
-
-interface EqualizerBarsProps {
-  className?: string;
-  /** Cor das barras. Se omitido, usa var(--primary) via CSS. */
+interface EqualizerProps {
+  /** Quantidade de barrinhas (3 ou 4 fica melhor). */
+  bars?: number;
+  /** Cor das barras; por padrão usa a cor atual do texto. */
   color?: string | undefined;
-  /** Altura total das barras, em pixels. */
-  size?: number;
+  className?: string;
+  /** Congela a animação (ex.: quando a música está pausada). */
+  paused?: boolean;
 }
 
-// Delay/duração escalonados por barra, pra não ficarem todas em sincronia
-// perfeita (fica mais orgânico, menos "robótico").
-const BAR_TIMINGS = [
-  { delay: 0, duration: 900 },
-  { delay: 150, duration: 1100 },
-  { delay: 300, duration: 800 },
-  { delay: 450, duration: 1000 },
-];
+const HEIGHTS = ["40%", "100%", "60%", "85%"];
+const DURATIONS = ["0.9s", "0.7s", "1.1s", "0.8s"];
 
 /**
- * Barrinhas verticais animadas tipo equalizador — o indicador clássico de
- * "isso está tocando agora" do Spotify/Apple Music.
+ * Equalizador puramente decorativo: barrinhas verticais que sobem e descem
+ * sem parar, indicando visualmente que tem música rolando.
  */
-export function EqualizerBars({ className, color, size = 12 }: EqualizerBarsProps) {
+export function Equalizer({ bars = 4, color, className = "", paused = false }: EqualizerProps) {
   return (
     <span
-      className={cn("inline-flex shrink-0 items-end gap-[2px]", className)}
-      style={{ height: size, ["--eq-color" as any]: color }}
+      className={`inline-flex h-3.5 items-end gap-[2px] ${className}`}
       aria-hidden
+      style={color ? { color } : undefined}
     >
-      {BAR_TIMINGS.map((timing, index) => (
+      {Array.from({ length: bars }).map((_, index) => (
         <span
           key={index}
-          className="eq-bar"
-          style={{ animationDelay: `${timing.delay}ms`, animationDuration: `${timing.duration}ms` }}
+          className="eq-bar w-[3px] rounded-full bg-current"
+          style={{
+            height: HEIGHTS[index % HEIGHTS.length],
+            animationDuration: DURATIONS[index % DURATIONS.length],
+            animationDelay: `${index * 0.12}s`,
+            animationPlayState: paused ? "paused" : "running",
+          }}
         />
       ))}
     </span>
