@@ -317,8 +317,15 @@ function PlayerPage() {
   );
 
   return (
-    <main className="relative z-0 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 overflow-hidden p-4">
-      <AmbientGlow isPlaying={isCurrentlyPlaying} accentColor={accentColor} />
+    <main className="relative z-0 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
+      {/* O brilho ambiente (AmbientGlow) precisa ficar contido dentro dessa
+          camada própria (com o próprio overflow-hidden aqui, não no <main>).
+          Antes, o overflow-hidden estava direto no <main>, o que também
+          cortava o brilho/contorno pulsante em volta do painel do player
+          (.animate-player-glow) sempre que ele "vazava" um pouco da borda. */}
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden>
+        <AmbientGlow isPlaying={isCurrentlyPlaying} accentColor={accentColor} />
+      </div>
 
       <h1 className="sr-only">Player de músicas do chat da Kick</h1>
 
