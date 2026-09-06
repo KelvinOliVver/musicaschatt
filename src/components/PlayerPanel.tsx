@@ -259,6 +259,19 @@ export function PlayerPanel({
 
   const shown = scrubbing ?? progress.current;
 
+  // Ao trocar de música, um fade rápido (opacidade cai e volta) disfarça o
+  // corte seco do vídeo antigo sumindo e o novo aparecendo — contido só
+  // nessa div, não mexe em posicionamento nem em mais nada.
+  const [videoOpacity, setVideoOpacity] = useState(1);
+  const previousTrackIdRef = useRef<string | undefined>(current?.id);
+  useEffect(() => {
+    if (previousTrackIdRef.current === current?.id) return;
+    previousTrackIdRef.current = current?.id;
+    setVideoOpacity(0);
+    const timer = setTimeout(() => setVideoOpacity(1), 220);
+    return () => clearTimeout(timer);
+  }, [current?.id]);
+
   // Cor dominante da capa atual, extraída via canvas — usada pra tingir o
   // fundo do player com uma cor que muda a cada música, em vez do roxo fixo
   // do tema (efeito "Now Playing" do Spotify/Apple Music). Cai de volta pro
@@ -301,7 +314,10 @@ export function PlayerPanel({
         aria-hidden
       />
 
-      <div className="relative overflow-hidden rounded-lg">
+      <div
+        className="relative overflow-hidden rounded-lg transition-opacity duration-300"
+        style={{ opacity: videoOpacity }}
+      >
         {current ? (
           <>
             <YouTubeStage
@@ -397,6 +413,7 @@ export function PlayerPanel({
           {formatTime(shown)}
         </span>
         <Slider
+          className="progress-slider"
           value={[Math.min(shown, progress.duration || 0)]}
           max={progress.duration || 100}
           step={1}
