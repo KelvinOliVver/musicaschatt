@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 interface EqualizerBarsProps {
   className?: string;
   /** Cor das barras. Se omitido, usa var(--primary) via CSS. */
-  color?: string;
+  color?: string | undefined;
   /** Altura total das barras, em pixels. */
   size?: number;
 }
