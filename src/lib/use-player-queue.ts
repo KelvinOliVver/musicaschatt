@@ -123,7 +123,26 @@ export function usePlayerQueue(): PlayerQueue {
     if (error || !data) return;
 
     const rows = data as unknown as QueueRow[];
-    const playing = rows.find((row) => row.status === "playing");
+    const playingRows = rows.filter((row) => row.status === "playing");
+    // Se por qualquer corrida entre abas sobrar mais de uma "tocando",
+    // mantém a mais recente e devolve as outras para o histórico.
+    const playing = playingRows.length
+      ? playingRows.reduce((a, b) =>
+          new Date(b.state_updated_at ?? b.added_at).getTime() >
+          new Date(a.state_updated_at ?? a.added_at).getTime()
+            ? b
+            : a,
+        )
+      : undefined;
+
+    if (playingRows.length > 1 && playing) {
+      const stale = playingRows.filter((row) => row.id !== playing.id).map((row) => row.id);
+      void supabase
+        .from("player_queue")
+        .update({ status: "played", played_at: new Date().toISOString() })
+        .in("id", stale);
+    }
+
     setCurrent(playing ? toItem(playing) : null);
 
     setQueue(rows.filter((row) => row.status === "queued").map(toItem));
