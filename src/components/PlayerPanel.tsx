@@ -285,11 +285,26 @@ export function PlayerPanel({
   }, [current, paused, onPlayingStateChange]);
 
   return (
-    <section
-      className="panel relative z-0"
-      style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}
-    >
-      <div className="relative z-0 flex flex-col gap-5 overflow-hidden rounded-[inherit] p-5">
+    <div className="relative z-0">
+      {/* Halo de luz atrás do painel inteiro — é um elemento SEPARADO do
+          painel (irmão dele no DOM, não filho), então o overflow-hidden
+          usado dentro do painel (pra cortar a capa borrada nos cantos) não
+          tem como cortar esse halo também — eles não têm relação de
+          pai/filho, só de irmãos posicionados um atrás do outro. */}
+      <div
+        className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] blur-2xl transition-opacity duration-700"
+        style={{
+          background: `radial-gradient(closest-side, color-mix(in oklab, ${accentColor ?? "var(--primary)"} 55%, transparent), transparent 75%)`,
+          opacity: current && !paused ? 0.9 : 0.35,
+        }}
+        aria-hidden
+      />
+
+      <section
+        className="panel relative z-0"
+        style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}
+      >
+        <div className="relative z-0 flex flex-col gap-5 overflow-hidden rounded-[inherit] p-5">
       {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
           troca suavemente (fade) a cada nova faixa via a key no current.id. */}
       {current?.thumbnail && (
@@ -520,7 +535,8 @@ export function PlayerPanel({
         <span className="hidden sm:inline">Espaço: pausar · Shift + ← → : pular · M: mudo</span>
       </div>
       </div>
-    </section>
+      </section>
+    </div>
   );
 }
 
