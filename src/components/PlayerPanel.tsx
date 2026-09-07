@@ -402,9 +402,15 @@ export function PlayerPanel({
               )}
               <Youtube className="size-4 text-youtube" aria-hidden />
               {!paused && <Equalizer bars={4} className="h-3" />}
-              <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
-                {current.title ?? `Tocando ${current.trackId}`}
-              </h2>
+              {current.title ? (
+                <h2 className="min-w-0 flex-1 truncate text-2xl font-bold sm:text-3xl">
+                  {current.title}
+                </h2>
+              ) : (
+                <h2 className="min-w-0 flex-1 animate-pulse truncate text-2xl font-bold text-muted-foreground/50 sm:text-3xl">
+                  Tocando {current.trackId}
+                </h2>
+              )}
               <ExternalLinkButton url={current.url} />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -452,7 +458,7 @@ export function PlayerPanel({
           <Button
             size="icon"
             variant="secondary"
-            className="size-10 rounded-full"
+            className="size-10 rounded-full transition-transform active:scale-90"
             onClick={onPrevious}
             disabled={!hasPrevious}
             aria-label="Música anterior"
@@ -461,7 +467,7 @@ export function PlayerPanel({
           </Button>
           <Button
             size="icon"
-            className="bg-gradient-primary glow size-12 rounded-full text-primary-foreground"
+            className="bg-gradient-primary glow size-12 rounded-full text-primary-foreground transition-transform active:scale-90"
             onClick={() => {
               setPaused((value) => {
                 const nextVal = !value;
@@ -481,7 +487,7 @@ export function PlayerPanel({
           <Button
             size="icon"
             variant="secondary"
-            className="size-10 rounded-full"
+            className="size-10 rounded-full transition-transform active:scale-90"
             onClick={onNext}
             disabled={!hasNext && !current}
             aria-label="Próxima música"
