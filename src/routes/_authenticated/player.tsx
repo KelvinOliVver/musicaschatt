@@ -123,6 +123,18 @@ function PlayerPage() {
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
 
+  // Estatísticas simples da sessão — derivadas de dados que já temos
+  // carregados (fila + histórico), sem precisar de nenhuma coluna nova no
+  // banco. "Nesta sessão" porque o histórico tem um limite de itens mais
+  // recentes, não representa necessariamente "hoje" inteiro.
+  const totalPlayed = queue.history.length;
+  const totalRequesters = useMemo(() => {
+    const set = new Set<string>();
+    queue.queue.forEach((item) => set.add(item.requestedBy.trim().toLowerCase()));
+    queue.history.forEach((item) => set.add(item.requestedBy.trim().toLowerCase()));
+    return set.size;
+  }, [queue.queue, queue.history]);
+
   const broadcast = useCallback((action: string, data?: any) => {
     channelRef.current?.send({
       type: "broadcast",
@@ -324,6 +336,14 @@ function PlayerPage() {
         </div>
 
         <div className="flex items-center gap-2 self-end sm:self-auto">
+          {totalPlayed > 0 && (
+            <span
+              className="hidden items-center gap-1.5 rounded-full border border-border bg-card/50 px-2.5 py-1 text-[11px] text-muted-foreground backdrop-blur-sm sm:inline-flex"
+              title="Estatísticas desta sessão (músicas mais recentes carregadas)"
+            >
+              🎵 {totalPlayed} tocada{totalPlayed === 1 ? "" : "s"} · {totalRequesters} pedindo
+            </span>
+          )}
           {isHost && (
             <span
               className="inline-flex items-center gap-1 rounded-full border border-vip/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-vip"
