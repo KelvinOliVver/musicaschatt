@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   Crown,
   ExternalLink,
+  Maximize,
+  Minimize,
   Music2,
   Pause,
   Play,
@@ -35,10 +37,8 @@ interface PlayerPanelProps {
   onPrevious: () => void;
   remoteSeek?: number | null;
   remotePaused?: boolean | null;
-  remoteVolume?: number | null;
   onSeekChange?: (time: number) => void;
   onTogglePlayChange?: (paused: boolean) => void;
-  onVolumeChange?: (volume: number) => void;
   /**
    * `duration` é a duração total da faixa (em segundos), quando já
    * conhecida. É gravada no banco junto com a posição, para o cron job do
@@ -71,10 +71,8 @@ export function PlayerPanel({
   onPrevious,
   remoteSeek,
   remotePaused,
-  remoteVolume,
   onSeekChange,
   onTogglePlayChange,
-  onVolumeChange,
   onPlaybackHeartbeat,
   onPlayingStateChange,
   controlsRef: externalControlsRef,
@@ -92,6 +90,28 @@ export function PlayerPanel({
   const internalControlsRef = useRef<StageControls | null>(null);
   const controlsRef = externalControlsRef || internalControlsRef;
 
+  // Referência do container do vídeo — usada pelo botão de tela cheia
+  // (chama requestFullscreen nesse elemento específico, não na página toda).
+  const videoContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    function handleFullscreenChange() {
+      setIsFullscreen(document.fullscreenElement === videoContainerRef.current);
+    }
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  function toggleFullscreen() {
+    if (!videoContainerRef.current) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else {
+      videoContainerRef.current.requestFullscreen?.().catch(() => {});
+    }
+  }
+
   // Espelha `progress` e `paused` em refs para o setInterval do heartbeat
   // (mais abaixo) sempre ler o valor mais atual sem precisar recriar o
   // interval a cada render (o que reiniciaria a contagem dos 4s).
@@ -104,12 +124,6 @@ export function PlayerPanel({
       setPaused(remotePaused);
     }
   }, [remotePaused]);
-
-  useEffect(() => {
-    if (remoteVolume !== null && remoteVolume !== undefined) {
-      setVolume(remoteVolume);
-    }
-  }, [remoteVolume]);
 
   // Sincroniza o tempo (seek) remoto vindo do broadcast.
   // Só força o seek se a diferença para o tempo local for maior que
@@ -251,10 +265,13 @@ export function PlayerPanel({
         onPrevious();
       } else if (event.key.toLowerCase() === "m") {
         setMuted((value) => !value);
+      } else if (event.key.toLowerCase() === "f") {
+        toggleFullscreen();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onNext, onPrevious, onTogglePlayChange]);
 
   const shown = scrubbing ?? progress.current;
@@ -285,26 +302,11 @@ export function PlayerPanel({
   }, [current, paused, onPlayingStateChange]);
 
   return (
-    <div className="relative z-0">
-      {/* Halo de luz atrás do painel inteiro — é um elemento SEPARADO do
-          painel (irmão dele no DOM, não filho), então o overflow-hidden
-          usado dentro do painel (pra cortar a capa borrada nos cantos) não
-          tem como cortar esse halo também — eles não têm relação de
-          pai/filho, só de irmãos posicionados um atrás do outro. */}
-      <div
-        className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] blur-2xl transition-opacity duration-700"
-        style={{
-          background: `radial-gradient(closest-side, color-mix(in oklab, ${accentColor ?? "var(--primary)"} 55%, transparent), transparent 75%)`,
-          opacity: current && !paused ? 0.9 : 0.35,
-        }}
-        aria-hidden
-      />
-
-      <section
-        className="panel relative z-0"
-        style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}
-      >
-        <div className="relative z-0 flex flex-col gap-5 overflow-hidden rounded-[inherit] p-5">
+    <section
+      className="panel relative z-0"
+      style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}
+    >
+      <div className="relative z-0 flex flex-col gap-5 overflow-hidden rounded-[inherit] p-5">
       {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
           troca suavemente (fade) a cada nova faixa via a key no current.id. */}
       {current?.thumbnail && (
@@ -330,7 +332,8 @@ export function PlayerPanel({
       />
 
       <div
-        className="relative overflow-hidden rounded-lg transition-opacity duration-300"
+        ref={videoContainerRef}
+        className="group/video relative overflow-hidden rounded-lg bg-black transition-opacity duration-300"
         style={{ opacity: videoOpacity }}
       >
         {current ? (
@@ -379,6 +382,26 @@ export function PlayerPanel({
                 )}
               </span>
             </button>
+            {/* Botão de tela cheia — no canto superior direito, aparece ao
+                passar o mouse no vídeo. Usa a API nativa de Fullscreen do
+                navegador, aplicada só neste container (não na página toda),
+                então o vídeo cresce mantendo a proporção certa. */}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleFullscreen();
+              }}
+              className="absolute top-2 right-2 z-10 flex size-9 items-center justify-center rounded-md bg-black/60 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/80 group-hover/video:opacity-100"
+              aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+              title={isFullscreen ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
+            >
+              {isFullscreen ? (
+                <Minimize className="size-4" aria-hidden />
+              ) : (
+                <Maximize className="size-4" aria-hidden />
+              )}
+            </button>
           </>
         ) : (
           <div className="bg-surface-raised flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-lg">
@@ -402,15 +425,9 @@ export function PlayerPanel({
               )}
               <Youtube className="size-4 text-youtube" aria-hidden />
               {!paused && <Equalizer bars={4} className="h-3" />}
-              {current.title ? (
-                <h2 className="min-w-0 flex-1 truncate text-2xl font-bold sm:text-3xl">
-                  {current.title}
-                </h2>
-              ) : (
-                <h2 className="min-w-0 flex-1 animate-pulse truncate text-2xl font-bold text-muted-foreground/50 sm:text-3xl">
-                  Tocando {current.trackId}
-                </h2>
-              )}
+              <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
+                {current.title ?? `Tocando ${current.trackId}`}
+              </h2>
               <ExternalLinkButton url={current.url} />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -458,7 +475,7 @@ export function PlayerPanel({
           <Button
             size="icon"
             variant="secondary"
-            className="size-10 rounded-full transition-transform active:scale-90"
+            className="size-10 rounded-full"
             onClick={onPrevious}
             disabled={!hasPrevious}
             aria-label="Música anterior"
@@ -467,7 +484,7 @@ export function PlayerPanel({
           </Button>
           <Button
             size="icon"
-            className="bg-gradient-primary glow size-12 rounded-full text-primary-foreground transition-transform active:scale-90"
+            className="bg-gradient-primary glow size-12 rounded-full text-primary-foreground"
             onClick={() => {
               setPaused((value) => {
                 const nextVal = !value;
@@ -487,7 +504,7 @@ export function PlayerPanel({
           <Button
             size="icon"
             variant="secondary"
-            className="size-10 rounded-full transition-transform active:scale-90"
+            className="size-10 rounded-full"
             onClick={onNext}
             disabled={!hasNext && !current}
             aria-label="Próxima música"
@@ -516,7 +533,6 @@ export function PlayerPanel({
               const newVol = value ?? 0;
               setVolume(newVol);
               if (newVol > 0) setMuted(false);
-              onVolumeChange?.(newVol);
             }}
             max={100}
             step={1}
@@ -538,11 +554,10 @@ export function PlayerPanel({
             "Fila vazia — a próxima música que caírem no chat toca aqui."
           )}
         </span>
-        <span className="hidden sm:inline">Espaço: pausar · Shift + ← → : pular · M: mudo</span>
+        <span className="hidden sm:inline">Espaço: pausar · Shift + ← → : pular · M: mudo · F: tela cheia</span>
       </div>
       </div>
-      </section>
-    </div>
+    </section>
   );
 }
 
