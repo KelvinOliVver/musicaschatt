@@ -424,6 +424,7 @@ function PlayerPage() {
         <div className="hidden min-h-[420px] flex-col lg:flex">
           <QueueList
             items={queue.queue}
+            history={queue.history}
             onPlayNow={handlePlayNow}
             onRemove={handleRemoveItem}
             onClear={handleClearQueue}
@@ -449,6 +450,7 @@ function PlayerPage() {
           <TabsContent value="fila" className="mt-3 flex min-h-0 flex-1 flex-col">
             <QueueList
               items={queue.queue}
+              history={queue.history}
               onPlayNow={handlePlayNow}
               onRemove={handleRemoveItem}
               onClear={handleClearQueue}
