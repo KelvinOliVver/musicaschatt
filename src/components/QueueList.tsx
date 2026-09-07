@@ -1,4 +1,15 @@
-import { ChevronDown, ChevronUp, Crown, ListMusic, Music2, Play, Trash2, Youtube } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Crown,
+  History,
+  ListMusic,
+  Music2,
+  Play,
+  Trash2,
+  Youtube,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +20,8 @@ import type { QueueItem } from "@/lib/types";
 
 interface QueueListProps {
   items: QueueItem[];
+  /** Músicas já tocadas — opcional, mostra uma seção de histórico colapsável quando presente. */
+  history?: QueueItem[];
   onPlayNow: (id: string) => void;
   onRemove: (id: string) => void;
   onClear: () => void;
@@ -16,8 +29,37 @@ interface QueueListProps {
   onMove?: (id: string, toIndex: number) => void;
 }
 
-export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: QueueListProps) {
+/** Formata "há X min/h" a partir de um timestamp (ms). Curto e discreto. */
+function formatRelativeTime(timestampMs: number, now: number): string {
+  const diffSeconds = Math.max(0, Math.floor((now - timestampMs) / 1000));
+  if (diffSeconds < 60) return "agora";
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `há ${diffMinutes} min`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `há ${diffHours}h`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `há ${diffDays}d`;
+}
+
+export function QueueList({
+  items,
+  history = [],
+  onPlayNow,
+  onRemove,
+  onClear,
+  onMove,
+}: QueueListProps) {
   const vipCount = items.filter((item) => item.priority).length;
+  const [showHistory, setShowHistory] = useState(false);
+
+  // "Relógio" próprio só pra atualizar os textos de "há X min" de tempos em
+  // tempos — não depende de nenhum dado novo, só re-renderiza esse
+  // componente a cada 30s pra o texto relativo não ficar parado/desatualizado.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   function handleClear() {
     if (!window.confirm(`Limpar as ${items.length} músicas da fila?`)) return;
@@ -65,13 +107,18 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
               const isNext = index === 0;
               const canMoveUp = Boolean(onMove) && index > 0;
               const canMoveDown = Boolean(onMove) && index < items.length - 1;
+              // Pedidos manuais pelo campo de texto (não pelo chat da Kick)
+              // são salvos com requestedBy "você" — é o único jeito seguro
+              // de saber que foi você mesmo, já que quem pede pelo chat da
+              // Kick não tem login no site pra comparar.
+              const isOwnRequest = item.requestedBy.trim().toLowerCase() === "você";
 
               return (
                 <li
                   key={item.id}
                   className={`group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 ${
                     isNext ? "bg-primary/5" : ""
-                  }`}
+                  } ${isOwnRequest ? "ring-1 ring-inset ring-primary/40" : ""}`}
                 >
                   <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">
                     {index + 1}
@@ -86,22 +133,24 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                         className="size-full object-cover"
                       />
                     ) : (
-                      <div className="flex size-full items-center justify-center">
+                      <div className="flex size-full animate-pulse items-center justify-center bg-muted-foreground/10">
                         <Music2 className="size-4 text-muted-foreground" aria-hidden />
                       </div>
                     )}
                     {isNext && (
-                      <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-primary/90 py-0.5 text-[7px] font-bold uppercase text-primary-foreground">
-                        <Equalizer bars={3} className="h-1.5" />
+                      <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-primary/90 py-0.5 text-[8px] font-bold uppercase tracking-wider text-primary-foreground">
+                        <Equalizer bars={3} className="h-2" />
                         Próxima
                       </span>
                     )}
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {item.title ?? `Vídeo ${item.trackId}`}
-                    </p>
+                    {item.title ? (
+                      <p className="truncate text-sm font-medium">{item.title}</p>
+                    ) : (
+                      <div className="h-4 w-3/4 animate-pulse rounded bg-muted-foreground/15" />
+                    )}
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       {item.priority && (
                         <span className="bg-gradient-vip inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-vip-foreground">
@@ -111,21 +160,24 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                       )}
                       <Youtube className="size-3 text-youtube" aria-hidden />
                       <span
-                        className="truncate text-xs text-muted-foreground"
-                        style={item.requesterColor ? { color: item.requesterColor } : undefined}
+                        className={`truncate text-xs ${isOwnRequest ? "font-semibold text-primary" : "text-muted-foreground"}`}
+                        style={!isOwnRequest && item.requesterColor ? { color: item.requesterColor } : undefined}
                       >
-                        {item.requestedBy}
+                        {isOwnRequest ? "Você" : item.requestedBy}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground/60">
+                        · {formatRelativeTime(item.addedAt, now)}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-0.5">
+                  <div className="flex shrink-0 items-center gap-1">
                     {onMove && (
                       <div className="flex flex-col">
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-5"
+                          className="size-4 transition-transform active:scale-90"
                           disabled={!canMoveUp}
                           onClick={() => onMove(item.id, index - 1)}
                           aria-label={`Subir na fila: ${item.title ?? item.trackId}`}
@@ -135,7 +187,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-5"
+                          className="size-4 transition-transform active:scale-90"
                           disabled={!canMoveDown}
                           onClick={() => onMove(item.id, index + 1)}
                           aria-label={`Descer na fila: ${item.title ?? item.trackId}`}
@@ -147,7 +199,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="size-8"
+                      className="size-8 transition-transform active:scale-90"
                       onClick={() => onPlayNow(item.id)}
                       aria-label={`Tocar agora: ${item.title ?? item.trackId}`}
                     >
@@ -156,7 +208,7 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="size-8 text-muted-foreground hover:text-destructive"
+                      className="size-8 text-muted-foreground transition-transform hover:text-destructive active:scale-90"
                       onClick={() => onRemove(item.id)}
                       aria-label={`Remover da fila: ${item.title ?? item.trackId}`}
                     >
@@ -168,6 +220,61 @@ export function QueueList({ items, onPlayNow, onRemove, onClear, onMove }: Queue
             })}
           </ol>
         </ScrollArea>
+      )}
+
+      {history.length > 0 && (
+        <div className="shrink-0 border-t border-border">
+          <button
+            type="button"
+            onClick={() => setShowHistory((v) => !v)}
+            className="flex w-full items-center justify-between px-5 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <span className="flex items-center gap-2">
+              <History className="size-3.5" aria-hidden />
+              Histórico
+              <Badge variant="secondary" className="tabular-nums">
+                {history.length}
+              </Badge>
+            </span>
+            {showHistory ? (
+              <ChevronUp className="size-3.5" aria-hidden />
+            ) : (
+              <ChevronDown className="size-3.5" aria-hidden />
+            )}
+          </button>
+          {showHistory && (
+            <ScrollArea className="max-h-48">
+              <ol className="divide-y divide-border">
+                {history.slice(0, 15).map((item) => (
+                  <li key={item.id} className="flex items-center gap-3 px-4 py-2.5 opacity-70">
+                    <div className="relative size-8 shrink-0 overflow-hidden rounded-md bg-muted">
+                      {item.thumbnail ? (
+                        <img
+                          src={item.thumbnail}
+                          alt=""
+                          loading="lazy"
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center">
+                          <Music2 className="size-3 text-muted-foreground" aria-hidden />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium">
+                        {item.title ?? `Vídeo ${item.trackId}`}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {item.requestedBy}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </ScrollArea>
+          )}
+        </div>
       )}
     </section>
   );
