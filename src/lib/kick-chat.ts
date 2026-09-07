@@ -115,9 +115,6 @@ export function useKickChat(
         const username = payload.sender?.username ?? "";
         if (!content) return;
 
-        // --- DIAGNÓSTICO NO CONSOLE (F12) ---
-        console.log(`[KickChat Debug] User recebido: "${username}" | Mensagem: "${content}"`);
-
         // =========================================================================
         // FILTRO ROBUSTO DE COMANDO (Ignora maiúsculas/minúsculas e espaços extras)
         // Só o usuário "Pitee4" (streamer) consegue disparar comandos de controle.
@@ -135,7 +132,6 @@ export function useKickChat(
             lowerContent === "!continuar" ||
             lowerContent === "!limpar"
           ) {
-            console.log(`[KickChat] Comando aceito de ${username}: ${lowerContent}`);
             onCommandRef.current?.(lowerContent, username);
             return;
           }
