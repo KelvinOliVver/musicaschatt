@@ -7,6 +7,10 @@ import { cn } from "@/lib/utils";
 
 interface ChatFeedProps {
   messages: KickChatMessage[];
+  /** Cor dinâmica da música atual (mesma do halo do player) — cai no roxo do tema se omitida. */
+  accentColor?: string | null;
+  /** Intensidade do halo — mais forte tocando, mais fraco parado. */
+  isPlaying?: boolean;
 }
 
 function formatTime(value: string): string {
@@ -15,7 +19,7 @@ function formatTime(value: string): string {
   return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function ChatFeed({ messages }: ChatFeedProps) {
+export function ChatFeed({ messages, accentColor, isPlaying = false }: ChatFeedProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const [onlyLinks, setOnlyLinks] = useState(false);
@@ -92,10 +96,21 @@ export function ChatFeed({ messages }: ChatFeedProps) {
   }
 
   return (
-    <section className="panel relative flex h-full max-h-[600px] flex-col">
-      <header className="flex items-center gap-2 border-b border-border px-5 py-4 shrink-0">
-        <MessageSquare className="size-4 text-primary" aria-hidden />
-        <h2 className="text-sm font-semibold uppercase tracking-widest">Chat</h2>
+    <div className="relative z-0 flex h-full max-h-[600px] flex-col">
+      {/* Halo de luz atrás do painel inteiro — mesma técnica do player. */}
+      <div
+        className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] blur-2xl transition-opacity duration-700"
+        style={{
+          background: `radial-gradient(closest-side, color-mix(in oklab, ${accentColor ?? "var(--primary)"} 55%, transparent), transparent 75%)`,
+          opacity: isPlaying ? 0.7 : 0.25,
+        }}
+        aria-hidden
+      />
+
+      <section className="panel relative z-0 flex h-full max-h-[600px] flex-col">
+        <header className="flex items-center gap-2 border-b border-border px-5 py-4 shrink-0">
+          <MessageSquare className="size-4 text-primary" aria-hidden />
+          <h2 className="text-sm font-semibold uppercase tracking-widest">Chat</h2>
         <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
           {messages.length}
         </span>
@@ -170,6 +185,7 @@ export function ChatFeed({ messages }: ChatFeedProps) {
           {unread > 0 ? `${unread} nova${unread > 1 ? "s" : ""}` : "Ir para o fim"}
         </Button>
       )}
-    </section>
+      </section>
+    </div>
   );
 }
