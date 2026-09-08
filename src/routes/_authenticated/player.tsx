@@ -14,6 +14,7 @@ import { useKickChat } from "@/lib/kick-chat";
 import { extractTracks, parseTrackInput } from "@/lib/link-parser";
 import { usePlayerQueue } from "@/lib/use-player-queue";
 import { useProfile } from "@/hooks/use-profile";
+import { useDominantColor } from "@/hooks/use-dominant-color";
 import { supabase } from "@/integrations/supabase/client";
 import type { KickChatMessage } from "@/lib/types";
 import type { StageControls } from "@/components/YouTubeStage";
@@ -94,6 +95,12 @@ function PlayerPage() {
   const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
 
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+
+  // Estado de play/pause "de verdade" (vindo do PlayerPanel via callback) e
+  // a cor dominante da capa atual — compartilhados com o player, a fila e o
+  // chat, pra os três terem o mesmo "halo" de luz atrás, na mesma cor.
+  const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
+  const accentColor = useDominantColor(queue.current?.thumbnail);
 
   // Nome e foto reais da conta (tabela "profiles" — "Nome de exibição" e
   // avatar configurados em /conta), usados na lista de "quem tá ouvindo
@@ -438,6 +445,7 @@ function PlayerPage() {
           onSeekChange={handleSeekBroadcast}
           onTogglePlayChange={handleTogglePlayBroadcast}
           onPlaybackHeartbeat={handlePlaybackHeartbeat}
+          onPlayingStateChange={setIsCurrentlyPlaying}
           controlsRef={playerControlsRef}
         />
 
@@ -449,11 +457,13 @@ function PlayerPage() {
             onRemove={handleRemoveItem}
             onClear={handleClearQueue}
             onMove={handleMoveItem}
+            accentColor={accentColor}
+            isPlaying={isCurrentlyPlaying}
           />
         </div>
 
         <div className="hidden min-h-[420px] flex-col lg:flex">
-          <ChatFeed messages={chat.messages} />
+          <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} />
         </div>
 
         <Tabs defaultValue="fila" className="flex min-h-[420px] flex-col lg:hidden">
@@ -475,10 +485,12 @@ function PlayerPage() {
               onRemove={handleRemoveItem}
               onClear={handleClearQueue}
               onMove={handleMoveItem}
+              accentColor={accentColor}
+              isPlaying={isCurrentlyPlaying}
             />
           </TabsContent>
           <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
-            <ChatFeed messages={chat.messages} />
+            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} />
           </TabsContent>
         </Tabs>
       </div>
