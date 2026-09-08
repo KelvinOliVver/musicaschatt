@@ -27,6 +27,10 @@ interface QueueListProps {
   onClear: () => void;
   /** Move o item para o índice alvo dentro da lista `queue`. */
   onMove?: (id: string, toIndex: number) => void;
+  /** Cor dinâmica da música atual (mesma do halo do player) — cai no roxo do tema se omitida. */
+  accentColor?: string | null;
+  /** Intensidade do halo — mais forte tocando, mais fraco parado. */
+  isPlaying?: boolean;
 }
 
 /** Formata "há X min/h" a partir de um timestamp (ms). Curto e discreto. */
@@ -48,6 +52,8 @@ export function QueueList({
   onRemove,
   onClear,
   onMove,
+  accentColor,
+  isPlaying = false,
 }: QueueListProps) {
   const vipCount = items.filter((item) => item.priority).length;
   const [showHistory, setShowHistory] = useState(false);
@@ -68,7 +74,20 @@ export function QueueList({
   }
 
   return (
-    <section className="panel flex min-h-0 flex-1 flex-col">
+    <div className="relative z-0 flex min-h-0 flex-1 flex-col">
+      {/* Halo de luz atrás do painel inteiro — mesma técnica do player:
+          elemento IRMÃO do painel (não filho), então o overflow-hidden
+          usado dentro da lista de músicas não corta esse halo. */}
+      <div
+        className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] blur-2xl transition-opacity duration-700"
+        style={{
+          background: `radial-gradient(closest-side, color-mix(in oklab, ${accentColor ?? "var(--primary)"} 55%, transparent), transparent 75%)`,
+          opacity: isPlaying ? 0.7 : 0.25,
+        }}
+        aria-hidden
+      />
+
+      <section className="panel relative z-0 flex min-h-0 flex-1 flex-col">
       <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
         <div className="flex min-w-0 items-center gap-2">
           <ListMusic className="size-4 shrink-0 text-primary" aria-hidden />
@@ -276,6 +295,7 @@ export function QueueList({
           )}
         </div>
       )}
-    </section>
+      </section>
+    </div>
   );
 }
