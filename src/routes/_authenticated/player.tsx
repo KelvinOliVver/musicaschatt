@@ -14,6 +14,7 @@ import { useKickChat } from "@/lib/kick-chat";
 import { extractTracks, parseTrackInput } from "@/lib/link-parser";
 import { usePlayerQueue } from "@/lib/use-player-queue";
 import { useProfile } from "@/hooks/use-profile";
+import { useAppSettings } from "@/hooks/use-app-settings";
 import { useDominantColor } from "@/hooks/use-dominant-color";
 import { supabase } from "@/integrations/supabase/client";
 import type { KickChatMessage } from "@/lib/types";
@@ -130,6 +131,16 @@ function PlayerPage() {
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
 
+  // Configurações do site (ex: cooldown do chat) — qualquer pessoa logada
+  // pode editar em /admin, e todo mundo com o site aberto recebe a mudança
+  // em tempo real.
+  const { settings } = useAppSettings();
+
+  // Guarda quando foi o último pedido aceito de cada pessoa (por nome de
+  // usuário da Kick, em minúsculas), só na memória desta aba — usado pra
+  // aplicar o cooldown sem precisar bater no banco a cada mensagem.
+  const lastRequestByUserRef = useRef<Map<string, number>>(new Map());
+
   // Estatísticas simples da sessão — derivadas de dados que já temos
   // carregados (fila + histórico), sem precisar de nenhuma coluna nova no
   // banco. "Nesta sessão" porque o histórico tem um limite de itens mais
@@ -233,14 +244,30 @@ function PlayerPage() {
 
   // Só o host processa mensagens do chat para adicionar músicas à fila —
   // evita duplicar quando várias abas estão abertas ao mesmo tempo.
+  // Também aplica o cooldown por pessoa (configurável em /admin): se a
+  // mesma pessoa mandar outro link antes do tempo passar, o pedido é
+  // ignorado silenciosamente (sem banir ninguém, só não adiciona de novo).
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
       if (!isHostRef.current) return;
-      for (const track of extractTracks(message.content)) {
+      const tracks = extractTracks(message.content);
+      if (tracks.length === 0) return;
+
+      const cooldownMs = settings.chatCooldownSeconds * 1000;
+      if (cooldownMs > 0) {
+        const usernameKey = message.username.trim().toLowerCase();
+        const lastRequestAt = lastRequestByUserRef.current.get(usernameKey) ?? 0;
+        if (Date.now() - lastRequestAt < cooldownMs) {
+          return;
+        }
+        lastRequestByUserRef.current.set(usernameKey, Date.now());
+      }
+
+      for (const track of tracks) {
         queue.addTrack(track, message.username, message.color);
       }
     },
-    [queue],
+    [queue, settings.chatCooldownSeconds],
   );
 
   // Comandos (!skip, !pausar, !limpar, etc.) já chegam filtrados pelo kick-chat.ts,
