@@ -286,6 +286,64 @@ export function PlayerPanel({
     onPlayingStateChange?.(Boolean(current) && !paused);
   }, [current, paused, onPlayingStateChange]);
 
+  // Tela cheia: pede fullscreen no próprio container do vídeo (não a página
+  // toda) — assim os controles por baixo (barra de progresso, fila) ficam
+  // de fora, só o vídeo ocupa a tela inteira.
+  const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    function handleFullscreenChange() {
+      setIsFullscreen(document.fullscreenElement === fullscreenContainerRef.current);
+    }
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  function toggleFullscreen() {
+    if (!fullscreenContainerRef.current) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      fullscreenContainerRef.current.requestFullscreen().catch(() => {});
+    }
+  }
+
+  // Em tela cheia, o mouse "nunca sai" do vídeo (ele ocupa a tela toda), então
+  // o hover normal do CSS não tem como esconder os botões sozinho. Por isso,
+  // em tela cheia, os botões somem depois de alguns segundos sem mexer o
+  // mouse — igual YouTube/Netflix — e voltam ao mover o mouse de novo. Fora
+  // da tela cheia, continua sendo só hover (CSS puro), sem esse temporizador.
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  function showControlsTemporarily() {
+    setControlsVisible(true);
+    if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
+    if (isFullscreen) {
+      hideControlsTimerRef.current = setTimeout(() => setControlsVisible(false), 2500);
+    }
+  }
+
+  useEffect(() => {
+    if (!isFullscreen) {
+      setControlsVisible(true);
+      if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
+      return;
+    }
+    showControlsTemporarily();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFullscreen]);
+
+  // Classe compartilhada pelos dois botões flutuantes (pausar e tela cheia):
+  // fora da tela cheia usa hover normal do CSS; em tela cheia usa o estado
+  // controlado pelo temporizador acima.
+  const overlayControlsOpacity = isFullscreen
+    ? controlsVisible
+      ? "opacity-100"
+      : "opacity-0"
+    : "opacity-0 group-hover:opacity-100";
+
   return (
     <div className="relative z-0">
       {/* Halo de luz atrás do painel inteiro — é um elemento SEPARADO do
@@ -307,242 +365,265 @@ export function PlayerPanel({
         style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}
       >
         <div className="relative z-0 flex flex-col gap-5 overflow-hidden rounded-[inherit] p-5">
-      {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
-          troca suavemente (fade) a cada nova faixa via a key no current.id. */}
-      {current?.thumbnail && (
-        <div
-          key={current.id}
-          className="pointer-events-none absolute inset-0 -z-10 scale-110 bg-cover bg-center opacity-45 blur-2xl transition-opacity duration-700"
-          style={{ backgroundImage: `url(${current.thumbnail})` }}
-          aria-hidden
-        />
-      )}
-      {/* Tingimento com a cor dominante da capa atual (ou o roxo padrão do
-          tema como fallback) — é isso que muda o "clima" a cada música. */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 bg-[color-mix(in_oklab,var(--track-accent,var(--primary))_28%,transparent)] mix-blend-multiply transition-colors duration-700"
-        aria-hidden
-      />
-      {/* Escurece de forma gradual (mais forte perto de baixo, onde ficam
-          texto e controles) pra manter legibilidade sem apagar a cor da capa
-          no topo do painel. */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/20 via-background/60 to-background"
-        aria-hidden
-      />
-
-      <div
-        className="relative overflow-hidden rounded-lg transition-opacity duration-300"
-        style={{ opacity: videoOpacity }}
-      >
-        {current ? (
-          <>
-            <YouTubeStage
+          {/* Capa da música, em blur, como fundo ambiente do painel inteiro —
+              troca suavemente (fade) a cada nova faixa via a key no current.id. */}
+          {current?.thumbnail && (
+            <div
               key={current.id}
-              videoId={current.trackId}
-              volume={volume}
-              muted={muted}
-              paused={paused}
-              onEnded={() => {
-                // Só o host avança a fila quando o vídeo termina naturalmente,
-                // evitando que todas as abas abertas pulem a música ao mesmo tempo.
-                if (isHost) onNext();
-              }}
-              onPlayingChange={(playing) => {
-                const newPaused = !playing;
-                setPaused(newPaused);
-                onTogglePlayChange?.(newPaused);
-              }}
-              onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
-              controlsRef={controlsRef}
+              className="pointer-events-none absolute inset-0 -z-10 scale-110 bg-cover bg-center opacity-45 blur-2xl transition-opacity duration-700"
+              style={{ backgroundImage: `url(${current.thumbnail})` }}
+              aria-hidden
             />
-            {/* Camada transparente sobre o vídeo: intercepta todo clique/hover
-                ANTES de chegar no iframe do YouTube, então a barra nativa dele
-                (compartilhar, assistir mais tarde, "mais vídeos", logo) nunca
-                chega a aparecer. Mostra só o nosso próprio botão de
-                pausar/tocar, centralizado, ao passar o mouse. */}
-            <button
-              type="button"
-              onClick={() => {
-                setPaused((value) => {
-                  const nextVal = !value;
-                  onTogglePlayChange?.(nextVal);
-                  return nextVal;
-                });
-              }}
-              className="group absolute inset-0 flex items-center justify-center bg-black/0 transition-colors hover:bg-black/20"
-              aria-label={paused ? "Tocar" : "Pausar"}
-            >
-              <span className="flex size-14 items-center justify-center rounded-full bg-black/60 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
-                {paused ? (
-                  <Play className="size-6 translate-x-0.5" aria-hidden />
-                ) : (
-                  <Pause className="size-6" aria-hidden />
-                )}
-              </span>
-            </button>
-          </>
-        ) : (
-          <div className="bg-surface-raised flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-lg">
-            <Music2 className="size-10 text-muted-foreground" aria-hidden />
-            <p className="max-w-xs text-center text-sm text-muted-foreground">
-              Cole um link do YouTube no chat da Kick (ou aqui no campo de cima) para começar.
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div className="min-h-14">
-        {current ? (
-          <>
-            <div className="flex flex-wrap items-center gap-2">
-              {current.priority && (
-                <span className="bg-gradient-vip inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-vip-foreground">
-                  <Crown className="size-3" aria-hidden />
-                  VIP
-                </span>
-              )}
-              <Youtube className="size-4 text-youtube" aria-hidden />
-              {!paused && <Equalizer bars={4} className="h-3" />}
-              {current.title ? (
-                <h2 className="min-w-0 flex-1 truncate text-2xl font-bold sm:text-3xl">
-                  {current.title}
-                </h2>
-              ) : (
-                <h2 className="min-w-0 flex-1 animate-pulse truncate text-2xl font-bold text-muted-foreground/50 sm:text-3xl">
-                  Tocando {current.trackId}
-                </h2>
-              )}
-              <ExternalLinkButton url={current.url} />
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Pedido por{" "}
-              <span
-                className="font-medium text-foreground"
-                style={current.requesterColor ? { color: current.requesterColor } : undefined}
-              >
-                {current.requestedBy}
-              </span>
-              {current.author ? ` · ${current.author}` : ""}
-            </p>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">Nada tocando no momento.</p>
-        )}
-      </div>
-
-      <div className="flex items-center gap-3">
-        <span className="w-10 shrink-0 text-xs tabular-nums text-muted-foreground">
-          {formatTime(shown)}
-        </span>
-        <Slider
-          className="progress-slider"
-          value={[Math.min(shown, progress.duration || 0)]}
-          max={progress.duration || 100}
-          step={1}
-          disabled={!current || progress.duration <= 0}
-          onValueChange={([value]) => setScrubbing(value ?? 0)}
-          onValueCommit={([value]) => {
-            const targetTime = value ?? 0;
-            controlsRef.current?.seekTo(targetTime);
-            setScrubbing(null);
-            onSeekChange?.(targetTime);
-          }}
-          aria-label="Progresso da música"
-        />
-        <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-          {formatTime(progress.duration)}
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Button
-            size="icon"
-            variant="secondary"
-            className="size-10 rounded-full transition-transform active:scale-90"
-            onClick={onPrevious}
-            disabled={!hasPrevious}
-            aria-label="Música anterior"
-          >
-            <SkipBack className="size-4" aria-hidden />
-          </Button>
-          <Button
-            size="icon"
-            className="bg-gradient-primary glow size-12 rounded-full text-primary-foreground transition-transform active:scale-90"
-            onClick={() => {
-              setPaused((value) => {
-                const nextVal = !value;
-                onTogglePlayChange?.(nextVal);
-                return nextVal;
-              });
-            }}
-            disabled={!current}
-            aria-label={paused ? "Tocar" : "Pausar"}
-          >
-            {paused ? (
-              <Play className="size-5" aria-hidden />
-            ) : (
-              <Pause className="size-5" aria-hidden />
-            )}
-          </Button>
-          <Button
-            size="icon"
-            variant="secondary"
-            className="size-10 rounded-full transition-transform active:scale-90"
-            onClick={onNext}
-            disabled={!hasNext && !current}
-            aria-label="Próxima música"
-          >
-            <SkipForward className="size-4" aria-hidden />
-          </Button>
-        </div>
-
-        <div className="flex min-w-40 flex-1 items-center gap-3">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-8 shrink-0"
-            onClick={() => setMuted((value) => !value)}
-            aria-label={muted ? "Tirar do mudo" : "Deixar mudo"}
-          >
-            {muted ? (
-              <VolumeX className="size-4 text-muted-foreground" aria-hidden />
-            ) : (
-              <Volume2 className="size-4 text-muted-foreground" aria-hidden />
-            )}
-          </Button>
-          <Slider
-            value={[muted ? 0 : volume]}
-            onValueChange={([value]) => {
-              const newVol = value ?? 0;
-              setVolume(newVol);
-              if (newVol > 0) setMuted(false);
-              onVolumeChange?.(newVol);
-            }}
-            max={100}
-            step={1}
-            aria-label="Volume"
-          />
-          <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-            {muted ? 0 : volume}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
-        <span className="truncate">
-          {next ? (
-            <>
-              A seguir: <span className="text-foreground">{next.title ?? next.trackId}</span>
-            </>
-          ) : (
-            "Fila vazia — a próxima música que caírem no chat toca aqui."
           )}
-        </span>
-        <span className="hidden sm:inline">Espaço: pausar · Shift + ← → : pular · M: mudo</span>
-      </div>
-      </div>
+          {/* Tingimento com a cor dominante da capa atual (ou o roxo padrão do
+              tema como fallback) — é isso que muda o "clima" a cada música. */}
+          <div
+            className="pointer-events-none absolute inset-0 -z-10 bg-[color-mix(in_oklab,var(--track-accent,var(--primary))_28%,transparent)] mix-blend-multiply transition-colors duration-700"
+            aria-hidden
+          />
+          {/* Escurece de forma gradual (mais forte perto de baixo, onde ficam
+              texto e controles) pra manter legibilidade sem apagar a cor da capa
+              no topo do painel. */}
+          <div
+            className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/20 via-background/60 to-background"
+            aria-hidden
+          />
+
+          <div
+            ref={fullscreenContainerRef}
+            onMouseMove={showControlsTemporarily}
+            className="group relative overflow-hidden rounded-lg bg-black transition-opacity duration-300"
+            style={{ opacity: videoOpacity }}
+          >
+            {current ? (
+              <>
+                <YouTubeStage
+                  key={current.id}
+                  videoId={current.trackId}
+                  volume={volume}
+                  muted={muted}
+                  paused={paused}
+                  onEnded={() => {
+                    // Só o host avança a fila quando o vídeo termina naturalmente,
+                    // evitando que todas as abas abertas pulem a música ao mesmo tempo.
+                    if (isHost) onNext();
+                  }}
+                  onPlayingChange={(playing) => {
+                    const newPaused = !playing;
+                    setPaused(newPaused);
+                    onTogglePlayChange?.(newPaused);
+                  }}
+                  onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+                  controlsRef={controlsRef}
+                />
+                {/* Camada transparente sobre o vídeo: intercepta todo clique/hover
+                    ANTES de chegar no iframe do YouTube, então a barra nativa dele
+                    (compartilhar, assistir mais tarde, "mais vídeos", logo) nunca
+                    chega a aparecer. Mostra só o nosso próprio botão de
+                    pausar/tocar, centralizado, ao passar o mouse (ou, em tela
+                    cheia, até o temporizador de inatividade escondê-lo). */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaused((value) => {
+                      const nextVal = !value;
+                      onTogglePlayChange?.(nextVal);
+                      return nextVal;
+                    });
+                  }}
+                  className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors hover:bg-black/20"
+                  aria-label={paused ? "Tocar" : "Pausar"}
+                >
+                  <span
+                    className={`flex size-14 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-opacity ${overlayControlsOpacity}`}
+                  >
+                    {paused ? (
+                      <Play className="size-6 translate-x-0.5" aria-hidden />
+                    ) : (
+                      <Pause className="size-6" aria-hidden />
+                    )}
+                  </span>
+                </button>
+                {/* Botão de tela cheia — canto superior direito do vídeo,
+                    mesma visibilidade (hover fora da tela cheia, temporizador
+                    de inatividade dentro dela) dos outros controles. */}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleFullscreen();
+                  }}
+                  className={`absolute right-2 top-2 z-10 flex size-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-opacity hover:bg-black/80 focus-visible:opacity-100 ${overlayControlsOpacity}`}
+                  aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className="size-4" aria-hidden />
+                  ) : (
+                    <Maximize2 className="size-4" aria-hidden />
+                  )}
+                </button>
+              </>
+            ) : (
+              <div className="bg-surface-raised flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-lg">
+                <Music2 className="size-10 text-muted-foreground" aria-hidden />
+                <p className="max-w-xs text-center text-sm text-muted-foreground">
+                  Cole um link do YouTube no chat da Kick (ou aqui no campo de cima) para começar.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="min-h-14">
+            {current ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  {current.priority && (
+                    <span className="bg-gradient-vip inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-vip-foreground">
+                      <Crown className="size-3" aria-hidden />
+                      VIP
+                    </span>
+                  )}
+                  <Youtube className="size-4 text-youtube" aria-hidden />
+                  {!paused && <Equalizer bars={4} className="h-3" />}
+                  {current.title ? (
+                    <h2 className="min-w-0 flex-1 truncate text-2xl font-bold sm:text-3xl">
+                      {current.title}
+                    </h2>
+                  ) : (
+                    <h2 className="min-w-0 flex-1 animate-pulse truncate text-2xl font-bold text-muted-foreground/50 sm:text-3xl">
+                      Tocando {current.trackId}
+                    </h2>
+                  )}
+                  <ExternalLinkButton url={current.url} />
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Pedido por{" "}
+                  <span
+                    className="font-medium text-foreground"
+                    style={current.requesterColor ? { color: current.requesterColor } : undefined}
+                  >
+                    {current.requestedBy}
+                  </span>
+                  {current.author ? ` · ${current.author}` : ""}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Nada tocando no momento.</p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="w-10 shrink-0 text-xs tabular-nums text-muted-foreground">
+              {formatTime(shown)}
+            </span>
+            <Slider
+              className="progress-slider"
+              value={[Math.min(shown, progress.duration || 0)]}
+              max={progress.duration || 100}
+              step={1}
+              disabled={!current || progress.duration <= 0}
+              onValueChange={([value]) => setScrubbing(value ?? 0)}
+              onValueCommit={([value]) => {
+                const targetTime = value ?? 0;
+                controlsRef.current?.seekTo(targetTime);
+                setScrubbing(null);
+                onSeekChange?.(targetTime);
+              }}
+              aria-label="Progresso da música"
+            />
+            <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+              {formatTime(progress.duration)}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Button
+                size="icon"
+                variant="secondary"
+                className="size-10 rounded-full transition-transform active:scale-90"
+                onClick={onPrevious}
+                disabled={!hasPrevious}
+                aria-label="Música anterior"
+              >
+                <SkipBack className="size-4" aria-hidden />
+              </Button>
+              <Button
+                size="icon"
+                className="bg-gradient-primary glow size-12 rounded-full text-primary-foreground transition-transform active:scale-90"
+                onClick={() => {
+                  setPaused((value) => {
+                    const nextVal = !value;
+                    onTogglePlayChange?.(nextVal);
+                    return nextVal;
+                  });
+                }}
+                disabled={!current}
+                aria-label={paused ? "Tocar" : "Pausar"}
+              >
+                {paused ? (
+                  <Play className="size-5" aria-hidden />
+                ) : (
+                  <Pause className="size-5" aria-hidden />
+                )}
+              </Button>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="size-10 rounded-full transition-transform active:scale-90"
+                onClick={onNext}
+                disabled={!hasNext && !current}
+                aria-label="Próxima música"
+              >
+                <SkipForward className="size-4" aria-hidden />
+              </Button>
+            </div>
+
+            <div className="flex min-w-40 flex-1 items-center gap-3">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-8 shrink-0"
+                onClick={() => setMuted((value) => !value)}
+                aria-label={muted ? "Tirar do mudo" : "Deixar mudo"}
+              >
+                {muted ? (
+                  <VolumeX className="size-4 text-muted-foreground" aria-hidden />
+                ) : (
+                  <Volume2 className="size-4 text-muted-foreground" aria-hidden />
+                )}
+              </Button>
+              <Slider
+                value={[muted ? 0 : volume]}
+                onValueChange={([value]) => {
+                  const newVol = value ?? 0;
+                  setVolume(newVol);
+                  if (newVol > 0) setMuted(false);
+                  onVolumeChange?.(newVol);
+                }}
+                max={100}
+                step={1}
+                aria-label="Volume"
+              />
+              <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                {muted ? 0 : volume}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
+            <span className="truncate">
+              {next ? (
+                <>
+                  A seguir: <span className="text-foreground">{next.title ?? next.trackId}</span>
+                </>
+              ) : (
+                "Fila vazia — a próxima música que caírem no chat toca aqui."
+              )}
+            </span>
+            <span className="hidden sm:inline">Espaço: pausar · Shift + ← → : pular · M: mudo</span>
+          </div>
+        </div>
       </section>
     </div>
   );
