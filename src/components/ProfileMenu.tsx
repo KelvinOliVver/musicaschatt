@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LogOut, UserRound } from "lucide-react";
+import { LogOut, Settings, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,6 +47,12 @@ export function ProfileMenu() {
           <Link to="/conta">
             <UserRound className="size-4" aria-hidden />
             Minha conta
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/admin">
+            <Settings className="size-4" aria-hidden />
+            Administração
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
