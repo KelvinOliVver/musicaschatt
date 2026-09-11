@@ -145,6 +145,7 @@ export function usePlayerQueue(): PlayerQueue {
 
   useEffect(() => {
     void refresh();
+
     const channel = supabase
       .channel("player-queue-sync-v5")
       .on(
@@ -165,9 +166,28 @@ export function usePlayerQueue(): PlayerQueue {
           void refresh();
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Supabase can reconnect the realtime channel without a full page
+        // reload. Refreshing once after SUBSCRIBED makes a client that was
+        // offline catch up with the current song/queue immediately.
+        if (status === "SUBSCRIBED") {
+          void refresh();
+        }
+      });
+
+    const handleOnline = () => {
+      void refresh();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+
+    window.addEventListener("online", handleOnline);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
+      window.removeEventListener("online", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisibility);
       void supabase.removeChannel(channel);
     };
   }, [refresh]);
