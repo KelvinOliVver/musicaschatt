@@ -224,22 +224,22 @@ export function PlayerPanel({
   const overlayControlsOpacity = isFullscreen ? (controlsVisible ? "opacity-100" : "opacity-0") : "opacity-0 group-hover:opacity-100";
 
   return (
-    <div className="relative z-0 overflow-visible">
+    <div className="relative z-0">
       <div
-        className="pointer-events-none absolute -inset-x-[22%] -inset-y-[18%] -z-10 rounded-[45%] blur-[72px] transition-all duration-1000"
+        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[78%] w-[150%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] blur-3xl transition-all duration-1000"
         style={{
-          background: `radial-gradient(ellipse at 42% 48%, ${accentColor ?? purpleBase} 0%, color-mix(in oklab, ${accentColor ?? purpleBase} 72%, transparent) 34%, transparent 72%)`,
-          opacity: current && !paused ? 0.42 : 0.22,
-          transform: current && !paused ? "scale(1.04)" : "scale(.98)",
+          background: accentColor ?? purpleBase,
+          opacity: current && !paused ? 0.19 : 0.1,
+          transform: `translate(-50%, -50%) scale(${current && !paused ? 1.03 : 0.97})`,
         }}
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute -inset-x-[4%] top-[22%] h-[58%] -z-10 rounded-[50%] blur-[54px] transition-all duration-1000"
+        className="pointer-events-none absolute left-1/2 top-[54%] -z-10 h-[48%] w-[190%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] blur-3xl transition-all duration-1000"
         style={{
-          background: `radial-gradient(ellipse at 78% 52%, ${accentColor ?? purpleBase} 0%, transparent 64%)`,
-          opacity: current && !paused ? 0.18 : 0.08,
-          transform: current && !paused ? "scaleX(1.08)" : "scaleX(.96)",
+          background: accentColor ?? purpleBase,
+          opacity: current ? 0.07 : 0.035,
+          transform: "translate(-50%, -50%)",
         }}
         aria-hidden
       />
