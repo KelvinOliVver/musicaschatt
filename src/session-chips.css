@@ -1,0 +1,71 @@
+/* Microacabamento dos indicadores da sessão no topo do player. */
+
+main > div:nth-child(2) > div:last-child > span[title^="Estatísticas desta sessão"],
+main > div:nth-child(2) > div:last-child > span[title^="Você está monitorando"] {
+  border-radius: 9999px;
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease;
+}
+
+main > div:nth-child(2) > div:last-child > span[title^="Estatísticas desta sessão"] {
+  border-color: color-mix(in oklab, var(--color-border) 90%, var(--color-primary));
+  background-color: color-mix(in oklab, var(--color-card) 88%, var(--color-primary) 12%);
+  box-shadow: 0 1px 10px color-mix(in oklab, var(--color-primary) 7%, transparent);
+}
+
+main > div:nth-child(2) > div:last-child > span[title^="Estatísticas desta sessão"]:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--color-primary) 28%, var(--color-border));
+  background-color: color-mix(in oklab, var(--color-card) 78%, var(--color-primary) 22%);
+  box-shadow: 0 4px 14px color-mix(in oklab, var(--color-primary) 10%, transparent);
+}
+
+main > div:nth-child(2) > div:last-child > span[title^="Você está monitorando"] {
+  border-color: color-mix(in oklab, var(--color-vip) 42%, var(--color-border));
+  background-color: color-mix(in oklab, var(--color-vip) 7%, transparent);
+  box-shadow: 0 1px 10px color-mix(in oklab, var(--color-vip) 7%, transparent);
+}
+
+main > div:nth-child(2) > div:last-child > span[title^="Você está monitorando"]:hover {
+  transform: translateY(-1px) scale(1.015);
+  border-color: color-mix(in oklab, var(--color-vip) 62%, var(--color-border));
+  background-color: color-mix(in oklab, var(--color-vip) 12%, transparent);
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--color-vip) 12%, transparent);
+}
+
+main > div:nth-child(2) > div:last-child > button {
+  border-radius: 9999px;
+  border-color: color-mix(in oklab, var(--color-online) 30%, var(--color-border));
+  background-color: color-mix(in oklab, var(--color-card) 86%, var(--color-online) 14%);
+  box-shadow: 0 1px 10px color-mix(in oklab, var(--color-online) 8%, transparent);
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+main > div:nth-child(2) > div:last-child > button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--color-online) 48%, var(--color-border));
+  background-color: color-mix(in oklab, var(--color-card) 76%, var(--color-online) 24%);
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--color-online) 12%, transparent);
+}
+
+main > div:nth-child(2) > div:last-child > button:active,
+main > div:nth-child(2) > div:last-child > span[title^="Estatísticas desta sessão"]:active,
+main > div:nth-child(2) > div:last-child > span[title^="Você está monitorando"]:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main > div:nth-child(2) > div:last-child > span[title^="Estatísticas desta sessão"],
+  main > div:nth-child(2) > div:last-child > span[title^="Você está monitorando"],
+  main > div:nth-child(2) > div:last-child > button {
+    transition: none;
+  }
+}
