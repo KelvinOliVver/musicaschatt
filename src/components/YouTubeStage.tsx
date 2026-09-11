@@ -37,11 +37,8 @@ export interface StageControls {
 
 /**
  * Timer baseado em Web Worker. Quando a aba fica em segundo plano (site
- * minimizado ou jogo em tela cheia), o navegador estrangula setInterval da
- * página — chegando a disparar só 1x por minuto ou menos — e a música não
- * avança sozinha. Timers dentro de um Worker NÃO sofrem esse estrangulamento,
- * então usamos um Workerzinho (criado inline, sem arquivo extra) que envia um
- * "tick" a cada 500ms para a página.
+ * minimizado ou jogo em tela cheia), o navegador pode estrangular timers da
+ * página. O Worker funciona como uma rede de segurança para o avanço.
  */
 function createWorkerTicker(onTick: () => void, intervalMs = 500): () => void {
   const source = `let t=null;onmessage=(e)=>{if(e.data==="start"&&!t){t=setInterval(()=>postMessage("tick"),${intervalMs});}else if(e.data==="stop"&&t){clearInterval(t);t=null;}};`;
@@ -57,16 +54,15 @@ function createWorkerTicker(onTick: () => void, intervalMs = 500): () => void {
       URL.revokeObjectURL(url);
     };
   } catch {
-    // Fallback: se o navegador bloquear Workers por Blob, usa setInterval mesmo.
     const id = window.setInterval(onTick, intervalMs);
     return () => window.clearInterval(id);
   }
 }
 
 /**
- * Timeout de disparo único dentro de um Web Worker. Com a aba minimizada, o
- * setTimeout da página é estrangulado (pode atrasar minutos), então agendamos
- * o avanço automático da música dentro de um Worker, que não sofre isso.
+ * Timeout de disparo único dentro de um Web Worker. É apenas uma rede de
+ * segurança para abas em segundo plano; o evento ENDED do YouTube continua
+ * sendo a fonte principal.
  */
 function createWorkerTimeout(onFire: () => void, delayMs: number): () => void {
   const source = `let t=null;onmessage=(e)=>{if(e.data.cmd==="start"){t=setTimeout(()=>postMessage("fire"),e.data.delay);}else if(e.data.cmd==="cancel"&&t){clearTimeout(t);t=null;}};`;
@@ -92,7 +88,7 @@ interface YouTubeStageProps {
   volume: number;
   muted: boolean;
   paused: boolean;
-  remoteSeek?: number | null; // <--- Adicionado para receber o tempo sincronizado
+  remoteSeek?: number | null;
   onEnded: () => void;
   onPlayingChange: (playing: boolean) => void;
   onProgress: (currentTime: number, duration: number) => void;
@@ -112,14 +108,26 @@ export function YouTubeStage({
 }: YouTubeStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
-
-  // Evita chamar onEnded mais de uma vez para o mesmo vídeo (o evento oficial da
-  // API do YouTube e a verificação de segurança por tempo podem disparar quase
-  // juntos).
   const endedTriggeredRef = useRef(false);
 
+  // A API do YouTube é criada dentro de um effect que só reinicia quando o
+  // videoId muda. Refs mantêm callbacks/estado atuais sem recriar o iframe a
+  // cada mudança de volume, pausa, seek ou progresso.
   const onEndedRef = useRef(onEnded);
+  const onPlayingChangeRef = useRef(onPlayingChange);
+  const onProgressRef = useRef(onProgress);
+  const remoteSeekRef = useRef(remoteSeek);
+  const pausedRef = useRef(paused);
+  const volumeRef = useRef(volume);
+  const mutedRef = useRef(muted);
+
   onEndedRef.current = onEnded;
+  onPlayingChangeRef.current = onPlayingChange;
+  onProgressRef.current = onProgress;
+  remoteSeekRef.current = remoteSeek;
+  pausedRef.current = paused;
+  volumeRef.current = volume;
+  mutedRef.current = muted;
 
   function triggerEndedOnce() {
     if (endedTriggeredRef.current) return;
@@ -133,21 +141,20 @@ export function YouTubeStage({
         seekTo: (seconds: number) => {
           playerRef.current?.seekTo?.(seconds, true);
         },
-        getCurrentTime: () => {
-          return playerRef.current?.getCurrentTime?.() ?? 0;
-        },
+        getCurrentTime: () => playerRef.current?.getCurrentTime?.() ?? 0,
       };
     }
+
+    return () => {
+      if (controlsRef) controlsRef.current = null;
+    };
   }, [controlsRef]);
 
-  // Sincroniza o tempo (Seek) remotamente quando o usuário entra ou a sala fornece o tempo
   useEffect(() => {
-    if (remoteSeek !== null && remoteSeek !== undefined && playerRef.current?.seekTo) {
-      const currentTime = playerRef.current.getCurrentTime() || 0;
-      // Só aplica o seek se a diferença for maior que 2 segundos para evitar pulos chatos durante a reprodução normal
-      if (Math.abs(currentTime - remoteSeek) > 2) {
-        playerRef.current.seekTo(remoteSeek, true);
-      }
+    if (remoteSeek === null || remoteSeek === undefined || !playerRef.current?.seekTo) return;
+    const currentTime = playerRef.current.getCurrentTime?.() || 0;
+    if (Math.abs(currentTime - remoteSeek) > 2) {
+      playerRef.current.seekTo(remoteSeek, true);
     }
   }, [remoteSeek]);
 
@@ -155,16 +162,9 @@ export function YouTubeStage({
     let isMounted = true;
     let stopTicker: (() => void) | null = null;
     let cancelHiddenAdvance: (() => void) | null = null;
+    let apiCheck: number | null = null;
     endedTriggeredRef.current = false;
 
-    // Quando o site é minimizado (ou você entra em tela cheia num jogo), o
-    // navegador pode pausar o vídeo ou estrangular todos os timers da página —
-    // aí o relógio do player "congela" e a música nunca avança sozinha.
-    // Solução: ao esconder a aba, calculamos quanto falta pra música acabar
-    // (duração - tempo atual) e agendamos o avanço dentro de um Web Worker,
-    // cujos timers NÃO são estrangulados. Quando o tempo esgota, avançamos a
-    // fila mesmo sem nenhum evento do YouTube. Ao voltar pra aba, cancelamos
-    // (o evento/tick normais voltam a cuidar disso).
     function handleVisibilityForAdvance() {
       if (cancelHiddenAdvance) {
         cancelHiddenAdvance();
@@ -172,14 +172,15 @@ export function YouTubeStage({
       }
       if (document.visibilityState !== "hidden") return;
       if (!playerRef.current?.getCurrentTime) return;
+
       try {
         const current = playerRef.current.getCurrentTime() || 0;
         const duration = playerRef.current.getDuration() || 0;
         if (duration <= 0 || current >= duration) return;
+
         const remainingMs = (duration - current + 0.5) * 1000;
         cancelHiddenAdvance = createWorkerTimeout(() => {
-          if (!isMounted) return;
-          triggerEndedOnce();
+          if (isMounted) triggerEndedOnce();
         }, remainingMs);
       } catch {
         // ignora
@@ -189,7 +190,7 @@ export function YouTubeStage({
     document.addEventListener("visibilitychange", handleVisibilityForAdvance);
 
     function initPlayer() {
-      if (!isMounted || !containerRef.current) return;
+      if (!isMounted || !containerRef.current || !window.YT?.Player) return;
 
       if (playerRef.current) {
         try {
@@ -220,46 +221,36 @@ export function YouTubeStage({
         events: {
           onReady: (event) => {
             if (!isMounted) return;
-            event.target.setVolume(muted ? 0 : volume);
-            if (muted) event.target.mute();
+
+            event.target.setVolume(mutedRef.current ? 0 : volumeRef.current);
+            if (mutedRef.current) event.target.mute();
             else event.target.unMute();
 
-            // Se houver um remoteSeek inicial, aplica logo no ready
-            if (remoteSeek !== null && remoteSeek !== undefined) {
-              event.target.seekTo(remoteSeek, true);
+            const initialSeek = remoteSeekRef.current;
+            if (initialSeek !== null && initialSeek !== undefined) {
+              event.target.seekTo(initialSeek, true);
             }
 
-            if (paused) {
-              event.target.pauseVideo();
-            } else {
-              event.target.playVideo();
-            }
+            if (pausedRef.current) event.target.pauseVideo();
+            else event.target.playVideo();
 
             if (stopTicker) stopTicker();
-            // O tick vem de um Web Worker (imune ao estrangulamento de timers
-            // em abas minimizadas), então a música avança mesmo com o site em
-            // segundo plano ou enquanto você joga em tela cheia.
             let lastTickAt = Date.now();
             stopTicker = createWorkerTicker(() => {
               if (!isMounted || !playerRef.current?.getCurrentTime) return;
+
               const now = Date.now();
-              // onProgress alimenta a barra de progresso da tela; limitamos a
-              // ~1x por segundo para não renderizar em excesso.
               const shouldReport = now - lastTickAt >= 950;
+
               try {
                 const current = playerRef.current.getCurrentTime() || 0;
                 const duration = playerRef.current.getDuration() || 0;
+
                 if (shouldReport) {
                   lastTickAt = now;
-                  onProgress(current, duration);
+                  onProgressRef.current(current, duration);
                 }
 
-                // Verificação de segurança: quando a aba fica em segundo plano,
-                // o evento oficial "ENDED" da API do YouTube às vezes não chega
-                // até a aba voltar ao primeiro plano. Como esse tick usa o tempo
-                // relatado pelo próprio player, ele continua funcionando e serve
-                // de rede de segurança: se o tempo atual já bateu na duração,
-                // avançamos mesmo sem o evento oficial.
                 if (duration > 0 && current >= duration - 0.75) {
                   triggerEndedOnce();
                 }
@@ -271,9 +262,9 @@ export function YouTubeStage({
           onStateChange: (event) => {
             if (!isMounted) return;
             if (event.data === window.YT.PlayerState.PLAYING) {
-              onPlayingChange(true);
+              onPlayingChangeRef.current(true);
             } else if (event.data === window.YT.PlayerState.PAUSED) {
-              onPlayingChange(false);
+              onPlayingChangeRef.current(false);
             } else if (event.data === window.YT.PlayerState.ENDED) {
               triggerEndedOnce();
             }
@@ -285,7 +276,7 @@ export function YouTubeStage({
       });
     }
 
-    if (!window.YT || !window.YT.Player) {
+    if (!window.YT?.Player) {
       if (!document.getElementById("youtube-iframe-api")) {
         const tag = document.createElement("script");
         tag.id = "youtube-iframe-api";
@@ -294,29 +285,33 @@ export function YouTubeStage({
         firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
       }
 
+      const previousReady = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
+        previousReady?.();
         initPlayer();
       };
 
-      const check = setInterval(() => {
-        if (window.YT && window.YT.Player) {
-          clearInterval(check);
+      apiCheck = window.setInterval(() => {
+        if (window.YT?.Player) {
+          if (apiCheck !== null) {
+            clearInterval(apiCheck);
+            apiCheck = null;
+          }
           initPlayer();
         }
       }, 100);
-
-      return () => {
-        isMounted = false;
-        clearInterval(check);
-        if (stopTicker) stopTicker();
-      };
     } else {
       initPlayer();
     }
 
     return () => {
       isMounted = false;
+      document.removeEventListener("visibilitychange", handleVisibilityForAdvance);
+
+      if (apiCheck !== null) clearInterval(apiCheck);
       if (stopTicker) stopTicker();
+      if (cancelHiddenAdvance) cancelHiddenAdvance();
+
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
@@ -329,21 +324,16 @@ export function YouTubeStage({
   }, [videoId]);
 
   useEffect(() => {
-    if (playerRef.current?.setVolume) {
-      playerRef.current.setVolume(muted ? 0 : volume);
-      if (muted) playerRef.current.mute?.();
-      else playerRef.current.unMute?.();
-    }
+    if (!playerRef.current?.setVolume) return;
+    playerRef.current.setVolume(muted ? 0 : volume);
+    if (muted) playerRef.current.mute?.();
+    else playerRef.current.unMute?.();
   }, [volume, muted]);
 
   useEffect(() => {
-    if (playerRef.current?.pauseVideo) {
-      if (paused) {
-        playerRef.current.pauseVideo();
-      } else {
-        playerRef.current.playVideo();
-      }
-    }
+    if (!playerRef.current?.pauseVideo) return;
+    if (paused) playerRef.current.pauseVideo();
+    else playerRef.current.playVideo();
   }, [paused]);
 
   return <div ref={containerRef} className="aspect-video w-full bg-black" />;
