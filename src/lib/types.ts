@@ -33,6 +33,8 @@ export interface KickChatMessage {
   color: string | null;
   content: string;
   createdAt: string;
+  /** Mensagens de controle vindas do streamer, exibidas com estilo próprio no chat. */
+  kind?: "message" | "command";
 }
 
 export type ChatStatus =
