@@ -228,8 +228,8 @@ export function PlayerPanel({
       <div
         className="pointer-events-none absolute -inset-10 -z-10 rounded-[3rem] blur-3xl transition-all duration-1000"
         style={{
-          background: `radial-gradient(ellipse at 50% 45%, color-mix(in oklab, ${purpleBase} 58%, ${accentColor ?? purpleBase}), transparent 68%)`,
-          opacity: current && !paused ? 0.95 : 0.45,
+          background: `radial-gradient(ellipse at 50% 45%, ${accentColor ?? purpleBase}, transparent 68%)`,
+          opacity: current && !paused ? 0.8 : 0.28,
           transform: current && !paused ? "scale(1.03)" : "scale(.98)",
         }}
         aria-hidden
@@ -237,8 +237,8 @@ export function PlayerPanel({
       <div
         className="pointer-events-none absolute -inset-4 -z-10 rounded-[2.5rem] blur-xl transition-all duration-700"
         style={{
-          background: `radial-gradient(ellipse at 50% 55%, color-mix(in oklab, ${purpleBase} 78%, ${accentColor ?? purpleBase}), transparent 72%)`,
-          opacity: current ? 0.38 : 0.18,
+          background: `radial-gradient(ellipse at 50% 55%, ${accentColor ?? "transparent"}, transparent 72%)`,
+          opacity: current ? 0.32 : 0,
         }}
         aria-hidden
       />
