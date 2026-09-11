@@ -226,19 +226,20 @@ export function PlayerPanel({
   return (
     <div className="relative z-0">
       <div
-        className="pointer-events-none absolute -inset-10 -z-10 rounded-[3rem] blur-3xl transition-all duration-1000"
+        className="pointer-events-none absolute left-1/2 top-[88%] -z-10 h-48 w-[88%] -translate-x-1/2 rounded-[50%] blur-3xl transition-all duration-1000"
         style={{
-          background: `radial-gradient(ellipse at 50% 45%, ${accentColor ?? purpleBase}, transparent 68%)`,
-          opacity: current && !paused ? 0.8 : 0.28,
-          transform: current && !paused ? "scale(1.03)" : "scale(.98)",
+          background: accentColor ?? purpleBase,
+          opacity: current && !paused ? 0.48 : 0.24,
+          transform: `translateX(-50%) scaleX(${current && !paused ? 1.05 : 0.92}) scaleY(${current && !paused ? 1.12 : 0.9})`,
         }}
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute -inset-4 -z-10 rounded-[2.5rem] blur-xl transition-all duration-700"
+        className="pointer-events-none absolute left-1/2 top-[91%] -z-10 h-24 w-[62%] -translate-x-1/2 rounded-[50%] blur-2xl transition-all duration-700"
         style={{
-          background: `radial-gradient(ellipse at 50% 55%, ${accentColor ?? "transparent"}, transparent 72%)`,
-          opacity: current ? 0.32 : 0,
+          background: accentColor ?? purpleBase,
+          opacity: current ? 0.2 : 0.1,
+          transform: "translateX(-50%)",
         }}
         aria-hidden
       />
@@ -247,7 +248,6 @@ export function PlayerPanel({
         className="panel relative z-0 overflow-hidden"
         style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}
       >
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,rgba(139,92,246,0.16),transparent_55%)]" aria-hidden />
         <div className="relative z-0 flex flex-col gap-5 overflow-hidden rounded-[inherit] p-5">
           {current?.thumbnail && (
             <div
