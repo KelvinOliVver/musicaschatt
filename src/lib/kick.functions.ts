@@ -2,8 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import type { KickChannelInfo, TrackSource } from "./types";
 
 const BROWSER_HEADERS: Record<string, string> = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
   Accept: "application/json, text/plain, */*",
   "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
 };
@@ -16,65 +14,48 @@ interface KickChannelResponse {
   livestream?: unknown;
 }
 
-/**
- * Resolves a Kick channel slug to its chatroom id. Runs on the server to avoid
- * browser CORS / Cloudflare restrictions on kick.com's internal API.
- */
-export const getKickChannelInfo = createServerFn({ method: "GET" })
-  .inputValidator((input: { slug: string }) => {
-    const slug = input.slug.trim().toLowerCase().replace(/^@/, "");
-    if (!/^[a-z0-9_-]{1,40}$/.test(slug)) {
-      throw new Error("Nome de canal inválido.");
+function normalizeKickSlug(input: string): string {
+  const slug = input.trim().toLowerCase().replace(/^@/, "");
+  if (!/^[a-z0-9_-]{1,40}$/.test(slug)) throw new Error("Nome de canal inválido.");
+  return slug;
+}
+
+/** Resolve o chatroom no navegador: o endpoint interno da Kick costuma bloquear Node/Cloudflare. */
+export async function getKickChannelInfo(input: { data: { slug: string } }): Promise<KickChannelInfo> {
+  const slug = normalizeKickSlug(input.data.slug);
+  const endpoints = [
+    `https://kick.com/api/v2/channels/${slug}`,
+    `https://kick.com/api/v1/channels/${slug}`,
+  ];
+  let lastStatus = 0;
+
+  for (const endpoint of endpoints) {
+    let response: Response;
+    try {
+      response = await fetch(endpoint, { method: "GET", headers: BROWSER_HEADERS, cache: "no-store" });
+    } catch {
+      continue;
     }
-    return { slug };
-  })
-  .handler(async ({ data }): Promise<KickChannelInfo> => {
-    const endpoints = [
-      `https://kick.com/api/v2/channels/${data.slug}`,
-      `https://kick.com/api/v1/channels/${data.slug}`,
-    ];
+    if (!response.ok) { lastStatus = response.status; continue; }
 
-    let lastStatus = 0;
-    for (const endpoint of endpoints) {
-      let response: Response;
-      try {
-        response = await fetch(endpoint, { headers: BROWSER_HEADERS });
-      } catch {
-        continue;
-      }
+    let payload: KickChannelResponse;
+    try { payload = (await response.json()) as KickChannelResponse; } catch { continue; }
+    const chatroomId = payload.chatroom?.id;
+    if (typeof chatroomId !== "number") continue;
 
-      if (!response.ok) {
-        lastStatus = response.status;
-        continue;
-      }
+    return {
+      slug: payload.slug ?? slug,
+      chatroomId,
+      channelId: payload.id ?? 0,
+      displayName: payload.user?.username ?? slug,
+      avatar: payload.user?.profile_pic ?? null,
+      isLive: Boolean(payload.livestream),
+    };
+  }
 
-      let payload: KickChannelResponse;
-      try {
-        payload = (await response.json()) as KickChannelResponse;
-      } catch {
-        continue;
-      }
-
-      const chatroomId = payload.chatroom?.id;
-      if (typeof chatroomId !== "number") continue;
-
-      return {
-        slug: payload.slug ?? data.slug,
-        chatroomId,
-        channelId: payload.id ?? 0,
-        displayName: payload.user?.username ?? data.slug,
-        avatar: payload.user?.profile_pic ?? null,
-        isLive: Boolean(payload.livestream),
-      };
-    }
-
-    if (lastStatus === 404) {
-      throw new Error(`Canal "${data.slug}" não encontrado na Kick.`);
-    }
-    throw new Error(
-      "Não foi possível falar com a Kick agora. Tente novamente em alguns segundos.",
-    );
-  });
+  if (lastStatus === 404) throw new Error(`Canal "${slug}" não encontrado na Kick.`);
+  throw new Error("A Kick bloqueou temporariamente a consulta do canal. Recarregue a página e tente novamente.");
+}
 
 interface TrackMetadata {
   title: string | null;
@@ -88,35 +69,20 @@ interface OEmbedResponse {
   thumbnail_url?: string;
 }
 
-/** Fetches the display title/artwork for a detected track via public oEmbed. */
 export const getTrackMetadata = createServerFn({ method: "GET" })
   .inputValidator((input: { source: TrackSource; trackId: string }) => {
-    if (input.source !== "youtube") {
-      throw new Error("Fonte inválida.");
-    }
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(input.trackId)) {
-      throw new Error("Id inválido.");
-    }
+    if (input.source !== "youtube") throw new Error("Fonte inválida.");
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(input.trackId)) throw new Error("Id inválido.");
     return input;
   })
   .handler(async ({ data }): Promise<TrackMetadata> => {
-    const oembedUrl = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(
-      `https://www.youtube.com/watch?v=${data.trackId}`,
-    )}`;
-
+    const oembedUrl = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${data.trackId}`)}`;
     const fallbackThumb = `https://i.ytimg.com/vi/${data.trackId}/hqdefault.jpg`;
-
     try {
       const response = await fetch(oembedUrl, { headers: BROWSER_HEADERS });
-      if (!response.ok) {
-        return { title: null, author: null, thumbnail: fallbackThumb };
-      }
+      if (!response.ok) return { title: null, author: null, thumbnail: fallbackThumb };
       const payload = (await response.json()) as OEmbedResponse;
-      return {
-        title: payload.title ?? null,
-        author: payload.author_name ?? null,
-        thumbnail: payload.thumbnail_url ?? fallbackThumb,
-      };
+      return { title: payload.title ?? null, author: payload.author_name ?? null, thumbnail: payload.thumbnail_url ?? fallbackThumb };
     } catch {
       return { title: null, author: null, thumbnail: fallbackThumb };
     }
