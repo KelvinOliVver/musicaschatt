@@ -20,20 +20,15 @@ import type { QueueItem } from "@/lib/types";
 
 interface QueueListProps {
   items: QueueItem[];
-  /** Músicas já tocadas — opcional, mostra uma seção de histórico colapsável quando presente. */
   history?: QueueItem[];
   onPlayNow: (id: string) => void;
   onRemove: (id: string) => void;
   onClear: () => void;
-  /** Move o item para o índice alvo dentro da lista `queue`. */
   onMove?: (id: string, toIndex: number) => void;
-  /** Cor dinâmica da música atual (mesma do halo do player) — cai no roxo do tema se omitida. */
   accentColor?: string | null;
-  /** Intensidade do halo — mais forte tocando, mais fraco parado. */
   isPlaying?: boolean;
 }
 
-/** Formata "há X min/h" a partir de um timestamp (ms). Curto e discreto. */
 function formatRelativeTime(timestampMs: number, now: number): string {
   const diffSeconds = Math.max(0, Math.floor((now - timestampMs) / 1000));
   if (diffSeconds < 60) return "agora";
@@ -57,11 +52,8 @@ export function QueueList({
 }: QueueListProps) {
   const vipCount = items.filter((item) => item.priority).length;
   const [showHistory, setShowHistory] = useState(false);
-
-  // "Relógio" próprio só pra atualizar os textos de "há X min" de tempos em
-  // tempos — não depende de nenhum dado novo, só re-renderiza esse
-  // componente a cada 30s pra o texto relativo não ficar parado/desatualizado.
   const [now, setNow] = useState(() => Date.now());
+
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(interval);
@@ -75,9 +67,6 @@ export function QueueList({
 
   return (
     <div className="relative z-0 flex min-h-0 flex-1 flex-col">
-      {/* Halo de luz atrás do painel inteiro — mesma técnica do player:
-          elemento IRMÃO do painel (não filho), então o overflow-hidden
-          usado dentro da lista de músicas não corta esse halo. */}
       <div
         className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] blur-2xl transition-opacity duration-700"
         style={{
@@ -88,213 +77,234 @@ export function QueueList({
       />
 
       <section className="panel relative z-0 flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <ListMusic className="size-4 shrink-0 text-primary" aria-hidden />
-          <h2 className="text-sm font-semibold uppercase tracking-widest">Fila</h2>
-          <Badge variant="secondary" className="tabular-nums">
-            {items.length}
-          </Badge>
-          {vipCount > 0 && (
-            <Badge
-              variant="outline"
-              className="gap-1 border-vip/50 text-[10px] font-bold uppercase tracking-wider text-vip"
-            >
-              <Crown className="size-2.5" aria-hidden />
-              {vipCount} VIP
+        <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <ListMusic className="size-4 shrink-0 text-primary" aria-hidden />
+            <h2 className="text-sm font-semibold uppercase tracking-widest">Fila</h2>
+            <Badge variant="secondary" className="tabular-nums">
+              {items.length}
             </Badge>
-          )}
-        </div>
-        {items.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={handleClear}>
-            Limpar
-          </Button>
-        )}
-      </header>
-
-      {items.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-          <Music2 className="size-8 text-muted-foreground" aria-hidden />
-          <p className="text-sm text-muted-foreground">
-            Aguardando as próximas músicas do chat...
-          </p>
-        </div>
-      ) : (
-        <ScrollArea className="min-h-0 flex-1">
-          <ol className="divide-y divide-border">
-            {items.map((item, index) => {
-              const isNext = index === 0;
-              const canMoveUp = Boolean(onMove) && index > 0;
-              const canMoveDown = Boolean(onMove) && index < items.length - 1;
-              // Pedidos manuais pelo campo de texto (não pelo chat da Kick)
-              // são salvos com requestedBy "você" — é o único jeito seguro
-              // de saber que foi você mesmo, já que quem pede pelo chat da
-              // Kick não tem login no site pra comparar.
-              const isOwnRequest = item.requestedBy.trim().toLowerCase() === "você";
-
-              return (
-                <li
-                  key={item.id}
-                  className={`group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 ${
-                    isNext ? "bg-primary/5" : ""
-                  } ${isOwnRequest ? "ring-1 ring-inset ring-primary/40" : ""}`}
-                >
-                  <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">
-                    {index + 1}
-                  </span>
-
-                  <div className="relative size-11 shrink-0 overflow-hidden rounded-md bg-muted">
-                    {item.thumbnail ? (
-                      <img
-                        src={item.thumbnail}
-                        alt=""
-                        loading="lazy"
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex size-full animate-pulse items-center justify-center bg-muted-foreground/10">
-                        <Music2 className="size-4 text-muted-foreground" aria-hidden />
-                      </div>
-                    )}
-                    {isNext && (
-                      <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-primary/90 py-0.5 text-[8px] font-bold uppercase tracking-wider text-primary-foreground">
-                        <Equalizer bars={3} className="h-2" />
-                        Próxima
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    {item.title ? (
-                      <p className="truncate text-sm font-medium">{item.title}</p>
-                    ) : (
-                      <div className="h-4 w-3/4 animate-pulse rounded bg-muted-foreground/15" />
-                    )}
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      {item.priority && (
-                        <span className="bg-gradient-vip inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-vip-foreground">
-                          <Crown className="size-2.5" aria-hidden />
-                          VIP
-                        </span>
-                      )}
-                      <Youtube className="size-3 text-youtube" aria-hidden />
-                      <span
-                        className={`truncate text-xs ${isOwnRequest ? "font-semibold text-primary" : "text-muted-foreground"}`}
-                        style={!isOwnRequest && item.requesterColor ? { color: item.requesterColor } : undefined}
-                      >
-                        {isOwnRequest ? "Você" : item.requestedBy}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground/60">
-                        · {formatRelativeTime(item.addedAt, now)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-1">
-                    {onMove && (
-                      <div className="flex flex-col">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-4 transition-transform active:scale-90"
-                          disabled={!canMoveUp}
-                          onClick={() => onMove(item.id, index - 1)}
-                          aria-label={`Subir na fila: ${item.title ?? item.trackId}`}
-                        >
-                          <ChevronUp className="size-3" aria-hidden />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-4 transition-transform active:scale-90"
-                          disabled={!canMoveDown}
-                          onClick={() => onMove(item.id, index + 1)}
-                          aria-label={`Descer na fila: ${item.title ?? item.trackId}`}
-                        >
-                          <ChevronDown className="size-3" aria-hidden />
-                        </Button>
-                      </div>
-                    )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-8 transition-transform active:scale-90"
-                      onClick={() => onPlayNow(item.id)}
-                      aria-label={`Tocar agora: ${item.title ?? item.trackId}`}
-                    >
-                      <Play className="size-4" aria-hidden />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-8 text-muted-foreground transition-transform hover:text-destructive active:scale-90"
-                      onClick={() => onRemove(item.id)}
-                      aria-label={`Remover da fila: ${item.title ?? item.trackId}`}
-                    >
-                      <Trash2 className="size-4" aria-hidden />
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </ScrollArea>
-      )}
-
-      {history.length > 0 && (
-        <div className="shrink-0 border-t border-border">
-          <button
-            type="button"
-            onClick={() => setShowHistory((v) => !v)}
-            className="flex w-full items-center justify-between px-5 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <span className="flex items-center gap-2">
-              <History className="size-3.5" aria-hidden />
-              Histórico
-              <Badge variant="secondary" className="tabular-nums">
-                {history.length}
+            {vipCount > 0 && (
+              <Badge
+                variant="outline"
+                className="gap-1 border-vip/50 text-[10px] font-bold uppercase tracking-wider text-vip"
+              >
+                <Crown className="size-2.5" aria-hidden />
+                {vipCount} VIP
               </Badge>
-            </span>
-            {showHistory ? (
-              <ChevronUp className="size-3.5" aria-hidden />
-            ) : (
-              <ChevronDown className="size-3.5" aria-hidden />
             )}
-          </button>
-          {showHistory && (
-            <ScrollArea className="max-h-48">
-              <ol className="divide-y divide-border">
-                {history.slice(0, 15).map((item) => (
-                  <li key={item.id} className="flex items-center gap-3 px-4 py-2.5 opacity-70">
-                    <div className="relative size-8 shrink-0 overflow-hidden rounded-md bg-muted">
+          </div>
+          {items.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={handleClear}>
+              Limpar
+            </Button>
+          )}
+        </header>
+
+        {items.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-12 text-center">
+            <Music2 className="size-8 text-muted-foreground" aria-hidden />
+            <p className="text-sm text-muted-foreground">
+              Aguardando as próximas músicas do chat...
+            </p>
+          </div>
+        ) : (
+          <ScrollArea className="min-h-0 flex-1">
+            <ol className="space-y-1.5 p-2">
+              {items.map((item, index) => {
+                const isNext = index === 0;
+                const canMoveUp = Boolean(onMove) && index > 0;
+                const canMoveDown = Boolean(onMove) && index < items.length - 1;
+                const isOwnRequest = item.requestedBy.trim().toLowerCase() === "você";
+
+                return (
+                  <li
+                    key={item.id}
+                    className={`group relative flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-3 transition-all duration-200 hover:bg-accent/35 ${
+                      isNext
+                        ? "border-primary/30 bg-primary/[0.08] shadow-sm shadow-primary/10"
+                        : "border-border/60 bg-background/10"
+                    } ${isOwnRequest ? "ring-1 ring-inset ring-primary/40" : ""}`}
+                  >
+                    {isNext && (
+                      <span
+                        className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary shadow-[0_0_10px_var(--primary)]"
+                        aria-hidden
+                      />
+                    )}
+
+                    <span
+                      className={`w-5 shrink-0 text-center text-xs tabular-nums ${
+                        isNext ? "font-semibold text-primary" : "text-muted-foreground"
+                      }`}
+                    >
+                      {isNext ? (
+                        <Equalizer bars={3} className="mx-auto h-3.5" />
+                      ) : (
+                        index + 1
+                      )}
+                    </span>
+
+                    <div
+                      className={`relative size-11 shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-inset ${
+                        isNext ? "ring-primary/20" : "ring-black/10"
+                      }`}
+                    >
                       {item.thumbnail ? (
                         <img
                           src={item.thumbnail}
                           alt=""
                           loading="lazy"
-                          className="size-full object-cover"
+                          className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                         />
                       ) : (
-                        <div className="flex size-full items-center justify-center">
-                          <Music2 className="size-3 text-muted-foreground" aria-hidden />
+                        <div className="flex size-full animate-pulse items-center justify-center bg-muted-foreground/10">
+                          <Music2 className="size-4 text-muted-foreground" aria-hidden />
                         </div>
                       )}
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/15 via-transparent to-white/[0.05]" />
+                      {isNext && (
+                        <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-primary/80 py-0.5 text-[8px] font-bold uppercase tracking-wider text-primary-foreground backdrop-blur-[2px]">
+                          Tocando
+                        </span>
+                      )}
                     </div>
+
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium">
-                        {item.title ?? `Vídeo ${item.trackId}`}
-                      </p>
-                      <p className="truncate text-[11px] text-muted-foreground">
-                        {item.requestedBy}
-                      </p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        {item.priority && (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-vip/35 bg-vip/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-vip">
+                            <Crown className="size-2.5" aria-hidden />
+                            VIP
+                          </span>
+                        )}
+                        {item.title ? (
+                          <p className={`min-w-0 truncate text-sm font-medium ${isNext ? "font-semibold text-foreground" : ""}`}>
+                            {item.title}
+                          </p>
+                        ) : (
+                          <div className="h-4 w-3/4 animate-pulse rounded bg-muted-foreground/15" />
+                        )}
+                      </div>
+                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                        <Youtube className="size-3 text-youtube" aria-hidden />
+                        <span
+                          className={`truncate text-xs ${isOwnRequest ? "font-semibold text-primary" : "text-muted-foreground"}`}
+                          style={!isOwnRequest && item.requesterColor ? { color: item.requesterColor } : undefined}
+                        >
+                          {isOwnRequest ? "Você" : item.requestedBy}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground/60">
+                          · {formatRelativeTime(item.addedAt, now)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1">
+                      {onMove && (
+                        <div className="flex flex-col">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-4 transition-transform active:scale-90"
+                            disabled={!canMoveUp}
+                            onClick={() => onMove(item.id, index - 1)}
+                            aria-label={`Subir na fila: ${item.title ?? item.trackId}`}
+                          >
+                            <ChevronUp className="size-3" aria-hidden />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-4 transition-transform active:scale-90"
+                            disabled={!canMoveDown}
+                            onClick={() => onMove(item.id, index + 1)}
+                            aria-label={`Descer na fila: ${item.title ?? item.trackId}`}
+                          >
+                            <ChevronDown className="size-3" aria-hidden />
+                          </Button>
+                        </div>
+                      )}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 transition-all duration-200 hover:bg-primary/10 hover:text-primary active:scale-90"
+                        onClick={() => onPlayNow(item.id)}
+                        aria-label={`Tocar agora: ${item.title ?? item.trackId}`}
+                      >
+                        <Play className="size-4" aria-hidden />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 text-muted-foreground transition-all duration-200 hover:bg-destructive/10 hover:text-destructive active:scale-90"
+                        onClick={() => onRemove(item.id)}
+                        aria-label={`Remover da fila: ${item.title ?? item.trackId}`}
+                      >
+                        <Trash2 className="size-4" aria-hidden />
+                      </Button>
                     </div>
                   </li>
-                ))}
-              </ol>
-            </ScrollArea>
-          )}
-        </div>
-      )}
+                );
+              })}
+            </ol>
+          </ScrollArea>
+        )}
+
+        {history.length > 0 && (
+          <div className="shrink-0 border-t border-border">
+            <button
+              type="button"
+              onClick={() => setShowHistory((v) => !v)}
+              className="flex w-full items-center justify-between px-5 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <span className="flex items-center gap-2">
+                <History className="size-3.5" aria-hidden />
+                Histórico
+                <Badge variant="secondary" className="tabular-nums">
+                  {history.length}
+                </Badge>
+              </span>
+              {showHistory ? (
+                <ChevronUp className="size-3.5" aria-hidden />
+              ) : (
+                <ChevronDown className="size-3.5" aria-hidden />
+              )}
+            </button>
+            {showHistory && (
+              <ScrollArea className="max-h-48">
+                <ol className="divide-y divide-border">
+                  {history.slice(0, 15).map((item) => (
+                    <li key={item.id} className="flex items-center gap-3 px-4 py-2.5 opacity-70">
+                      <div className="relative size-8 shrink-0 overflow-hidden rounded-md bg-muted">
+                        {item.thumbnail ? (
+                          <img
+                            src={item.thumbnail}
+                            alt=""
+                            loading="lazy"
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex size-full items-center justify-center">
+                            <Music2 className="size-3 text-muted-foreground" aria-hidden />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium">
+                          {item.title ?? `Vídeo ${item.trackId}`}
+                        </p>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {item.requestedBy}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </ScrollArea>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );
