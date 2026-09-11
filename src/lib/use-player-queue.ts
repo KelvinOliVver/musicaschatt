@@ -43,350 +43,151 @@ function toItem(row: QueueRow): QueueItem {
     position: row.position ?? new Date(row.added_at).getTime(),
     playbackPosition: Number(row.playback_position ?? 0),
     isPaused: row.is_paused ?? false,
-    stateUpdatedAt: row.state_updated_at
-      ? new Date(row.state_updated_at).getTime()
-      : Date.now(),
+    stateUpdatedAt: row.state_updated_at ? new Date(row.state_updated_at).getTime() : Date.now(),
   };
 }
 
-/**
- * Um "heartbeat" muda só a posição/pausa/timestamp de playback — usados apenas
- * para quem entra na sala depois calcular onde a música está. Diferenciar isso
- * evita refazer a busca inteira da fila a cada poucos segundos.
- */
 function isHeartbeatOnlyChange(oldRow: QueueRow, newRow: QueueRow): boolean {
-  return (
-    oldRow.status === newRow.status &&
-    oldRow.priority === newRow.priority &&
-    oldRow.position === newRow.position &&
-    oldRow.title === newRow.title &&
-    oldRow.author === newRow.author &&
-    oldRow.thumbnail === newRow.thumbnail &&
-    oldRow.requested_by === newRow.requested_by &&
-    (oldRow.playback_position !== newRow.playback_position ||
-      oldRow.is_paused !== newRow.is_paused ||
-      oldRow.state_updated_at !== newRow.state_updated_at)
-  );
+  return oldRow.status === newRow.status && oldRow.priority === newRow.priority && oldRow.position === newRow.position && oldRow.title === newRow.title && oldRow.author === newRow.author && oldRow.thumbnail === newRow.thumbnail && oldRow.requested_by === newRow.requested_by && (oldRow.playback_position !== newRow.playback_position || oldRow.is_paused !== newRow.is_paused || oldRow.state_updated_at !== newRow.state_updated_at);
 }
 
 export interface PlayerQueue {
   current: QueueItem | null;
   queue: QueueItem[];
   history: QueueItem[];
-  addTrack: (
-    track: DetectedTrack,
-    requestedBy: string,
-    requesterColor: string | null,
-    options?: { priority?: boolean },
-  ) => Promise<boolean>;
+  addTrack: (track: DetectedTrack, requestedBy: string, requesterColor: string | null, options?: { priority?: boolean }) => Promise<boolean>;
   playNext: () => void;
   playPrevious: () => void;
   removeItem: (id: string) => void;
   playNow: (id: string) => void;
   clearQueue: () => void;
-  /** Move o item para o índice alvo dentro da lista `queue` (drag-and-drop ou setinhas). */
   moveItem: (id: string, toIndex: number) => void;
-  /**
-   * Gravado periodicamente pelo host para os que entrarem depois saberem onde
-   * a música está. Também grava `duration_seconds` (quando conhecida) para o
-   * cron job do servidor (advance_player_queue) avançar a fila sozinho, mesmo
-   * sem nenhuma aba do site aberta.
-   */
-  updatePlaybackHeartbeat: (
-    itemId: string,
-    playbackPosition: number,
-    isPaused: boolean,
-    durationSeconds?: number,
-  ) => void;
+  updatePlaybackHeartbeat: (itemId: string, playbackPosition: number, isPaused: boolean, durationSeconds?: number) => void;
 }
 
 export function usePlayerQueue(): PlayerQueue {
   const [current, setCurrent] = useState<QueueItem | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [history, setHistory] = useState<QueueItem[]>([]);
-
   const currentRef = useRef<QueueItem | null>(null);
   const queueRef = useRef<QueueItem[]>([]);
   currentRef.current = current;
   queueRef.current = queue;
-
   const pendingAddsRef = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("player_queue")
-      .select("*")
-      .order("priority", { ascending: false })
-      .order("position", { ascending: true })
-      .order("id", { ascending: true });
-
+    const { data, error } = await supabase.from("player_queue").select("*").order("priority", { ascending: false }).order("position", { ascending: true }).order("id", { ascending: true });
     if (error || !data) return;
-
     const rows = data as unknown as QueueRow[];
     const playingRows = rows.filter((row) => row.status === "playing");
-    const playing = playingRows.length
-      ? playingRows.reduce((a, b) =>
-          new Date(b.state_updated_at ?? b.added_at).getTime() >
-          new Date(a.state_updated_at ?? a.added_at).getTime()
-            ? b
-            : a,
-        )
-      : undefined;
-
+    const playing = playingRows.length ? playingRows.reduce((a, b) => new Date(b.state_updated_at ?? b.added_at).getTime() > new Date(a.state_updated_at ?? a.added_at).getTime() ? b : a) : undefined;
     if (playingRows.length > 1 && playing) {
       const stale = playingRows.filter((row) => row.id !== playing.id).map((row) => row.id);
-      void supabase
-        .from("player_queue")
-        .update({ status: "played", played_at: new Date().toISOString() })
-        .in("id", stale);
+      void supabase.from("player_queue").update({ status: "played", played_at: new Date().toISOString() }).in("id", stale);
     }
-
     setCurrent(playing ? toItem(playing) : null);
     setQueue(rows.filter((row) => row.status === "queued").map(toItem));
-    setHistory(
-      rows
-        .filter((row) => row.status === "played")
-        .sort((a, b) => (b.played_at ?? "").localeCompare(a.played_at ?? ""))
-        .slice(0, MAX_HISTORY)
-        .map(toItem),
-    );
+    setHistory(rows.filter((row) => row.status === "played").sort((a, b) => (b.played_at ?? "").localeCompare(a.played_at ?? "")).slice(0, MAX_HISTORY).map(toItem));
   }, []);
 
   useEffect(() => {
     void refresh();
-    const channel = supabase
-      .channel("player-queue-sync-v4")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "player_queue" },
-        (payload) => {
-          const eventType = (payload as any).eventType as string | undefined;
-          const newRow = (payload as any).new as QueueRow | undefined;
-          const oldRow = (payload as any).old as QueueRow | undefined;
-
-          if (eventType === "UPDATE" && newRow && oldRow && isHeartbeatOnlyChange(oldRow, newRow)) {
-            return;
-          }
-
-          void refresh();
-        },
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
+    const channel = supabase.channel("player-queue-sync-v5").on("postgres_changes", { event: "*", schema: "public", table: "player_queue" }, (payload) => {
+      const eventType = (payload as any).eventType as string | undefined;
+      const newRow = (payload as any).new as QueueRow | undefined;
+      const oldRow = (payload as any).old as QueueRow | undefined;
+      if (eventType === "UPDATE" && newRow && oldRow && isHeartbeatOnlyChange(oldRow, newRow)) return;
+      void refresh();
+    }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
   }, [refresh]);
 
   const startPlaying = useCallback(async (id: string): Promise<boolean> => {
     const { data, error } = await supabase.rpc("play_queue_item", { p_id: id });
-    if (error) {
-      console.error("[PLAY QUEUE ERROR]", error.message, error);
-      return false;
-    }
-    return data === true;
+    if (!error && data === true) return true;
+    console.error("[PLAY QUEUE RPC ERROR]", error?.message ?? "item was not started");
+    const { data: target, error: targetError } = await supabase.from("player_queue").select("id,status").eq("id", id).maybeSingle();
+    if (targetError || !target || !["queued", "played"].includes(target.status)) return false;
+    const { error: stopError } = await supabase.from("player_queue").update({ status: "played", played_at: new Date().toISOString() }).eq("status", "playing").neq("id", id);
+    if (stopError) return false;
+    const { error: startError } = await supabase.from("player_queue").update({ status: "playing", played_at: null, playback_position: 0, is_paused: false, state_updated_at: new Date().toISOString(), duration_seconds: null }).eq("id", id).in("status", ["queued", "played"]);
+    return !startError;
   }, []);
 
-  useEffect(() => {
-    if (current || queue.length === 0) return;
-    const head = queue[0]!;
-    void startPlaying(head.id).then(() => refresh());
-  }, [current, queue, refresh, startPlaying]);
+  const advanceNext = useCallback(async () => {
+    const { data, error } = await supabase.rpc("advance_player_queue");
+    if (!error) return data ?? null;
+    console.error("[NEXT RPC ERROR]", error.message);
+    const { data: rows, error: queryError } = await supabase.from("player_queue").select("id").eq("status", "queued").order("priority", { ascending: false }).order("position", { ascending: true }).order("id", { ascending: true }).limit(1);
+    if (queryError || !rows?.[0]) return null;
+    const nextId = (rows[0] as { id: string }).id;
+    return (await startPlaying(nextId)) ? nextId : null;
+  }, [startPlaying]);
 
   const applyMetadata = useCallback((id: string, track: DetectedTrack) => {
-    getTrackMetadata({ data: { source: track.source, trackId: track.trackId } })
-      .then(async (meta) => {
-        await supabase
-          .from("player_queue")
-          .update({
-            title: meta.title ?? null,
-            author: meta.author ?? null,
-            thumbnail: meta.thumbnail ?? null,
-          })
-          .eq("id", id);
-        void refresh();
-      })
-      .catch(() => {});
+    getTrackMetadata({ data: { source: track.source, trackId: track.trackId } }).then(async (meta) => {
+      await supabase.from("player_queue").update({ title: meta.title ?? null, author: meta.author ?? null, thumbnail: meta.thumbnail ?? null }).eq("id", id);
+      void refresh();
+    }).catch(() => {});
   }, [refresh]);
 
-  const addTrack = useCallback(
-    async (
-      track: DetectedTrack,
-      requestedBy: string,
-      requesterColor: string | null,
-      options?: { priority?: boolean },
-    ) => {
-      const trackId = track.trackId;
-      if (pendingAddsRef.current.has(trackId)) return false;
-      pendingAddsRef.current.add(trackId);
-
-      try {
-        const isVip = options?.priority ?? false;
-        const items = queueRef.current;
-        const group = items.filter((i) => i.priority === isVip);
-        const position = group.length > 0
-          ? Math.max(...group.map((i) => i.position)) + 1000
-          : Date.now();
-
-        const { data, error } = await supabase
-          .from("player_queue")
-          .insert({
-            source: track.source,
-            track_id: trackId,
-            url: track.url,
-            thumbnail: `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg`,
-            requested_by: requestedBy,
-            requester_color: requesterColor,
-            priority: isVip,
-            status: "queued",
-            added_at: new Date().toISOString(),
-            position,
-          })
-          .select("id")
-          .maybeSingle();
-
-        if (error) {
-          console.error("[ADD TRACK ERROR]", error.message, error);
-          return false;
-        }
-        if (!data) return false;
-
-        await refresh();
-        applyMetadata((data as { id: string }).id, track);
-        return true;
-      } finally {
-        pendingAddsRef.current.delete(trackId);
-      }
-    },
-    [applyMetadata, refresh],
-  );
-
-  const playNext = useCallback(() => {
-    void (async () => {
-      const nextItem = queueRef.current[0];
-      if (nextItem) await startPlaying(nextItem.id);
+  const addTrack = useCallback(async (track: DetectedTrack, requestedBy: string, requesterColor: string | null, options?: { priority?: boolean }) => {
+    const trackId = track.trackId;
+    if (pendingAddsRef.current.has(trackId)) return false;
+    pendingAddsRef.current.add(trackId);
+    try {
+      const isVip = options?.priority ?? false;
+      const group = queueRef.current.filter((i) => i.priority === isVip);
+      const position = group.length > 0 ? Math.max(...group.map((i) => i.position)) + 1000 : Date.now();
+      const { data, error } = await supabase.from("player_queue").insert({ source: track.source, track_id: trackId, url: track.url, thumbnail: `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg`, requested_by: requestedBy, requester_color: requesterColor, priority: isVip, status: "queued", added_at: new Date().toISOString(), position }).select("id").maybeSingle();
+      if (error) { console.error("[ADD TRACK ERROR]", error.message, error); return false; }
+      if (!data) return false;
       await refresh();
-    })();
-  }, [refresh, startPlaying]);
+      applyMetadata((data as { id: string }).id, track);
+      return true;
+    } finally { pendingAddsRef.current.delete(trackId); }
+  }, [applyMetadata, refresh]);
+
+  const playNext = useCallback(() => { void (async () => { await advanceNext(); await refresh(); })(); }, [advanceNext, refresh]);
 
   const playPrevious = useCallback(() => {
     void (async () => {
-      const { data, error } = await supabase
-        .from("player_queue")
-        .select("*")
-        .eq("status", "played")
-        .order("played_at", { ascending: false })
-        .limit(1);
-
-      if (error || !data || data.length === 0) return;
-      const previousRow = data[0] as QueueRow;
-      const playing = currentRef.current;
-
-      if (playing) {
-        const sameGroup = queueRef.current.filter((i) => i.priority === playing.priority);
-        const topPosition = sameGroup.length
-          ? Math.min(...sameGroup.map((i) => i.position)) - 1000
-          : Date.now();
-        await supabase
-          .from("player_queue")
-          .update({ status: "queued", played_at: null, position: topPosition })
-          .eq("id", playing.id);
+      const { data, error } = await supabase.rpc("play_previous_queue_item");
+      if (error) {
+        console.error("[PREVIOUS RPC ERROR]", error.message);
+        const { data: previousRows, error: previousError } = await supabase.from("player_queue").select("*").eq("status", "played").order("played_at", { ascending: false }).limit(1);
+        if (!previousError && previousRows?.[0]) {
+          const previousId = (previousRows[0] as QueueRow).id;
+          const playing = currentRef.current;
+          if (playing) await supabase.from("player_queue").update({ status: "queued", played_at: null, position: -Date.now() }).eq("id", playing.id).eq("status", "playing");
+          await startPlaying(previousId);
+        }
       }
-
-      await startPlaying(previousRow.id);
+      void data;
       await refresh();
     })();
   }, [refresh, startPlaying]);
 
-  const removeItem = useCallback(
-    (id: string) => {
-      void supabase
-        .from("player_queue")
-        .delete()
-        .eq("id", id)
-        .then(() => refresh());
-    },
-    [refresh],
-  );
+  const removeItem = useCallback((id: string) => { void supabase.from("player_queue").delete().eq("id", id).then(() => refresh()); }, [refresh]);
+  const playNow = useCallback((id: string) => { void (async () => { await startPlaying(id); await refresh(); })(); }, [refresh, startPlaying]);
+  const clearQueue = useCallback(() => { void (async () => { await supabase.from("player_queue").delete().eq("status", "queued"); await refresh(); })(); }, [refresh]);
 
-  const playNow = useCallback(
-    (id: string) => {
-      void (async () => {
-        await startPlaying(id);
-        await refresh();
-      })();
-    },
-    [refresh, startPlaying],
-  );
-
-  const clearQueue = useCallback(() => {
-    void (async () => {
-      await supabase.from("player_queue").delete().eq("status", "queued");
-      await refresh();
-    })();
+  const moveItem = useCallback((id: string, toIndex: number) => {
+    const items = queueRef.current;
+    const fromIndex = items.findIndex((item) => item.id === id);
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= items.length || fromIndex === toIndex) return;
+    const reordered = [...items];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved!);
+    const prev = reordered[toIndex - 1];
+    const next = reordered[toIndex + 1];
+    const newPosition = prev && next ? (prev.position + next.position) / 2 : prev ? prev.position + 1000 : next ? next.position - 1000 : Date.now();
+    void supabase.from("player_queue").update({ position: newPosition }).eq("id", id).then(() => refresh());
   }, [refresh]);
 
-  const moveItem = useCallback(
-    (id: string, toIndex: number) => {
-      const items = queueRef.current;
-      const fromIndex = items.findIndex((item) => item.id === id);
-      if (fromIndex < 0 || toIndex < 0 || toIndex >= items.length || fromIndex === toIndex) return;
+  const updatePlaybackHeartbeat = useCallback((itemId: string, playbackPosition: number, isPaused: boolean, durationSeconds?: number) => {
+    void supabase.from("player_queue").update({ playback_position: playbackPosition, is_paused: isPaused, state_updated_at: new Date().toISOString(), ...(typeof durationSeconds === "number" && durationSeconds > 0 ? { duration_seconds: Math.round(durationSeconds) } : {}) }).eq("id", itemId).eq("status", "playing");
+  }, []);
 
-      const reordered = [...items];
-      const [moved] = reordered.splice(fromIndex, 1);
-      reordered.splice(toIndex, 0, moved!);
-
-      const prev = reordered[toIndex - 1];
-      const next = reordered[toIndex + 1];
-
-      let newPosition: number;
-      if (prev && next) {
-        newPosition = (prev.position + next.position) / 2;
-      } else if (prev) {
-        newPosition = prev.position + 1000;
-      } else if (next) {
-        newPosition = next.position - 1000;
-      } else {
-        newPosition = Date.now();
-      }
-
-      void supabase
-        .from("player_queue")
-        .update({ position: newPosition })
-        .eq("id", id)
-        .then(() => refresh());
-    },
-    [refresh],
-  );
-
-  const updatePlaybackHeartbeat = useCallback(
-    (itemId: string, playbackPosition: number, isPaused: boolean, durationSeconds?: number) => {
-      void supabase
-        .from("player_queue")
-        .update({
-          playback_position: playbackPosition,
-          is_paused: isPaused,
-          state_updated_at: new Date().toISOString(),
-          ...(typeof durationSeconds === "number" && durationSeconds > 0
-            ? { duration_seconds: Math.round(durationSeconds) }
-            : {}),
-        })
-        .eq("id", itemId)
-        .eq("status", "playing");
-    },
-    [],
-  );
-
-  return {
-    current,
-    queue,
-    history,
-    addTrack,
-    playNext,
-    playPrevious,
-    removeItem,
-    playNow,
-    clearQueue,
-    moveItem,
-    updatePlaybackHeartbeat,
-  };
+  return { current, queue, history, addTrack, playNext, playPrevious, removeItem, playNow, clearQueue, moveItem, updatePlaybackHeartbeat };
 }
