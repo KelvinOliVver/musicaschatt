@@ -132,6 +132,19 @@ export function useKickChat(
             lowerContent === "!continuar" ||
             lowerContent === "!limpar"
           ) {
+            const commandMessage: KickChatMessage = {
+              id: payload.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              username: username || "Pitee4",
+              color: payload.sender?.identity?.color ?? null,
+              content: lowerContent,
+              createdAt: payload.created_at ?? new Date().toISOString(),
+              kind: "command",
+            };
+
+            setMessages((current) => {
+              const next = [...current, commandMessage];
+              return next.length > MAX_MESSAGES ? next.slice(next.length - MAX_MESSAGES) : next;
+            });
             onCommandRef.current?.(lowerContent, username);
             return;
           }
@@ -144,6 +157,7 @@ export function useKickChat(
           color: payload.sender?.identity?.color ?? null,
           content,
           createdAt: payload.created_at ?? new Date().toISOString(),
+          kind: "message",
         };
 
         setMessages((current) => {
