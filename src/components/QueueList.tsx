@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -55,7 +55,6 @@ export function QueueList({
   const [now, setNow] = useState(() => Date.now());
   const [exitingIds, setExitingIds] = useState<Set<string>>(() => new Set());
   const [mountedIds, setMountedIds] = useState<Set<string>>(() => new Set());
-  const mountedIdsRef = useRef(mountedIds);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 30_000);
@@ -64,8 +63,22 @@ export function QueueList({
 
   useEffect(() => {
     const nextIds = new Set(items.map((item) => item.id));
-    mountedIdsRef.current = nextIds;
-    setMountedIds(nextIds);
+    setMountedIds((current) => {
+      const existing = new Set([...current].filter((id) => nextIds.has(id)));
+      const newIds = [...nextIds].filter((id) => !current.has(id));
+
+      if (newIds.length === 0) return existing;
+
+      requestAnimationFrame(() => {
+        setMountedIds((latest) => {
+          const mounted = new Set(latest);
+          for (const id of newIds) mounted.add(id);
+          return mounted;
+        });
+      });
+      return existing;
+    });
+
     setExitingIds((current) => {
       const next = new Set(current);
       for (const id of nextIds) next.delete(id);
@@ -106,7 +119,7 @@ export function QueueList({
       <section className="panel relative z-0 flex min-h-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
           <div className="flex min-w-0 items-center gap-2">
-            <ListMusic className="size-4 shrink-0 text-primary" aria-hidden />
+            <ListMusic className="size-4 shrink-0 text-primary transition-transform duration-200 hover:scale-110" aria-hidden />
             <h2 className="text-sm font-semibold uppercase tracking-widest">Fila</h2>
             <Badge variant="secondary" className="tabular-nums transition-transform duration-200 hover:scale-105">
               {items.length}
@@ -251,7 +264,7 @@ export function QueueList({
                             onClick={() => onMove(item.id, index - 1)}
                             aria-label={`Subir na fila: ${item.title ?? item.trackId}`}
                           >
-                            <ChevronUp className="size-3 transition-transform duration-150 group-hover:-translate-y-px" aria-hidden />
+                            <ChevronUp className="size-3" aria-hidden />
                           </Button>
                           <Button
                             size="icon"
@@ -261,14 +274,14 @@ export function QueueList({
                             onClick={() => onMove(item.id, index + 1)}
                             aria-label={`Descer na fila: ${item.title ?? item.trackId}`}
                           >
-                            <ChevronDown className="size-3 transition-transform duration-150 group-hover:translate-y-px" aria-hidden />
+                            <ChevronDown className="size-3" aria-hidden />
                           </Button>
                         </div>
                       )}
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="size-8 transition-all duration-200 hover:bg-primary/10 hover:text-primary hover:-translate-y-px active:scale-90"
+                        className="size-8 transition-all duration-200 hover:-translate-y-px hover:bg-primary/10 hover:text-primary active:scale-90"
                         onClick={() => onPlayNow(item.id)}
                         aria-label={`Tocar agora: ${item.title ?? item.trackId}`}
                       >
@@ -277,7 +290,7 @@ export function QueueList({
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="size-8 text-muted-foreground transition-all duration-200 hover:bg-destructive/10 hover:text-destructive hover:-translate-y-px active:scale-90"
+                        className="size-8 text-muted-foreground transition-all duration-200 hover:-translate-y-px hover:bg-destructive/10 hover:text-destructive active:scale-90"
                         onClick={() => handleRemove(item.id)}
                         aria-label={`Remover da fila: ${item.title ?? item.trackId}`}
                       >
@@ -299,16 +312,16 @@ export function QueueList({
               className="flex w-full items-center justify-between px-5 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-200 hover:bg-accent/30 hover:text-foreground active:scale-[0.995]"
             >
               <span className="flex items-center gap-2">
-                <History className="size-3.5 transition-transform duration-200" aria-hidden />
+                <History className="size-3.5" aria-hidden />
                 Histórico
                 <Badge variant="secondary" className="tabular-nums">
                   {history.length}
                 </Badge>
               </span>
               {showHistory ? (
-                <ChevronUp className="size-3.5 transition-transform duration-200" aria-hidden />
+                <ChevronUp className="size-3.5" aria-hidden />
               ) : (
-                <ChevronDown className="size-3.5 transition-transform duration-200" aria-hidden />
+                <ChevronDown className="size-3.5" aria-hidden />
               )}
             </button>
             {showHistory && (
