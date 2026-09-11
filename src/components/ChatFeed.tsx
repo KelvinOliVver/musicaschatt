@@ -68,12 +68,20 @@ const statusConfig: Record<ChatStatus, { label: string; className: string; icon:
 
 export function ChatFeed({ messages, accentColor, isPlaying = false, status = "idle" }: ChatFeedProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const [onlyLinks, setOnlyLinks] = useState(false);
   const [pinned, setPinned] = useState(true);
+  const pinnedRef = useRef(true);
   const [unread, setUnread] = useState(0);
   const autoScrollingRef = useRef(false);
   const autoScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const scrollFrameRef = useRef<number | undefined>(undefined);
+
+  function setPinnedState(value: boolean) {
+    pinnedRef.current = value;
+    setPinned(value);
+  }
 
   function markAutoScrolling() {
     autoScrollingRef.current = true;
@@ -82,6 +90,13 @@ export function ChatFeed({ messages, accentColor, isPlaying = false, status = "i
       autoScrollingRef.current = false;
     }, 500);
   }
+
+  const keepAtBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || !pinnedRef.current) return;
+    markAutoScrolling();
+    el.scrollTop = el.scrollHeight;
+  }, []);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -93,6 +108,33 @@ export function ChatFeed({ messages, accentColor, isPlaying = false, status = "i
     return () => el.removeEventListener("scrollend", handleScrollEnd);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (autoScrollTimeoutRef.current) clearTimeout(autoScrollTimeoutRef.current);
+      if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+
+    const observer = new ResizeObserver(() => {
+      if (!pinnedRef.current) return;
+      if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
+      scrollFrameRef.current = requestAnimationFrame(() => {
+        keepAtBottom();
+        scrollFrameRef.current = undefined;
+      });
+    });
+
+    observer.observe(content);
+    return () => {
+      observer.disconnect();
+      if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
+    };
+  }, [keepAtBottom]);
+
   const visible = useMemo(
     () => (onlyLinks ? messages.filter((m) => hasTrackLink(m.content)) : messages),
     [messages, onlyLinks],
@@ -101,27 +143,40 @@ export function ChatFeed({ messages, accentColor, isPlaying = false, status = "i
     () => messages.filter((m) => hasTrackLink(m.content)).length,
     [messages],
   );
+  const latestMessageId = visible.length > 0 ? visible[visible.length - 1]?.id : undefined;
 
   const scrollToEnd = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const el = scrollRef.current;
+    if (!el) return;
     markAutoScrolling();
-    endRef.current?.scrollIntoView({ behavior, block: "nearest" });
+    if (behavior === "auto") {
+      el.scrollTop = el.scrollHeight;
+    } else {
+      el.scrollTo({ top: el.scrollHeight, behavior });
+    }
     setUnread(0);
-    setPinned(true);
+    setPinnedState(true);
   }, []);
 
   useEffect(() => {
-    markAutoScrolling();
-    endRef.current?.scrollIntoView({ behavior: "auto", block: "nearest" });
-    setUnread(0);
-    setPinned(true);
-  }, [visible.length]);
+    if (!pinnedRef.current) {
+      setUnread((count) => count + 1);
+      return;
+    }
+
+    if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      keepAtBottom();
+      scrollFrameRef.current = undefined;
+    });
+  }, [latestMessageId, visible.length, keepAtBottom]);
 
   function handleScroll() {
     if (autoScrollingRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-    setPinned(atBottom);
+    setPinnedState(atBottom);
     if (atBottom) setUnread(0);
   }
 
@@ -164,62 +219,64 @@ export function ChatFeed({ messages, accentColor, isPlaying = false, status = "i
         </header>
 
         <div ref={scrollRef} onScroll={handleScroll} className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-3 py-3">
-          {visible.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              {onlyLinks ? "Nenhum link de música ainda." : "Nenhuma mensagem ainda."}
-            </p>
-          ) : (
-            <ul className="space-y-0.5">
-              {visible.map((message) => {
-                const withLink = hasTrackLink(message.content);
-                const time = formatTime(message.createdAt);
-                const isCommand = message.kind === "command";
-                return (
-                  <li
-                    key={message.id}
-                    className={cn(
-                      "group animate-in fade-in slide-in-from-bottom-1 duration-150 rounded-md px-2 py-1.5 text-sm leading-snug break-words transition-colors",
-                      isCommand
-                        ? "border border-primary/25 bg-primary/[0.07] text-foreground"
-                        : "hover:bg-muted/40",
-                      withLink && !isCommand && "bg-primary/10 ring-1 ring-primary/25 hover:bg-primary/15",
-                    )}
-                  >
-                    {isCommand ? (
-                      <div className="flex items-center gap-2">
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                          <Zap className="size-3.5" aria-hidden />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-semibold" style={message.color ? { color: message.color } : undefined}>
-                              {message.username}
-                            </span>
-                            <span className="rounded-full border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
-                              comando
-                            </span>
-                            <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground/60">{time}</span>
+          <div ref={contentRef}>
+            {visible.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {onlyLinks ? "Nenhum link de música ainda." : "Nenhuma mensagem ainda."}
+              </p>
+            ) : (
+              <ul className="space-y-0.5">
+                {visible.map((message) => {
+                  const withLink = hasTrackLink(message.content);
+                  const time = formatTime(message.createdAt);
+                  const isCommand = message.kind === "command";
+                  return (
+                    <li
+                      key={message.id}
+                      className={cn(
+                        "group animate-in fade-in slide-in-from-bottom-1 duration-150 rounded-md px-2 py-1.5 text-sm leading-snug break-words transition-colors",
+                        isCommand
+                          ? "border border-primary/25 bg-primary/[0.07] text-foreground"
+                          : "hover:bg-muted/40",
+                        withLink && !isCommand && "bg-primary/10 ring-1 ring-primary/25 hover:bg-primary/15",
+                      )}
+                    >
+                      {isCommand ? (
+                        <div className="flex items-center gap-2">
+                          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                            <Zap className="size-3.5" aria-hidden />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold" style={message.color ? { color: message.color } : undefined}>
+                                {message.username}
+                              </span>
+                              <span className="rounded-full border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
+                                comando
+                              </span>
+                              <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground/60">{time}</span>
+                            </div>
+                            <div className="mt-0.5 font-mono text-xs text-foreground/80">{message.content}</div>
                           </div>
-                          <div className="mt-0.5 font-mono text-xs text-foreground/80">{message.content}</div>
                         </div>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="mr-1.5 align-middle text-[10px] tabular-nums text-muted-foreground/60">{time}</span>
-                        {withLink && <Music2 className="mr-1 inline size-3 align-middle text-primary" aria-label="link de música" />}
-                        <span className="font-semibold" style={message.color ? { color: message.color } : undefined}>
-                          {message.username}
-                        </span>
-                        <span className="text-muted-foreground">: </span>
-                        <span className="text-foreground/90">{renderMessageContent(message.content)}</span>
-                      </>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <div ref={endRef} />
+                      ) : (
+                        <>
+                          <span className="mr-1.5 align-middle text-[10px] tabular-nums text-muted-foreground/60">{time}</span>
+                          {withLink && <Music2 className="mr-1 inline size-3 align-middle text-primary" aria-label="link de música" />}
+                          <span className="font-semibold" style={message.color ? { color: message.color } : undefined}>
+                            {message.username}
+                          </span>
+                          <span className="text-muted-foreground">: </span>
+                          <span className="text-foreground/90">{renderMessageContent(message.content)}</span>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div ref={endRef} />
+          </div>
         </div>
 
         {!pinned && (
