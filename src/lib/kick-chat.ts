@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getKickChannelInfo } from "./kick.functions";
 import type { ChatStatus, KickChannelInfo, KickChatMessage } from "./types";
-import { supabase } from "@/integrations/supabase/client";
 
 /** Public Pusher app key used by kick.com's own web chat. */
 const KICK_PUSHER_KEY = "32cbd69e4b950bf97679";
@@ -89,7 +88,7 @@ export function useKickChat(
         );
       };
 
-      ws.onmessage = async (event) => {
+      ws.onmessage = (event) => {
         let envelope: PusherEnvelope;
         try {
           envelope = JSON.parse(String(event.data)) as PusherEnvelope;
@@ -151,26 +150,6 @@ export function useKickChat(
           const next = [...current, message];
           return next.length > MAX_MESSAGES ? next.slice(next.length - MAX_MESSAGES) : next;
         });
-
-        // O cooldown é decidido no banco, de forma atômica. Assim ele não
-        // pode ser burlado por reload, reconexão, troca de host ou múltiplas
-        // abas/dispositivos recebendo a mesma mensagem simultaneamente.
-        if (extractsTrack(message.content)) {
-          const { data: allowed, error: cooldownError } = await supabase.rpc(
-            "claim_chat_request_cooldown",
-            { p_username: message.username },
-          );
-
-          if (cooldownError) {
-            console.error("[CHAT COOLDOWN ERROR]", cooldownError.message);
-            // Fail closed: se não conseguimos consultar o cooldown, não
-            // adicionamos a música por acidente.
-            return;
-          }
-
-          if (!allowed) return;
-        }
-
         onMessageRef.current?.(message);
       };
 
@@ -212,8 +191,4 @@ export function useKickChat(
   }, [slug, attempt]);
 
   return { status, error, channel, messages, reconnect };
-}
-
-function extractsTrack(content: string): boolean {
-  return /(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/)|youtu\.be\/|youtube-nocookie\.com\/)/i.test(content);
 }
