@@ -216,11 +216,6 @@ export function QueueList({
                         </div>
                       )}
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/15 via-transparent to-white/[0.05]" />
-                      {isNext && (
-                        <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-primary/80 py-0.5 text-[8px] font-bold uppercase tracking-wider text-primary-foreground backdrop-blur-[2px]">
-                          Tocando
-                        </span>
-                      )}
                     </div>
 
                     <div className="min-w-0 flex-1">
