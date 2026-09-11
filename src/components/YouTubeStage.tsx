@@ -14,6 +14,7 @@ declare global {
             onReady?: (event: { target: any }) => void;
             onStateChange?: (event: { data: number; target: any }) => void;
             onError?: (event: { data: number }) => void;
+            onAutoplayBlocked?: () => void;
           };
         }
       ) => any;
@@ -109,6 +110,7 @@ export function YouTubeStage({
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
   const endedTriggeredRef = useRef(false);
+  const transientRetryRef = useRef(0);
 
   // A API do YouTube é criada dentro de um effect que só reinicia quando o
   // videoId muda. Refs mantêm callbacks/estado atuais sem recriar o iframe a
@@ -163,7 +165,9 @@ export function YouTubeStage({
     let stopTicker: (() => void) | null = null;
     let cancelHiddenAdvance: (() => void) | null = null;
     let apiCheck: number | null = null;
+    let cancelTransientRetry: (() => void) | null = null;
     endedTriggeredRef.current = false;
+    transientRetryRef.current = 0;
 
     function handleVisibilityForAdvance() {
       if (cancelHiddenAdvance) {
@@ -217,6 +221,7 @@ export function YouTubeStage({
           modestbranding: 1,
           playsinline: 1,
           rel: 0,
+          origin: window.location.origin,
         },
         events: {
           onReady: (event) => {
@@ -269,8 +274,32 @@ export function YouTubeStage({
               triggerEndedOnce();
             }
           },
-          onError: () => {
-            if (isMounted) triggerEndedOnce();
+          onError: (event) => {
+            if (!isMounted || endedTriggeredRef.current) return;
+
+            // Error 5 is a player/HTML5 playback failure. One controlled retry
+            // can recover transient YouTube failures without risking an
+            // infinite retry loop. Permanent errors (private/removed/embed
+            // blocked/invalid id) still advance normally.
+            if (event.data === 5 && transientRetryRef.current < 1) {
+              transientRetryRef.current += 1;
+              cancelTransientRetry?.();
+              const retryTimer = window.setTimeout(() => {
+                if (!isMounted || !playerRef.current?.loadVideoById) return;
+                try {
+                  playerRef.current.loadVideoById(videoId);
+                } catch {
+                  triggerEndedOnce();
+                }
+              }, 700);
+              cancelTransientRetry = () => window.clearTimeout(retryTimer);
+              return;
+            }
+
+            triggerEndedOnce();
+          },
+          onAutoplayBlocked: () => {
+            if (isMounted) onPlayingChangeRef.current(false);
           },
         },
       });
@@ -311,6 +340,7 @@ export function YouTubeStage({
       if (apiCheck !== null) clearInterval(apiCheck);
       if (stopTicker) stopTicker();
       if (cancelHiddenAdvance) cancelHiddenAdvance();
+      if (cancelTransientRetry) cancelTransientRetry();
 
       if (playerRef.current) {
         try {
