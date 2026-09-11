@@ -124,8 +124,6 @@ export function usePlayerQueue(): PlayerQueue {
 
     const rows = data as unknown as QueueRow[];
     const playingRows = rows.filter((row) => row.status === "playing");
-    // Se por qualquer corrida entre abas sobrar mais de uma "tocando",
-    // mantém a mais recente e devolve as outras para o histórico.
     const playing = playingRows.length
       ? playingRows.reduce((a, b) =>
           new Date(b.state_updated_at ?? b.added_at).getTime() >
@@ -144,9 +142,7 @@ export function usePlayerQueue(): PlayerQueue {
     }
 
     setCurrent(playing ? toItem(playing) : null);
-
     setQueue(rows.filter((row) => row.status === "queued").map(toItem));
-
     setHistory(
       rows
         .filter((row) => row.status === "played")
@@ -169,8 +165,6 @@ export function usePlayerQueue(): PlayerQueue {
           const oldRow = (payload as any).old as QueueRow | undefined;
 
           if (eventType === "UPDATE" && newRow && oldRow && isHeartbeatOnlyChange(oldRow, newRow)) {
-            // Ignora completamente: quem já está com a página aberta não precisa
-            // reagir a um heartbeat. Zero re-render causado por isso.
             return;
           }
 
@@ -183,16 +177,20 @@ export function usePlayerQueue(): PlayerQueue {
     };
   }, [refresh]);
 
+  const startPlaying = useCallback(async (id: string): Promise<boolean> => {
+    const { data, error } = await supabase.rpc("play_queue_item", { p_id: id });
+    if (error) {
+      console.error("[PLAY QUEUE ERROR]", error.message, error);
+      return false;
+    }
+    return data === true;
+  }, []);
+
   useEffect(() => {
     if (current || queue.length === 0) return;
     const head = queue[0]!;
-    void supabase
-      .from("player_queue")
-      .update({ status: "playing", played_at: null, state_updated_at: new Date().toISOString(), playback_position: 0, is_paused: false })
-      .eq("id", head.id)
-      .eq("status", "queued")
-      .then(() => refresh());
-  }, [current, queue, refresh]);
+    void startPlaying(head.id).then(() => refresh());
+  }, [current, queue, refresh, startPlaying]);
 
   const applyMetadata = useCallback((id: string, track: DetectedTrack) => {
     getTrackMetadata({ data: { source: track.source, trackId: track.trackId } })
@@ -262,44 +260,13 @@ export function usePlayerQueue(): PlayerQueue {
     [applyMetadata, refresh],
   );
 
-  function resetPlaybackFields() {
-    return {
-      playback_position: 0,
-      is_paused: false,
-      state_updated_at: new Date().toISOString(),
-      duration_seconds: null, // nova música: duração ainda desconhecida até o próximo heartbeat
-    };
-  }
-
-  /** Marca como tocadas todas as músicas que estejam em "playing". */
-  async function stopAllPlaying(exceptId?: string) {
-    let query = supabase
-      .from("player_queue")
-      .update({ status: "played", played_at: new Date().toISOString() })
-      .eq("status", "playing");
-    if (exceptId) query = query.neq("id", exceptId);
-    await query;
-  }
-
-  /** Garante exatamente uma música tocando. */
-  async function startPlaying(id: string) {
-    await stopAllPlaying(id);
-    await supabase
-      .from("player_queue")
-      .update({ status: "playing", played_at: null, ...resetPlaybackFields() })
-      .eq("id", id);
-  }
-
   const playNext = useCallback(() => {
     void (async () => {
       const nextItem = queueRef.current[0];
-
-      await stopAllPlaying();
       if (nextItem) await startPlaying(nextItem.id);
-
       await refresh();
     })();
-  }, [refresh]);
+  }, [refresh, startPlaying]);
 
   const playPrevious = useCallback(() => {
     void (async () => {
@@ -312,11 +279,9 @@ export function usePlayerQueue(): PlayerQueue {
 
       if (error || !data || data.length === 0) return;
       const previousRow = data[0] as QueueRow;
-
       const playing = currentRef.current;
 
       if (playing) {
-        // Volta para o topo da fila (ordenação usa `position`, não `added_at`).
         const sameGroup = queueRef.current.filter((i) => i.priority === playing.priority);
         const topPosition = sameGroup.length
           ? Math.min(...sameGroup.map((i) => i.position)) - 1000
@@ -328,10 +293,9 @@ export function usePlayerQueue(): PlayerQueue {
       }
 
       await startPlaying(previousRow.id);
-
       await refresh();
     })();
-  }, [refresh]);
+  }, [refresh, startPlaying]);
 
   const removeItem = useCallback(
     (id: string) => {
@@ -351,7 +315,7 @@ export function usePlayerQueue(): PlayerQueue {
         await refresh();
       })();
     },
-    [refresh],
+    [refresh, startPlaying],
   );
 
   const clearQueue = useCallback(() => {
