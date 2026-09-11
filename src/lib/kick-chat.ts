@@ -116,27 +116,47 @@ export function useKickChat(
         if (!content) return;
 
         // =========================================================================
-        // FILTRO ROBUSTO DE COMANDO (Ignora maiúsculas/minúsculas e espaços extras)
+        // FILTRO ROBUSTO DE COMANDO (ignora maiúsculas/minúsculas e espaços extras)
         // Só o usuário "Pitee4" (streamer) consegue disparar comandos de controle.
+        // Aliases abaixo são convertidos para os comandos canônicos antes de chegar
+        // ao player, então não é necessário duplicar a lógica de execução.
         // =========================================================================
         const cleanUsername = username.trim().toLowerCase();
 
         if (cleanUsername === "pitee4") {
           const lowerContent = content.toLowerCase();
-          if (
-            lowerContent === "!skip" ||
-            lowerContent === "!proxima" ||
-            lowerContent === "!back" ||
-            lowerContent === "!anterior" ||
-            lowerContent === "!pausar" ||
-            lowerContent === "!continuar" ||
-            lowerContent === "!limpar"
-          ) {
+          const commandAliases: Record<string, string> = {
+            "!next": "!proxima",
+            "!pular": "!proxima",
+            "!prev": "!anterior",
+            "!previous": "!anterior",
+            "!voltar": "!anterior",
+            "!pause": "!pausar",
+            "!parar": "!pausar",
+            "!resume": "!continuar",
+            "!play": "!continuar",
+            "!retomar": "!continuar",
+            "!clear": "!limpar",
+            "!limparfila": "!limpar",
+          };
+
+          const canonicalCommand = commandAliases[lowerContent] ?? lowerContent;
+          const supportedCommands = new Set([
+            "!skip",
+            "!proxima",
+            "!back",
+            "!anterior",
+            "!pausar",
+            "!continuar",
+            "!limpar",
+          ]);
+
+          if (supportedCommands.has(canonicalCommand)) {
             const commandMessage: KickChatMessage = {
               id: payload.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
               username: username || "Pitee4",
               color: payload.sender?.identity?.color ?? null,
-              content: lowerContent,
+              content: canonicalCommand,
               createdAt: payload.created_at ?? new Date().toISOString(),
               kind: "command",
             };
@@ -145,7 +165,7 @@ export function useKickChat(
               const next = [...current, commandMessage];
               return next.length > MAX_MESSAGES ? next.slice(next.length - MAX_MESSAGES) : next;
             });
-            onCommandRef.current?.(lowerContent, username);
+            onCommandRef.current?.(canonicalCommand, username);
             return;
           }
         }
