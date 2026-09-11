@@ -6,64 +6,17 @@ import type { QueueItem } from "./types";
 
 const MAX_HISTORY = 40;
 
-interface QueueRow {
-  id: string;
-  source: string;
-  track_id: string;
-  url: string;
-  title: string | null;
-  author: string | null;
-  thumbnail: string | null;
-  requested_by: string;
-  requester_color: string | null;
-  priority: boolean;
-  status: string;
-  added_at: string;
-  played_at: string | null;
-  position: number | null;
-  playback_position: number | null;
-  is_paused: boolean | null;
-  state_updated_at: string | null;
-  duration_seconds: number | null;
-}
+interface QueueRow { id: string; source: string; track_id: string; url: string; title: string | null; author: string | null; thumbnail: string | null; requested_by: string; requester_color: string | null; priority: boolean; status: string; added_at: string; played_at: string | null; position: number | null; playback_position: number | null; is_paused: boolean | null; state_updated_at: string | null; duration_seconds: number | null; }
 
 function toItem(row: QueueRow): QueueItem {
-  return {
-    id: row.id,
-    source: "youtube",
-    trackId: row.track_id,
-    url: row.url,
-    title: row.title,
-    author: row.author,
-    thumbnail: row.thumbnail,
-    requestedBy: row.requested_by,
-    requesterColor: row.requester_color,
-    priority: row.priority,
-    addedAt: new Date(row.added_at).getTime(),
-    position: row.position ?? new Date(row.added_at).getTime(),
-    playbackPosition: Number(row.playback_position ?? 0),
-    isPaused: row.is_paused ?? false,
-    stateUpdatedAt: row.state_updated_at ? new Date(row.state_updated_at).getTime() : Date.now(),
-  };
+  return { id: row.id, source: "youtube", trackId: row.track_id, url: row.url, title: row.title, author: row.author, thumbnail: row.thumbnail, requestedBy: row.requested_by, requesterColor: row.requester_color, priority: row.priority, addedAt: new Date(row.added_at).getTime(), position: row.position ?? new Date(row.added_at).getTime(), playbackPosition: Number(row.playback_position ?? 0), isPaused: row.is_paused ?? false, stateUpdatedAt: row.state_updated_at ? new Date(row.state_updated_at).getTime() : Date.now() };
 }
 
 function isHeartbeatOnlyChange(oldRow: QueueRow, newRow: QueueRow): boolean {
   return oldRow.status === newRow.status && oldRow.priority === newRow.priority && oldRow.position === newRow.position && oldRow.title === newRow.title && oldRow.author === newRow.author && oldRow.thumbnail === newRow.thumbnail && oldRow.requested_by === newRow.requested_by && (oldRow.playback_position !== newRow.playback_position || oldRow.is_paused !== newRow.is_paused || oldRow.state_updated_at !== newRow.state_updated_at);
 }
 
-export interface PlayerQueue {
-  current: QueueItem | null;
-  queue: QueueItem[];
-  history: QueueItem[];
-  addTrack: (track: DetectedTrack, requestedBy: string, requesterColor: string | null, options?: { priority?: boolean }) => Promise<boolean>;
-  playNext: () => void;
-  playPrevious: () => void;
-  removeItem: (id: string) => void;
-  playNow: (id: string) => void;
-  clearQueue: () => void;
-  moveItem: (id: string, toIndex: number) => void;
-  updatePlaybackHeartbeat: (itemId: string, playbackPosition: number, isPaused: boolean, durationSeconds?: number) => void;
-}
+export interface PlayerQueue { current: QueueItem | null; queue: QueueItem[]; history: QueueItem[]; addTrack: (track: DetectedTrack, requestedBy: string, requesterColor: string | null, options?: { priority?: boolean }) => Promise<boolean>; playNext: () => void; playPrevious: () => void; removeItem: (id: string) => void; playNow: (id: string) => void; clearQueue: () => void; moveItem: (id: string, toIndex: number) => void; updatePlaybackHeartbeat: (itemId: string, playbackPosition: number, isPaused: boolean, durationSeconds?: number) => void; }
 
 export function usePlayerQueue(): PlayerQueue {
   const [current, setCurrent] = useState<QueueItem | null>(null);
@@ -123,6 +76,13 @@ export function usePlayerQueue(): PlayerQueue {
     const nextId = (rows[0] as { id: string }).id;
     return (await startPlaying(nextId)) ? nextId : null;
   }, [startPlaying]);
+
+  // When a fresh queue has no current track, atomically start its head. The
+  // database lock makes this safe when several listeners mount together.
+  useEffect(() => {
+    if (current || queue.length === 0) return;
+    void advanceNext().then(() => refresh());
+  }, [current, queue, advanceNext, refresh]);
 
   const applyMetadata = useCallback((id: string, track: DetectedTrack) => {
     getTrackMetadata({ data: { source: track.source, trackId: track.trackId } }).then(async (meta) => {
