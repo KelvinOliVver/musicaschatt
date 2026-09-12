@@ -51,7 +51,7 @@ async function verifyWebhook(body: string, messageId: string, timestamp: string,
     "RSASSA-PKCS1-v1_5",
     await getPublicKey(),
     base64ToBytes(signature),
-    await crypto.subtle.digest("SHA-256", signed),
+    signed,
   );
 }
 
@@ -195,8 +195,6 @@ Deno.serve(async (request) => {
     if (!inserted) return new Response("OK", { status: 200 });
 
     const payload = JSON.parse(body) as {
-      broadcaster?: { user_id?: number; username?: string };
-      sender?: { user_id?: number; username?: string };
       content?: string;
     };
 
