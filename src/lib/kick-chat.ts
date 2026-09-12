@@ -33,26 +33,46 @@ export interface UseKickChatResult {
   reconnect: () => void;
 }
 
-function persistMessage(message: KickChatMessage) {
-  void supabase.from("chat_messages").upsert(
-    {
-      id: message.id,
-      username: message.username,
-      color: message.color,
-      content: message.content,
-      created_at: message.createdAt,
-      kind: message.kind ?? "message",
-    },
-    { onConflict: "id", ignoreDuplicates: true },
-  ).then(({ error }) => {
-    if (error) console.error("[CHAT HISTORY]", error.message);
-  });
+function mergeMessages(
+  current: KickChatMessage[],
+  incoming: KickChatMessage[],
+): KickChatMessage[] {
+  const byId = new Map<string, KickChatMessage>();
+
+  for (const message of [...current, ...incoming]) {
+    byId.set(message.id, message);
+  }
+
+  return Array.from(byId.values())
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+    .slice(-MAX_MESSAGES);
 }
 
-async function loadChatHistory(): Promise<KickChatMessage[]> {
+function persistMessage(message: KickChatMessage, channelSlug: string) {
+  void supabase
+    .from("chat_messages")
+    .upsert(
+      {
+        id: message.id,
+        channel_slug: channelSlug,
+        username: message.username,
+        color: message.color,
+        content: message.content,
+        created_at: message.createdAt,
+        kind: message.kind ?? "message",
+      },
+      { onConflict: "id", ignoreDuplicates: true },
+    )
+    .then(({ error }) => {
+      if (error) console.error("[CHAT HISTORY SAVE]", error.message);
+    });
+}
+
+async function loadChatHistory(channelSlug: string): Promise<KickChatMessage[]> {
   const { data, error } = await supabase
     .from("chat_messages")
-    .select("id, username, color, content, created_at, kind")
+    .select("id, channel_slug, username, color, content, created_at, kind")
+    .eq("channel_slug", channelSlug)
     .order("created_at", { ascending: false })
     .limit(MAX_MESSAGES);
 
@@ -61,23 +81,20 @@ async function loadChatHistory(): Promise<KickChatMessage[]> {
     return [];
   }
 
-  return data
-    .reverse()
-    .map((row) => ({
-      id: row.id,
-      username: row.username,
-      color: row.color,
-      content: row.content,
-      createdAt: row.created_at,
-      kind: row.kind === "command" ? "command" : "message",
-    } as KickChatMessage));
+  return data.reverse().map((row) => ({
+    id: row.id,
+    username: row.username,
+    color: row.color,
+    content: row.content,
+    createdAt: row.created_at,
+    kind: row.kind === "command" ? "command" : "message",
+  } as KickChatMessage));
 }
 
 /**
  * Connects to a Kick channel's public chat over the Pusher WebSocket protocol
  * and streams incoming messages. Reconnects automatically with backoff.
- * Chat history is persisted in Supabase so a new client can recover recent
- * messages after joining or refreshing the page.
+ * Recent chat history is persisted in Supabase and restored after refresh.
  */
 export function useKickChat(
   slug: string,
@@ -115,9 +132,9 @@ export function useKickChat(
     setError(null);
     setStatus("resolving");
 
-    void loadChatHistory().then((history) => {
+    void loadChatHistory(normalized).then((history) => {
       if (disposed) return;
-      setMessages(history);
+      setMessages((current) => mergeMessages(current, history));
     });
 
     const openSocket = (info: KickChannelInfo) => {
@@ -203,11 +220,8 @@ export function useKickChat(
               kind: "command",
             };
 
-            setMessages((current) => {
-              const next = [...current, commandMessage];
-              return next.length > MAX_MESSAGES ? next.slice(next.length - MAX_MESSAGES) : next;
-            });
-            persistMessage(commandMessage);
+            setMessages((current) => mergeMessages(current, [commandMessage]));
+            persistMessage(commandMessage, normalized);
             onCommandRef.current?.(canonicalCommand, username);
             return;
           }
@@ -222,11 +236,8 @@ export function useKickChat(
           kind: "message",
         };
 
-        setMessages((current) => {
-          const next = [...current, message];
-          return next.length > MAX_MESSAGES ? next.slice(next.length - MAX_MESSAGES) : next;
-        });
-        persistMessage(message);
+        setMessages((current) => mergeMessages(current, [message]));
+        persistMessage(message, normalized);
         onMessageRef.current?.(message);
       };
 
