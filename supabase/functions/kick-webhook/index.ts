@@ -6,6 +6,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const KICK_CLIENT_ID = Deno.env.get("KICK_CLIENT_ID")!;
 const KICK_CLIENT_SECRET = Deno.env.get("KICK_CLIENT_SECRET")!;
+const MUSICASCHAT_SUPABASE_URL = Deno.env.get("MUSICASCHAT_SUPABASE_URL")!;
+const MUSICASCHAT_SUPABASE_ANON_KEY = Deno.env.get("MUSICASCHAT_SUPABASE_ANON_KEY")!;
 const KICK_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq/+l1WnlRrGSolDMA+A8
 6rAhMbGQmQ2SapVcGM3zq8ANXjnhDWocMqfWcTd95btDydITa10kDvHzw9WQOqp2
@@ -19,6 +21,15 @@ twIDAQAB
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+
+function musicasChatRest(path: string) {
+  return fetch(`${MUSICASCHAT_SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      apikey: MUSICASCHAT_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${MUSICASCHAT_SUPABASE_ANON_KEY}`,
+    },
+  });
+}
 
 let publicKeyPromise: Promise<CryptoKey> | null = null;
 
@@ -132,32 +143,26 @@ function shorten(value: string, max = 70) {
 
 async function commandResponse(command: string): Promise<string | null> {
   if (command === "!musica") {
-    const { data, error } = await supabase
-      .from("player_queue")
-      .select("title,author,track_id")
-      .eq("status", "playing")
-      .order("state_updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return "🎵 Nenhuma música tocando agora.";
-    const title = shorten(data.title ?? `YouTube ${data.track_id}`);
-    const author = data.author ? ` — ${shorten(data.author, 45)}` : "";
+    const response = await musicasChatRest(
+      "player_queue?select=title,author,track_id&status=eq.playing&order=state_updated_at.desc&limit=1",
+    );
+    const data = await response.json();
+    if (!response.ok) throw new Error(`MusicasChatt REST ${response.status}`);
+    const item = data?.[0];
+    if (!item) return "🎵 Nenhuma música tocando agora.";
+    const title = shorten(item.title ?? `YouTube ${item.track_id}`);
+    const author = item.author ? ` — ${shorten(item.author, 45)}` : "";
     return `🎵 Tocando agora: ${title}${author}`;
   }
 
   if (command === "!fila") {
-    const { data, error } = await supabase
-      .from("player_queue")
-      .select("title,author,track_id,priority")
-      .eq("status", "queued")
-      .order("priority", { ascending: false })
-      .order("position", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(5);
-    if (error) throw error;
+    const response = await musicasChatRest(
+      "player_queue?select=title,author,track_id,priority&status=eq.queued&order=priority.desc,position.asc,id.asc&limit=5",
+    );
+    const data = await response.json();
+    if (!response.ok) throw new Error(`MusicasChatt REST ${response.status}`);
     if (!data?.length) return "📋 A fila está vazia.";
-    const items = data.map((item, index) => {
+    const items = data.map((item: { title?: string; track_id?: string; priority?: number }, index: number) => {
       const title = shorten(item.title ?? `YouTube ${item.track_id}`, 52);
       return `${index + 1}. ${item.priority ? "★ " : ""}${title}`;
     });
@@ -194,10 +199,7 @@ Deno.serve(async (request) => {
       .maybeSingle();
     if (!inserted) return new Response("OK", { status: 200 });
 
-    const payload = JSON.parse(body) as {
-      content?: string;
-    };
-
+    const payload = JSON.parse(body) as { content?: string };
     const command = payload.content?.trim().toLowerCase() ?? "";
     const response = await commandResponse(command);
     if (!response) return new Response("OK", { status: 200 });
@@ -206,8 +208,6 @@ Deno.serve(async (request) => {
     return new Response("OK", { status: 200 });
   } catch (error) {
     console.error("kick-webhook error", error);
-    // Acknowledge valid events even when a command fails so Kick does not
-    // repeatedly redeliver a message that the bot could not answer.
     return new Response("OK", { status: 200 });
   }
 });
