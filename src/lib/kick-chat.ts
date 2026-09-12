@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getKickChannelInfo } from "./kick.functions";
+import { supabase } from "@/integrations/supabase/client";
 import type { ChatStatus, KickChannelInfo, KickChatMessage } from "./types";
 
 /** Public Pusher app key used by kick.com's own web chat. */
@@ -32,9 +33,51 @@ export interface UseKickChatResult {
   reconnect: () => void;
 }
 
+function persistMessage(message: KickChatMessage) {
+  void supabase.from("chat_messages").upsert(
+    {
+      id: message.id,
+      username: message.username,
+      color: message.color,
+      content: message.content,
+      created_at: message.createdAt,
+      kind: message.kind ?? "message",
+    },
+    { onConflict: "id", ignoreDuplicates: true },
+  ).then(({ error }) => {
+    if (error) console.error("[CHAT HISTORY]", error.message);
+  });
+}
+
+async function loadChatHistory(): Promise<KickChatMessage[]> {
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("id, username, color, content, created_at, kind")
+    .order("created_at", { ascending: false })
+    .limit(MAX_MESSAGES);
+
+  if (error || !data) {
+    if (error) console.error("[CHAT HISTORY LOAD]", error.message);
+    return [];
+  }
+
+  return data
+    .reverse()
+    .map((row) => ({
+      id: row.id,
+      username: row.username,
+      color: row.color,
+      content: row.content,
+      createdAt: row.created_at,
+      kind: row.kind === "command" ? "command" : "message",
+    } as KickChatMessage));
+}
+
 /**
  * Connects to a Kick channel's public chat over the Pusher WebSocket protocol
  * and streams incoming messages. Reconnects automatically with backoff.
+ * Chat history is persisted in Supabase so a new client can recover recent
+ * messages after joining or refreshing the page.
  */
 export function useKickChat(
   slug: string,
@@ -71,6 +114,11 @@ export function useKickChat(
     setChannel(null);
     setError(null);
     setStatus("resolving");
+
+    void loadChatHistory().then((history) => {
+      if (disposed) return;
+      setMessages(history);
+    });
 
     const openSocket = (info: KickChannelInfo) => {
       if (disposed) return;
@@ -115,12 +163,6 @@ export function useKickChat(
         const username = payload.sender?.username ?? "";
         if (!content) return;
 
-        // =========================================================================
-        // FILTRO ROBUSTO DE COMANDO (ignora maiúsculas/minúsculas e espaços extras)
-        // Só o usuário "Pitee4" (streamer) consegue disparar comandos de controle.
-        // Aliases abaixo são convertidos para os comandos canônicos antes de chegar
-        // ao player, então não é necessário duplicar a lógica de execução.
-        // =========================================================================
         const cleanUsername = username.trim().toLowerCase();
 
         if (cleanUsername === "pitee4") {
@@ -165,11 +207,11 @@ export function useKickChat(
               const next = [...current, commandMessage];
               return next.length > MAX_MESSAGES ? next.slice(next.length - MAX_MESSAGES) : next;
             });
+            persistMessage(commandMessage);
             onCommandRef.current?.(canonicalCommand, username);
             return;
           }
         }
-        // =========================================================================
 
         const message: KickChatMessage = {
           id: payload.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -184,6 +226,7 @@ export function useKickChat(
           const next = [...current, message];
           return next.length > MAX_MESSAGES ? next.slice(next.length - MAX_MESSAGES) : next;
         });
+        persistMessage(message);
         onMessageRef.current?.(message);
       };
 
