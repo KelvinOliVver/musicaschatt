@@ -113,7 +113,7 @@ async function getKickUser(accessToken: string) {
   return (data.data?.[0] ?? null) as { user_id?: number; username?: string } | null;
 }
 
-async function subscribeChannelEvents(accessToken: string) {
+async function subscribeChannelEvents(accessToken: string, broadcasterUserId: number) {
   if (!KICK_WEBHOOK_URL) return;
   const response = await fetch(`${KICK_API_URL}/events/subscriptions`, {
     method: "POST",
@@ -123,10 +123,11 @@ async function subscribeChannelEvents(accessToken: string) {
     },
     body: JSON.stringify({
       method: "webhook",
+      broadcaster_user_id: broadcasterUserId,
       events: [{ name: "chat.message.sent", version: 1 }],
     }),
   });
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     console.error("Kick event subscription failed", response.status, data);
     throw new Error("A conta do canal foi autorizada, mas a assinatura do chat falhou.");
@@ -166,7 +167,10 @@ async function finishOAuth(code: string, state: string) {
     return html("Erro ao salvar autorização", "A Kick autorizou a conta, mas o MusicasChatt não conseguiu guardar o token com segurança.", 500);
   }
 
-  if (oauthState.role === "channel") await subscribeChannelEvents(token.access_token);
+  if (oauthState.role === "channel") {
+    if (!user?.user_id) return html("Erro no canal", "A Kick não informou o ID do canal autorizado.", 500);
+    await subscribeChannelEvents(token.access_token, user.user_id);
+  }
 
   const label = oauthState.role === "bot" ? "conta do bot" : "conta do canal";
   return html("Kick conectado!", `A ${label} <strong>${user?.username ?? "conta autorizada"}</strong> foi vinculada ao MusicasChatt. Você pode fechar esta aba.`);
