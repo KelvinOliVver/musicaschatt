@@ -33,23 +33,21 @@ export interface UseKickChatResult {
   reconnect: () => void;
 }
 
-function mergeMessages(
-  current: KickChatMessage[],
-  incoming: KickChatMessage[],
-): KickChatMessage[] {
+function mergeMessages(current: KickChatMessage[], incoming: KickChatMessage[]): KickChatMessage[] {
   const byId = new Map<string, KickChatMessage>();
-
-  for (const message of [...current, ...incoming]) {
-    byId.set(message.id, message);
-  }
+  for (const message of [...current, ...incoming]) byId.set(message.id, message);
 
   return Array.from(byId.values())
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
     .slice(-MAX_MESSAGES);
 }
 
+// Keep this isolated from generated Supabase types so the app can still build
+// while Lovable refreshes its generated schema types after applying migrations.
+const chatDb = supabase as any;
+
 function persistMessage(message: KickChatMessage, channelSlug: string) {
-  void supabase
+  void chatDb
     .from("chat_messages")
     .upsert(
       {
@@ -63,13 +61,13 @@ function persistMessage(message: KickChatMessage, channelSlug: string) {
       },
       { onConflict: "id", ignoreDuplicates: true },
     )
-    .then(({ error }) => {
+    .then(({ error }: { error: { message: string } | null }) => {
       if (error) console.error("[CHAT HISTORY SAVE]", error.message);
     });
 }
 
 async function loadChatHistory(channelSlug: string): Promise<KickChatMessage[]> {
-  const { data, error } = await supabase
+  const { data, error } = await chatDb
     .from("chat_messages")
     .select("id, channel_slug, username, color, content, created_at, kind")
     .eq("channel_slug", channelSlug)
@@ -81,7 +79,14 @@ async function loadChatHistory(channelSlug: string): Promise<KickChatMessage[]> 
     return [];
   }
 
-  return data.reverse().map((row) => ({
+  return data.reverse().map((row: {
+    id: string;
+    username: string;
+    color: string | null;
+    content: string;
+    created_at: string;
+    kind: string;
+  }) => ({
     id: row.id,
     username: row.username,
     color: row.color,
