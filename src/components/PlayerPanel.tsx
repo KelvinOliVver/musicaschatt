@@ -323,11 +323,18 @@ export function PlayerPanel({
                 </button>
               </>
             ) : (
-              <div className="bg-surface-raised flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-lg">
-                <Music2 className="size-10 text-muted-foreground" aria-hidden />
-                <p className="max-w-xs text-center text-sm text-muted-foreground">
-                  Cole um link do YouTube no chat da Kick (ou aqui no campo de cima) para começar.
+              <div className="relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden rounded-xl border border-white/[0.06] bg-gradient-to-br from-surface-raised via-background to-surface-raised px-6 text-center">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.14),transparent_55%)]" aria-hidden />
+                <div className="relative mb-4 flex size-20 items-center justify-center rounded-full border border-primary/20 bg-primary/[0.08] shadow-[0_0_45px_hsl(var(--primary)/0.12)]">
+                  <Music2 className="size-9 text-primary" strokeWidth={1.6} aria-hidden />
+                </div>
+                <h2 className="relative text-lg font-semibold tracking-tight text-foreground">Nenhuma música tocando</h2>
+                <p className="relative mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                  A fila está vazia. Mande um link do YouTube no chat para colocar a próxima música.
                 </p>
+                <div className="relative mt-4 rounded-full border border-white/[0.06] bg-white/[0.03] px-3 py-1 text-[11px] text-muted-foreground">
+                  🎵 Aguardando o próximo pedido
+                </div>
               </div>
             )}
           </div>
@@ -357,7 +364,7 @@ export function PlayerPanel({
                 </p>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">Nada tocando no momento.</p>
+              <p className="text-sm text-muted-foreground">Fila vazia — aguardando um novo pedido.</p>
             )}
           </div>
 
@@ -440,7 +447,7 @@ export function PlayerPanel({
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-3 text-xs text-muted-foreground">
             <span className="truncate">
-              {next ? <>A seguir: <span className="text-foreground">{next.title ?? next.trackId}</span></> : "Fila vazia — a próxima música que caírem no chat toca aqui."}
+              {next ? <>A seguir: <span className="text-foreground">{next.title ?? next.trackId}</span></> : "Fila vazia — a próxima música que cair no chat toca aqui."}
             </span>
             <span className="hidden sm:inline">Espaço: pausar · Shift + ← → : pular · M: mudo</span>
           </div>
