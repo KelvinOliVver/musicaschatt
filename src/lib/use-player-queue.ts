@@ -167,9 +167,6 @@ export function usePlayerQueue(): PlayerQueue {
         },
       )
       .subscribe((status) => {
-        // Supabase can reconnect the realtime channel without a full page
-        // reload. Refreshing once after SUBSCRIBED makes a client that was
-        // offline catch up with the current song/queue immediately.
         if (status === "SUBSCRIBED") {
           void refresh();
         }
@@ -238,11 +235,10 @@ export function usePlayerQueue(): PlayerQueue {
   }, []);
 
   const advanceNext = useCallback(async () => {
-    const { data, error } = await supabase.rpc("advance_player_queue");
-    if (!error) return data ?? null;
-
-    console.error("[NEXT RPC ERROR]", error.message);
-    const { data: rows, error: queryError } = await supabase
+    // If the queue is genuinely empty, stop the current item first. This
+    // makes the frontend enter the explicit "Nenhuma música tocando" state
+    // even when the database function in a deployment is still stale.
+    const { data: queuedRows, error: queuedError } = await supabase
       .from("player_queue")
       .select("id")
       .eq("status", "queued")
@@ -250,9 +246,22 @@ export function usePlayerQueue(): PlayerQueue {
       .order("position", { ascending: true })
       .order("id", { ascending: true })
       .limit(1);
-    if (queryError || !rows?.[0]) return null;
 
-    const nextId = (rows[0] as { id: string }).id;
+    if (!queuedError && (!queuedRows || queuedRows.length === 0)) {
+      await supabase
+        .from("player_queue")
+        .update({ status: "played", played_at: new Date().toISOString() })
+        .eq("status", "playing");
+      return null;
+    }
+
+    const { data, error } = await supabase.rpc("advance_player_queue");
+    if (!error) return data ?? null;
+
+    console.error("[NEXT RPC ERROR]", error.message);
+    if (queuedError || !queuedRows?.[0]) return null;
+
+    const nextId = (queuedRows[0] as { id: string }).id;
     return (await startPlaying(nextId)) ? nextId : null;
   }, [startPlaying]);
 
@@ -350,10 +359,6 @@ export function usePlayerQueue(): PlayerQueue {
     void (async () => {
       try {
         const { data, error } = await supabase.rpc("play_previous_queue_item");
-
-        // A successful RPC returns the id of the new current track. NULL is
-        // deliberately treated as failure here so an older/stale database
-        // function cannot silently make Previous appear to do nothing.
         if (!error && data) {
           await refresh();
           return;
@@ -365,9 +370,6 @@ export function usePlayerQueue(): PlayerQueue {
           console.error("[PREVIOUS RPC ERROR] function returned no track");
         }
 
-        // Defensive fallback for deployments where the migration has not
-        // reached the database yet. This implements the same state machine:
-        // current -> queued, most recent played -> playing.
         const { data: playingRows, error: playingError } = await supabase
           .from("player_queue")
           .select("id,priority")
