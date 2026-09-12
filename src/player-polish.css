@@ -1,0 +1,183 @@
+/*
+ * Visual refresh — Music Chat player
+ * Escopo exclusivo da tela /player. Sem alterar a estrutura ou a lógica.
+ */
+
+main[class*="max-w-[1600px]"] {
+  position: relative;
+  isolation: isolate;
+}
+
+main[class*="max-w-[1600px]"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(700px 420px at 18% 8%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 70%),
+    radial-gradient(620px 520px at 92% 82%, color-mix(in oklab, var(--primary) 6%, transparent), transparent 72%);
+}
+
+/* Barra superior */
+main[class*="max-w-[1600px]"] > div:first-of-type {
+  gap: 0.75rem;
+}
+
+main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel {
+  min-height: 58px;
+  border-color: color-mix(in oklab, var(--border) 88%, var(--primary) 12%);
+  background: color-mix(in oklab, var(--surface) 94%, var(--primary) 6%);
+  box-shadow:
+    0 12px 34px -24px oklch(0 0 0 / 0.9),
+    inset 0 1px 0 oklch(1 0 0 / 0.035);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel:hover {
+  border-color: color-mix(in oklab, var(--border) 72%, var(--primary) 28%);
+}
+
+main[class*="max-w-[1600px]"] > div:first-of-type img {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent), 0 6px 18px -10px var(--primary);
+}
+
+/* Estatísticas / host / online */
+main[class*="max-w-[1600px]"] > div:first-of-type > div:last-child {
+  min-height: 32px;
+}
+
+/* Campo de adicionar música */
+main[class*="max-w-[1600px]"] > form.panel {
+  min-height: 50px;
+  border-color: color-mix(in oklab, var(--border) 82%, var(--primary) 18%);
+  background: color-mix(in oklab, var(--surface) 95%, var(--primary) 5%);
+  box-shadow: 0 12px 32px -26px oklch(0 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.025);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+main[class*="max-w-[1600px]"] > form.panel:focus-within {
+  border-color: color-mix(in oklab, var(--primary) 48%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 8%, transparent), 0 14px 34px -26px var(--primary);
+}
+
+main[class*="max-w-[1600px]"] > form.panel > input {
+  font-size: 0.875rem;
+}
+
+main[class*="max-w-[1600px]"] > form.panel > button {
+  min-width: 68px;
+  border-radius: 0.6rem;
+  box-shadow: 0 5px 16px -10px var(--primary);
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+main[class*="max-w-[1600px]"] > form.panel > button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 8px 20px -10px var(--primary);
+}
+
+/* Os três painéis principais */
+main[class*="max-w-[1600px]"] > div.grid > div > .panel {
+  border-color: color-mix(in oklab, var(--border) 90%, var(--primary) 10%);
+  background: color-mix(in oklab, var(--surface) 97%, var(--primary) 3%);
+  box-shadow:
+    0 20px 50px -34px oklch(0 0 0 / 0.95),
+    inset 0 1px 0 oklch(1 0 0 / 0.025);
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div > .panel > header {
+  min-height: 52px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface-raised) 32%, transparent), transparent);
+}
+
+/* Player: acabamento mais premium sem mudar a geometria */
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div {
+  border-radius: var(--radius-xl);
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--surface-raised) 18%, transparent), transparent 28%),
+    var(--surface);
+}
+
+/* Fila */
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel {
+  overflow: hidden;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel > header {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--primary) 5%, transparent), transparent 45%);
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) li {
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.018);
+}
+
+/* Histórico ganha separação mais clara */
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel > div:last-child {
+  background: color-mix(in oklab, var(--background) 25%, transparent);
+}
+
+/* Chat */
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel {
+  overflow: hidden;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel > header {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--primary) 6%, transparent), transparent 50%);
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel li {
+  border-radius: 0.55rem;
+}
+
+/* Scrollbars mais discretas dentro dos painéis */
+main[class*="max-w-[1600px]"] .scrollbar-slim::-webkit-scrollbar {
+  width: 6px;
+}
+
+main[class*="max-w-[1600px]"] .scrollbar-slim::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--border) 82%, var(--primary) 18%);
+}
+
+/* Tabs mobile */
+main[class*="max-w-[1600px]"] [role="tablist"] {
+  padding: 3px;
+  border: 1px solid color-mix(in oklab, var(--border) 88%, var(--primary) 12%);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--surface) 96%, var(--primary) 4%);
+}
+
+main[class*="max-w-[1600px]"] [role="tab"] {
+  border-radius: calc(var(--radius-lg) - 3px);
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+main[class*="max-w-[1600px]"] [role="tab"][data-state="active"] {
+  background: color-mix(in oklab, var(--primary) 12%, var(--surface-raised));
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 18%, transparent);
+}
+
+/* Alertas */
+main[class*="max-w-[1600px]"] > div.panel.border-destructive\/40 {
+  box-shadow: 0 12px 28px -24px var(--destructive);
+}
+
+@media (max-width: 1023px) {
+  main[class*="max-w-[1600px]"] {
+    padding: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel,
+  main[class*="max-w-[1600px]"] > form.panel,
+  main[class*="max-w-[1600px]"] > form.panel > button,
+  main[class*="max-w-[1600px]"] [role="tab"] {
+    transition: none;
+  }
+}
