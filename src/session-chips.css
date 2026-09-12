@@ -63,6 +63,70 @@ main > div:nth-child(2) > div:last-child > span[title^="Você está monitorando"
   transform: scale(0.97);
 }
 
+/* Estado vazio do player: quando não existe música atual, vira uma tela de espera
+   intencional, em vez de parecer um player quebrado ou simplesmente vazio. */
+.bg-surface-raised.flex.aspect-video.w-full.flex-col.items-center.justify-center.gap-3.rounded-lg {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--color-border) 78%, var(--color-primary) 22%);
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--color-primary) 9%, transparent), transparent 34%),
+    linear-gradient(145deg, color-mix(in oklab, var(--color-card) 94%, var(--color-primary) 6%), var(--color-background));
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 5%, transparent);
+}
+
+.bg-surface-raised.flex.aspect-video.w-full.flex-col.items-center.justify-center.gap-3.rounded-lg::before {
+  content: "";
+  position: absolute;
+  width: 104px;
+  height: 104px;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in oklab, var(--color-primary) 20%, var(--color-border));
+  box-shadow:
+    0 0 0 12px color-mix(in oklab, var(--color-primary) 3%, transparent),
+    0 0 45px color-mix(in oklab, var(--color-primary) 8%, transparent);
+  pointer-events: none;
+}
+
+.bg-surface-raised.flex.aspect-video.w-full.flex-col.items-center.justify-center.gap-3.rounded-lg svg {
+  position: relative;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  padding: 7px;
+  box-sizing: content-box;
+  border-radius: 9999px;
+  color: color-mix(in oklab, var(--color-primary) 78%, white);
+  background: color-mix(in oklab, var(--color-primary) 9%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
+}
+
+.bg-surface-raised.flex.aspect-video.w-full.flex-col.items-center.justify-center.gap-3.rounded-lg p {
+  position: relative;
+  z-index: 1;
+  max-width: 360px;
+  margin-top: 8px;
+  font-size: 0;
+  line-height: 1.45;
+}
+
+.bg-surface-raised.flex.aspect-video.w-full.flex-col.items-center.justify-center.gap-3.rounded-lg p::before {
+  content: "Nenhuma música tocando";
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--color-foreground);
+}
+
+.bg-surface-raised.flex.aspect-video.w-full.flex-col.items-center.justify-center.gap-3.rounded-lg p::after {
+  content: "A fila está vazia · envie uma música pelo chat para continuar";
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-muted-foreground);
+}
+
 @media (prefers-reduced-motion: reduce) {
   main > div:nth-child(2) > div:last-child > span[title^="Estatísticas desta sessão"],
   main > div:nth-child(2) > div:last-child > span[title^="Você está monitorando"],
