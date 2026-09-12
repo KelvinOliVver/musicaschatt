@@ -8,6 +8,7 @@ main[class*="max-w-[1600px]"] {
   isolation: isolate;
 }
 
+/* Ambiente geral */
 main[class*="max-w-[1600px]"]::before {
   content: "";
   position: fixed;
@@ -15,8 +16,8 @@ main[class*="max-w-[1600px]"]::before {
   z-index: -2;
   pointer-events: none;
   background:
-    radial-gradient(760px 460px at 12% 0%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 68%),
-    radial-gradient(680px 560px at 94% 88%, color-mix(in oklab, var(--primary) 7%, transparent), transparent 70%);
+    radial-gradient(820px 520px at 14% 0%, color-mix(in oklab, var(--primary) 9%, transparent), transparent 68%),
+    radial-gradient(720px 600px at 92% 88%, color-mix(in oklab, var(--primary) 6%, transparent), transparent 72%);
 }
 
 /* Barra superior */
@@ -109,12 +110,56 @@ main[class*="max-w-[1600px]"] > div.grid > div > .panel > header {
   background: linear-gradient(180deg, color-mix(in oklab, var(--surface-raised) 42%, transparent), transparent);
 }
 
-/* Player */
+/* PLAYER — luz ambiente atrás do vídeo */
+main[class*="max-w-[1600px]"] > div.grid > div:first-child {
+  position: relative;
+  isolation: isolate;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:first-child::before {
+  content: "";
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  top: 7%;
+  height: 48%;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 45%;
+  background:
+    radial-gradient(ellipse at center,
+      color-mix(in oklab, var(--primary) 22%, transparent) 0%,
+      color-mix(in oklab, var(--primary) 13%, transparent) 32%,
+      color-mix(in oklab, var(--primary) 5%, transparent) 58%,
+      transparent 78%);
+  filter: blur(34px);
+  opacity: 0.9;
+  transform: scale(1.08);
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:first-child::after {
+  content: "";
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  top: 16%;
+  height: 30%;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center,
+    color-mix(in oklab, var(--primary) 11%, transparent),
+    transparent 68%);
+  filter: blur(52px);
+  opacity: 0.72;
+}
+
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div {
   border-radius: var(--radius-xl);
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
+  position: relative;
   background:
     linear-gradient(180deg, color-mix(in oklab, var(--surface-raised) 20%, transparent), transparent 30%),
     var(--surface);
