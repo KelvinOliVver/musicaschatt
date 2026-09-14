@@ -1,137 +1,130 @@
-/* Player controls polish — visual only. Keeps existing behavior untouched. */
+/* Player controls — readable graphite surface with restrained violet accents. Visual only. */
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
-  --control-bg: color-mix(in oklab, var(--background) 88%, white 12%);
-  --control-bg-hover: color-mix(in oklab, var(--surface-raised) 86%, var(--primary) 14%);
+  --control-surface: #171620;
+  --control-surface-hover: #211f2b;
+  --control-border: #343142;
+  --control-track: #3b3847;
+  --control-range: #8f67e8;
 }
 
-/* Give the lower player controls a deliberate rhythm instead of a flat strip. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel > div:last-child {
-  border-top: 1px solid color-mix(in oklab, var(--border) 78%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--border) 82%, white 4%);
   padding-top: 0.85rem;
 }
 
-/* Progress + volume sliders: thin, quiet, but clearly interactive. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-root] {
-  min-height: 18px;
+  min-height: 20px;
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-track] {
-  height: 4px;
+  height: 5px !important;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--muted) 78%, white 22%);
-  box-shadow: inset 0 1px 1px rgb(0 0 0 / 0.35);
+  background: var(--control-track) !important;
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.38), 0 1px 0 rgb(255 255 255 / 0.025);
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-range] {
-  background: linear-gradient(90deg, color-mix(in oklab, var(--primary) 84%, white 16%), var(--primary));
-  border-radius: inherit;
-  box-shadow: 0 0 12px -7px var(--primary);
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7652cf, var(--control-range)) !important;
+  box-shadow: 0 0 10px -6px #9a76ed;
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-thumb] {
-  width: 12px;
-  height: 12px;
-  border: 2px solid color-mix(in oklab, var(--primary) 72%, white 28%);
-  background: var(--surface-raised);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.38), 0 0 0 0 color-mix(in oklab, var(--primary) 24%, transparent);
-  transition: width 140ms ease, height 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  width: 13px !important;
+  height: 13px !important;
+  border: 2px solid #a78be9 !important;
+  background: #252230 !important;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.48), 0 0 0 0 rgb(143 103 232 / 0.18);
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-root]:hover [data-radix-slider-thumb],
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-root]:focus-within [data-radix-slider-thumb] {
-  width: 14px;
-  height: 14px;
-  box-shadow: 0 3px 10px rgb(0 0 0 / 0.45), 0 0 0 4px color-mix(in oklab, var(--primary) 12%, transparent);
+  transform: scale(1.12);
+  border-color: #b89df1 !important;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.5), 0 0 0 4px rgb(143 103 232 / 0.12);
 }
 
-/* The small time labels sit a little closer to the bar and read as metadata. */
-main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel .font-mono,
-main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [class*="tabular-nums"] {
-  color: color-mix(in oklab, var(--muted-foreground) 92%, white 8%);
-  font-size: 0.69rem;
-  letter-spacing: 0.01em;
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel .tabular-nums,
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel .font-mono {
+  color: #aaa4b4 !important;
+  font-size: 0.70rem;
 }
 
-/* Main transport controls: one hero action, quiet secondary actions. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label="Tocar"],
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label="Pausar"] {
-  width: 46px;
-  height: 46px;
+  width: 48px !important;
+  height: 48px !important;
   border-radius: 999px;
-  background: linear-gradient(145deg, color-mix(in oklab, var(--primary) 92%, white 8%), var(--primary));
-  color: var(--primary-foreground);
-  border: 1px solid color-mix(in oklab, var(--primary) 72%, white 28%);
-  box-shadow: 0 9px 22px -13px color-mix(in oklab, var(--primary) 78%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.12);
+  background: linear-gradient(145deg, #9f78ef, #815bd5) !important;
+  color: #fff !important;
+  border: 1px solid rgb(190 164 246 / 0.42) !important;
+  box-shadow: 0 10px 22px -14px rgb(143 103 232 / 0.78), inset 0 1px 0 rgb(255 255 255 / 0.16);
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label="Tocar"]:hover,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label="Pausar"]:hover {
-  transform: translateY(-1px) scale(1.025);
-  box-shadow: 0 12px 26px -13px color-mix(in oklab, var(--primary) 82%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.14);
+  transform: translateY(-1px) scale(1.035);
+  filter: brightness(1.045);
+  box-shadow: 0 13px 27px -14px rgb(143 103 232 / 0.84), inset 0 1px 0 rgb(255 255 255 / 0.18);
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label="Tocar"]:active,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label="Pausar"]:active {
-  transform: scale(0.98);
+  transform: scale(0.975);
 }
 
-/* Secondary transport buttons stay dark and tactile. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="anterior" i],
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="próxima" i],
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="próximo" i] {
-  width: 38px;
-  height: 38px;
+  width: 40px !important;
+  height: 40px !important;
   border-radius: 999px;
-  background: var(--control-bg);
-  border: 1px solid var(--border);
-  color: var(--muted-foreground);
-  box-shadow: 0 5px 14px -12px rgb(0 0 0 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.025);
+  background: var(--control-surface) !important;
+  border: 1px solid var(--control-border) !important;
+  color: #c5bfcd !important;
+  box-shadow: 0 5px 14px -11px rgb(0 0 0 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.035);
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="anterior" i]:hover,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="próxima" i]:hover,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="próximo" i]:hover {
-  background: var(--control-bg-hover);
-  border-color: color-mix(in oklab, var(--border) 70%, var(--primary) 30%);
-  color: var(--foreground);
+  background: var(--control-surface-hover) !important;
+  border-color: #51496a !important;
+  color: #f0edf5 !important;
   transform: translateY(-1px);
 }
 
-/* Volume icon becomes a small control cluster instead of floating alone. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="volume" i],
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="mudo" i] {
-  width: 30px;
-  height: 30px;
+  width: 32px !important;
+  height: 32px !important;
   border-radius: 999px;
-  background: transparent;
-  color: var(--muted-foreground);
+  background: #16151d !important;
+  border: 1px solid #2d2a38 !important;
+  color: #b8b2c1 !important;
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="volume" i]:hover,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="mudo" i]:hover {
-  background: color-mix(in oklab, var(--primary) 9%, transparent);
-  color: var(--foreground);
+  background: #211f29 !important;
+  border-color: #4a4260 !important;
+  color: #eeeaf5 !important;
 }
 
-/* Cleaner keyboard focus without a bright rectangle. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button:focus-visible,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-root]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 15%, transparent), 0 0 0 1px color-mix(in oklab, var(--primary) 58%, transparent);
-}
-
-/* The control area should not look like a second giant panel. */
-main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel .group\/controls,
-main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel .controls {
-  background: transparent;
+  box-shadow: 0 0 0 3px rgb(143 103 232 / 0.13), 0 0 0 1px rgb(167 139 233 / 0.72) !important;
 }
 
 @media (max-width: 720px) {
   main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label="Tocar"],
   main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label="Pausar"] {
-    width: 44px;
-    height: 44px;
+    width: 46px !important;
+    height: 46px !important;
   }
 }
 
