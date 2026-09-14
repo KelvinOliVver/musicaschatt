@@ -17,6 +17,7 @@ import onlineAccentFixCss from "../online-accent-fix.css?url";
 import finalThemeCss from "../final-theme.css?url";
 import pointerLightCss from "../site-pointer-light.css?url";
 import performancePolishCss from "../performance-polish.css?url";
+import playerControlsPolishCss from "../player-controls-polish.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
@@ -76,6 +77,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: finalThemeCss },
       { rel: "stylesheet", href: pointerLightCss },
       { rel: "stylesheet", href: performancePolishCss },
+      { rel: "stylesheet", href: playerControlsPolishCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Space+Grotesk:wght@500;600;700&display=swap" },
