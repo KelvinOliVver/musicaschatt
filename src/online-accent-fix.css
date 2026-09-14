@@ -1,0 +1,5 @@
+/* Keep every online/connected indicator aligned with the lavender player accent. */
+:root,
+.dark {
+  --online: var(--primary) !important;
+}
