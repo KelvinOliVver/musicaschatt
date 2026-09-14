@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const vertexShaderGLSL = `
@@ -49,7 +49,6 @@ void main() {
   vec2 p = vUv - 0.5;
   p.x *= ratio;
 
-  // Large, unmistakable moving color masses.
   float t = u_time * 0.42;
   vec2 f1 = vec2(t * 0.55, -t * 0.34);
   vec2 f2 = vec2(-t * 0.42, t * 0.50);
@@ -92,7 +91,7 @@ export interface VelarisProps {
   grain?: number;
   height?: string;
   className?: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
 const DEFAULT_COLORS = ["#60a5fa", "#a855f7", "#ec4899", "#06b6d4"];
