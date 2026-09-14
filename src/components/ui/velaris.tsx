@@ -56,26 +56,34 @@ void main() {
   vec2 p = uv - 0.5;
   p.x *= ratio;
 
-  float t = u_time * 0.1;
+  // Faster, layered flow so the background feels alive while music plays.
+  float t = u_time * 0.34;
 
-  float n1 = snoise(p * 0.4 + vec2(t * 0.2, -t * 0.3));
-  float n2 = snoise(p * 0.55 + vec2(-t * 0.15, t * 0.25) + n1 * 0.25);
-  float n3 = snoise(p * 0.75 + vec2(t * 0.1, -t * 0.2) + n2 * 0.2);
+  float n1 = snoise(p * 0.55 + vec2(t * 0.42, -t * 0.28));
+  float n2 = snoise(p * 0.78 + vec2(-t * 0.30, t * 0.38) + n1 * 0.35);
+  float n3 = snoise(p * 1.05 + vec2(t * 0.20, -t * 0.34) + n2 * 0.28);
+
+  // A soft orbital drift makes the color fields visibly travel instead of just shimmer.
+  vec2 flow = vec2(
+    snoise(p * 0.32 + vec2(t * 0.18, 0.0)),
+    snoise(p * 0.32 + vec2(0.0, -t * 0.16))
+  ) * 0.18;
+  float n4 = snoise((p + flow) * 0.9 + vec2(-t * 0.24, t * 0.16));
 
   vec3 col = u_bg;
 
   float dist = length(p) * 1.5;
   float vignette = 1.0 - smoothstep(0.3, 1.2, dist);
 
-  col = mix(col, u_colors[0], smoothstep(-0.2, 0.5, n1) * 0.85);
-  col = mix(col, u_colors[1], smoothstep(-0.1, 0.6, n2) * 0.7);
-  col = mix(col, u_colors[2], smoothstep(-0.3, 0.4, n3) * 0.6);
-  col = mix(col, u_colors[3], smoothstep(0.0, 0.7, n1 * n2) * 0.5);
+  col = mix(col, u_colors[0], smoothstep(-0.45, 0.55, n1) * 0.90);
+  col = mix(col, u_colors[1], smoothstep(-0.30, 0.65, n2) * 0.78);
+  col = mix(col, u_colors[2], smoothstep(-0.40, 0.45, n3) * 0.68);
+  col = mix(col, u_colors[3], smoothstep(0.05, 0.75, n1 * n2 + n4 * 0.35) * 0.42);
 
-  float glow = smoothstep(0.8, 0.0, dist) * 0.3;
+  float glow = smoothstep(0.95, 0.0, dist) * 0.36;
   col += u_colors[1] * glow;
 
-  col = mix(col * 0.2, col, vignette);
+  col = mix(col * 0.16, col, vignette);
 
   float grain = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453 + u_time);
   col += (grain - 0.5) * u_grain * 0.1;
@@ -108,15 +116,6 @@ const Velaris = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const hexToRgb = (hex: string): [number, number, number] => {
-    const h = hex.replace("#", "");
-    return [
-      parseInt(h.slice(0, 2), 16) / 255,
-      parseInt(h.slice(2, 4), 16) / 255,
-      parseInt(h.slice(4, 6), 16) / 255,
-    ];
-  };
-
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -134,10 +133,7 @@ const Velaris = ({
 
     const program = gl.createProgram()!;
     gl.attachShader(program, createShader(gl.VERTEX_SHADER, vertexShaderGLSL));
-    gl.attachShader(
-      program,
-      createShader(gl.FRAGMENT_SHADER, fragmentShaderGLSL),
-    );
+    gl.attachShader(program, createShader(gl.FRAGMENT_SHADER, fragmentShaderGLSL));
     gl.linkProgram(program);
     gl.useProgram(program);
 
@@ -163,8 +159,8 @@ const Velaris = ({
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio, 2);
-      canvas.width = container.clientWidth * dpr;
-      canvas.height = container.clientHeight * dpr;
+      canvas.width = Math.max(1, Math.floor(container.clientWidth * dpr));
+      canvas.height = Math.max(1, Math.floor(container.clientHeight * dpr));
       gl.viewport(0, 0, canvas.width, canvas.height);
     };
 
