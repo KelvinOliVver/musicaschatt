@@ -8,60 +8,77 @@ interface AudioEnergy {
 }
 
 /**
- * Simula uma "energia" de grave e agudo pulsando com o tempo. NÃO é análise
- * de áudio de verdade — o navegador bloqueia por segurança qualquer leitura
- * do áudio de um iframe de outro domínio (o player do YouTube), então isso
- * é fisicamente impossível de fazer de verdade aqui. Em vez disso, gera um
- * movimento orgânico e não repetitivo (cada pulso tem timing e intensidade
- * levemente aleatórios) que passa a sensação de reagir à música. Só "acorda"
- * enquanto isPlaying é true; em pausa, assenta num valor baixo e constante.
+ * Simula uma energia ambiente leve enquanto a música toca.
+ *
+ * Otimização importante: o relógio continua sincronizado com requestAnimationFrame,
+ * mas o React só recebe novos valores ~24 vezes por segundo. Em pausa, o loop é
+ * encerrado completamente. Isso evita dezenas de renders por segundo quando o
+ * efeito não está sendo percebido e deixa a UI principal mais folgada.
  */
 export function useSimulatedAudioEnergy(isPlaying: boolean): AudioEnergy {
-  const [energy, setEnergy] = useState<AudioEnergy>({ bass: 0.3, treble: 0.2 });
+  const [energy, setEnergy] = useState<AudioEnergy>(() => ({ bass: 0.24, treble: 0.14 }));
   const stateRef = useRef({
-    bass: 0.3,
-    bassTarget: 0.3,
+    bass: 0.24,
+    bassTarget: 0.24,
     bassTimer: 0,
-    treble: 0.2,
-    trebleTarget: 0.2,
+    treble: 0.14,
+    trebleTarget: 0.14,
     trebleTimer: 0,
+    publishTimer: 0,
   });
 
   useEffect(() => {
-    let raf: number;
-    let last = performance.now();
+    const s = stateRef.current;
 
-    function tick(now: number) {
+    if (!isPlaying) {
+      s.bassTarget = 0.24;
+      s.trebleTarget = 0.14;
+      s.bass = 0.24;
+      s.treble = 0.14;
+      s.bassTimer = 0;
+      s.trebleTimer = 0;
+      s.publishTimer = 0;
+      setEnergy({ bass: s.bass, treble: s.treble });
+      return;
+    }
+
+    let raf = 0;
+    let last = performance.now();
+    const publishEvery = 1 / 24;
+
+    const tick = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
-      const s = stateRef.current;
+      s.publishTimer += dt;
 
-      if (isPlaying) {
-        // Grave: pulsa mais devagar e forte, tipo batida.
-        s.bassTimer -= dt;
-        if (s.bassTimer <= 0) {
-          s.bassTarget = 0.5 + Math.random() * 0.5;
-          s.bassTimer = 0.25 + Math.random() * 0.35;
-        }
-        // Agudo: pulsa mais rápido e errático.
-        s.trebleTimer -= dt;
-        if (s.trebleTimer <= 0) {
-          s.trebleTarget = 0.2 + Math.random() * 0.8;
-          s.trebleTimer = 0.08 + Math.random() * 0.15;
-        }
-      } else {
-        s.bassTarget = 0.25;
-        s.trebleTarget = 0.15;
+      s.bassTimer -= dt;
+      if (s.bassTimer <= 0) {
+        s.bassTarget = 0.44 + Math.random() * 0.38;
+        s.bassTimer = 0.3 + Math.random() * 0.35;
       }
 
-      // Suaviza (interpola) em vez de saltar de valor, pra não ficar
-      // nervoso/estroboscópico — movimento fluido, não picotado.
-      s.bass += (s.bassTarget - s.bass) * Math.min(dt * 4, 1);
-      s.treble += (s.trebleTarget - s.treble) * Math.min(dt * 6, 1);
+      s.trebleTimer -= dt;
+      if (s.trebleTimer <= 0) {
+        s.trebleTarget = 0.18 + Math.random() * 0.62;
+        s.trebleTimer = 0.1 + Math.random() * 0.16;
+      }
 
-      setEnergy({ bass: s.bass, treble: s.treble });
+      s.bass += (s.bassTarget - s.bass) * Math.min(dt * 4.2, 1);
+      s.treble += (s.trebleTarget - s.treble) * Math.min(dt * 6.2, 1);
+
+      if (s.publishTimer >= publishEvery) {
+        s.publishTimer = 0;
+        setEnergy((prev) => {
+          const next = { bass: s.bass, treble: s.treble };
+          if (Math.abs(prev.bass - next.bass) < 0.012 && Math.abs(prev.treble - next.treble) < 0.012) {
+            return prev;
+          }
+          return next;
+        });
+      }
+
       raf = requestAnimationFrame(tick);
-    }
+    };
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
