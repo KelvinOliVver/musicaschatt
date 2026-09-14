@@ -1,70 +1,64 @@
-/* Final visual pass — global purple graphite theme. Visual-only overrides. */
+/* Final visual pass — refined violet / graphite theme. Visual-only overrides. */
 :root,
 .dark {
-  --background: oklch(0.095 0.018 286);
-  --foreground: oklch(0.94 0.012 290);
-  --card: oklch(0.145 0.022 286);
-  --card-foreground: oklch(0.94 0.012 290);
-  --popover: oklch(0.155 0.024 286);
-  --popover-foreground: oklch(0.94 0.012 290);
-  --surface: oklch(0.145 0.022 286);
-  --surface-raised: oklch(0.185 0.028 286);
-  --secondary: oklch(0.19 0.026 286);
-  --secondary-foreground: oklch(0.90 0.012 290);
-  --muted: oklch(0.175 0.020 286);
-  --muted-foreground: oklch(0.66 0.018 290);
-  --accent: oklch(0.235 0.050 292);
-  --accent-foreground: oklch(0.96 0.010 290);
-  --primary: oklch(0.69 0.17 292);
-  --primary-foreground: oklch(0.12 0.025 290);
-  --border: oklch(0.29 0.040 290);
-  --input: oklch(0.22 0.030 290);
-  --ring: oklch(0.71 0.18 292);
-  --online: oklch(0.71 0.18 292);
-  --offline: oklch(0.54 0.014 286);
-  --vip: oklch(0.70 0.17 292);
-  --vip-foreground: oklch(0.97 0.012 290);
-  --youtube: oklch(0.64 0.18 25);
-  --shadow-panel: 0 22px 60px -34px oklch(0 0 0 / 0.88), 0 1px 0 oklch(1 0 0 / 0.018) inset;
-  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 22%, transparent), 0 18px 48px -28px color-mix(in oklab, var(--primary) 48%, transparent);
-  --gradient-stage: radial-gradient(900px 620px at 10% -15%, color-mix(in oklab, var(--primary) 16%, transparent), transparent 65%), radial-gradient(760px 560px at 100% 100%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 72%), linear-gradient(180deg, oklch(0.115 0.021 286), oklch(0.085 0.016 286));
-  --gradient-primary: linear-gradient(135deg, oklch(0.72 0.17 292), oklch(0.60 0.18 312));
-  --gradient-vip: linear-gradient(135deg, oklch(0.72 0.17 292), oklch(0.60 0.18 312));
+  --background: oklch(0.065 0.006 285);
+  --foreground: oklch(0.95 0.006 285);
+  --card: oklch(0.105 0.010 285);
+  --card-foreground: oklch(0.95 0.006 285);
+  --popover: oklch(0.12 0.012 285);
+  --popover-foreground: oklch(0.95 0.006 285);
+  --primary: oklch(0.64 0.20 292);
+  --primary-foreground: oklch(0.985 0.004 285);
+  --secondary: oklch(0.135 0.012 285);
+  --secondary-foreground: oklch(0.90 0.008 285);
+  --muted: oklch(0.13 0.010 285);
+  --muted-foreground: oklch(0.62 0.010 285);
+  --accent: oklch(0.17 0.032 292);
+  --accent-foreground: oklch(0.95 0.008 285);
+  --border: oklch(0.19 0.010 285);
+  --input: oklch(0.13 0.012 285);
+  --ring: oklch(0.64 0.20 292);
+  --surface: oklch(0.105 0.010 285);
+  --surface-raised: oklch(0.14 0.014 285);
+  --online: oklch(0.64 0.20 292);
+  --offline: oklch(0.47 0.008 285);
+  --vip: oklch(0.72 0.16 292);
+  --vip-foreground: oklch(0.98 0.005 285);
+  --youtube: oklch(0.64 0.20 27);
+  --shadow-panel: 0 22px 58px -36px oklch(0 0 0 / 0.94), 0 1px 0 oklch(1 0 0 / 0.016) inset;
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent), 0 18px 46px -30px color-mix(in oklab, var(--primary) 34%, transparent);
+  --gradient-stage: radial-gradient(780px 520px at 12% -12%, color-mix(in oklab, var(--primary) 9%, transparent), transparent 70%), radial-gradient(720px 520px at 94% 92%, color-mix(in oklab, var(--primary) 6%, transparent), transparent 74%), linear-gradient(180deg, oklch(0.078 0.008 285), oklch(0.058 0.005 285));
+  --gradient-primary: linear-gradient(135deg, oklch(0.68 0.20 292), oklch(0.56 0.20 307));
+  --gradient-vip: linear-gradient(135deg, oklch(0.68 0.20 292), oklch(0.56 0.20 307));
 }
 
-html, body { background: var(--background) !important; color: var(--foreground); }
+html,
+body { background: var(--background) !important; color: var(--foreground); }
 body { background-image: var(--gradient-stage) !important; background-attachment: fixed; }
 
-/* Remove the stray bright highlights introduced by the previous pass. */
-*, *::before, *::after { border-color: color-mix(in oklab, var(--border) 88%, var(--primary) 12%); }
+/* Graphite borders by default. Purple is reserved for focus, selection and active states. */
+*, *::before, *::after { border-color: var(--border); }
 
 .panel,
 .card,
 header.panel,
 form.panel {
-  background: color-mix(in oklab, var(--surface) 94%, var(--primary) 6%) !important;
-  border: 1px solid color-mix(in oklab, var(--border) 80%, var(--primary) 20%) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
   box-shadow: var(--shadow-panel) !important;
 }
 
 .panel:hover,
-.card:hover { border-color: color-mix(in oklab, var(--border) 58%, var(--primary) 42%) !important; }
-
-.panel::before,
-.panel::after,
-.card::before,
-.card::after { border-color: transparent !important; }
+.card:hover { border-color: color-mix(in oklab, var(--border) 70%, var(--primary) 30%) !important; }
 
 button,
 a,
 [role="button"] {
   transition: transform 160ms ease, background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease, filter 160ms ease;
 }
-
 button:hover:not(:disabled),
 a:hover,
 [role="button"]:hover { transform: translateY(-1px); }
-
 button:active:not(:disabled),
 a:active,
 [role="button"]:active { transform: translateY(0) scale(0.985); }
@@ -74,32 +68,31 @@ a:active,
 
 button[class*="bg-primary"],
 a[class*="bg-primary"] {
-  box-shadow: 0 10px 28px -20px color-mix(in oklab, var(--primary) 70%, transparent), inset 0 1px 0 color-mix(in oklab, var(--primary) 30%, transparent);
+  box-shadow: 0 10px 28px -22px color-mix(in oklab, var(--primary) 64%, transparent), inset 0 1px 0 color-mix(in oklab, white 7%, transparent);
 }
 
 input,
 textarea,
 select {
   color: var(--foreground) !important;
-  background: oklch(0.10 0.015 286 / 0.72) !important;
-  border-color: color-mix(in oklab, var(--border) 78%, var(--primary) 22%) !important;
+  background: color-mix(in oklab, var(--background) 84%, var(--surface) 16%) !important;
+  border-color: var(--border) !important;
   box-shadow: none !important;
 }
-
 input::placeholder,
-textarea::placeholder { color: color-mix(in oklab, var(--muted-foreground) 85%, transparent) !important; }
-
+textarea::placeholder { color: color-mix(in oklab, var(--muted-foreground) 90%, transparent) !important; }
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: color-mix(in oklab, var(--primary) 68%, var(--border)) !important;
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 12%, transparent), 0 8px 24px -20px color-mix(in oklab, var(--primary) 45%, transparent) !important;
+  border-color: color-mix(in oklab, var(--border) 30%, var(--primary) 70%) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 10%, transparent), 0 10px 28px -24px color-mix(in oklab, var(--primary) 36%, transparent) !important;
 }
 
 [data-orientation="horizontal"],
 [data-orientation="vertical"],
-hr { background: color-mix(in oklab, var(--border) 70%, var(--primary) 30%) !important; opacity: 0.75; }
+hr { background: var(--border) !important; opacity: 0.82; }
 
+/* Neutralize light utility classes that can leak from shared components. */
 .bg-white,
 .bg-gray-50,
 .bg-gray-100,
@@ -107,12 +100,10 @@ hr { background: color-mix(in oklab, var(--border) 70%, var(--primary) 30%) !imp
 .bg-slate-100,
 .bg-zinc-50,
 .bg-zinc-100 { background: var(--surface) !important; }
-
 .text-black,
 .text-gray-900,
 .text-slate-900,
 .text-zinc-900 { color: var(--foreground) !important; }
-
 .shadow,
 .shadow-sm,
 .shadow-md,
@@ -120,56 +111,84 @@ hr { background: color-mix(in oklab, var(--border) 70%, var(--primary) 30%) !imp
 .shadow-xl,
 .shadow-2xl { box-shadow: var(--shadow-panel) !important; }
 
-/* Landing page */
+/* Landing, auth and account use the same dark language. */
 main:not([class*="max-w-[1600px]"]) header.sticky {
-  background: oklch(0.09 0.018 286 / 0.72) !important;
-  border-color: color-mix(in oklab, var(--border) 70%, var(--primary) 30%) !important;
-  backdrop-filter: blur(16px) saturate(125%);
-  -webkit-backdrop-filter: blur(16px) saturate(125%);
-  box-shadow: 0 14px 36px -28px oklch(0 0 0 / 0.92);
+  background: oklch(0.07 0.006 285 / 0.82) !important;
+  border-color: var(--border) !important;
+  backdrop-filter: blur(14px) saturate(108%);
+  -webkit-backdrop-filter: blur(14px) saturate(108%);
+  box-shadow: 0 14px 38px -30px oklch(0 0 0 / 0.92);
 }
-
 main:not([class*="max-w-[1600px]"]) .panel,
 main:not([class*="max-w-[1600px]"]) .panel-raised {
-  background: color-mix(in oklab, var(--surface) 90%, var(--primary) 10%) !important;
-  border-color: color-mix(in oklab, var(--border) 72%, var(--primary) 28%) !important;
+  background: color-mix(in oklab, var(--surface) 94%, var(--primary) 6%) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-panel) !important;
+}
+main:not([class*="max-w-[1600px]"]) .panel {
+  backdrop-filter: blur(8px) saturate(106%);
+  -webkit-backdrop-filter: blur(8px) saturate(106%);
 }
 
-main:not([class*="max-w-[1600px]"]) .panel { backdrop-filter: blur(10px) saturate(115%); -webkit-backdrop-filter: blur(10px) saturate(115%); }
-
-/* Player */
+/* Player: clean graphite panels, violet only where it communicates state. */
 main[class*="max-w-[1600px]"] { gap: 0.82rem !important; }
 main[class*="max-w-[1600px]"] > div.grid { gap: 0.82rem !important; }
 main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel,
 main[class*="max-w-[1600px]"] > form.panel,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
-  background: color-mix(in oklab, var(--surface) 86%, transparent) !important;
-  backdrop-filter: blur(14px) saturate(115%);
-  -webkit-backdrop-filter: blur(14px) saturate(115%);
+  background: color-mix(in oklab, var(--surface) 90%, transparent) !important;
+  border-color: var(--border) !important;
+  backdrop-filter: blur(12px) saturate(110%);
+  -webkit-backdrop-filter: blur(12px) saturate(110%);
 }
-
 main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel,
 main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel {
-  background: color-mix(in oklab, var(--surface) 97%, var(--primary) 3%) !important;
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+main[class*="max-w-[1600px]"] > div.grid > div > .panel > header {
+  background: color-mix(in oklab, var(--surface-raised) 45%, transparent) !important;
+  border-bottom-color: var(--border) !important;
 }
 
-main[class*="max-w-[1600px]"] > div.grid > div > .panel > header { background: color-mix(in oklab, var(--surface-raised) 50%, transparent) !important; }
-main[class*="max-w-[1600px]"] [role="tablist"] { background: oklch(0.12 0.018 286 / 0.84) !important; border-color: color-mix(in oklab, var(--border) 72%, var(--primary) 28%) !important; backdrop-filter: blur(12px); }
-main[class*="max-w-[1600px]"] [role="tab"][data-state="active"] { background: color-mix(in oklab, var(--primary) 18%, var(--surface-raised)) !important; color: var(--foreground) !important; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent), 0 7px 22px -18px color-mix(in oklab, var(--primary) 52%, transparent) !important; }
+main[class*="max-w-[1600px]"] [role="tablist"] {
+  background: oklch(0.095 0.008 285 / 0.94) !important;
+  border-color: var(--border) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+main[class*="max-w-[1600px]"] [role="tab"][data-state="active"] {
+  background: color-mix(in oklab, var(--primary) 14%, var(--surface-raised)) !important;
+  color: var(--foreground) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 26%, transparent), 0 8px 22px -18px color-mix(in oklab, var(--primary) 38%, transparent) !important;
+}
 
 main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) li:hover,
-main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) li:hover { background: color-mix(in oklab, var(--primary) 8%, var(--surface)) !important; }
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) li:hover {
+  background: color-mix(in oklab, var(--surface-raised) 86%, var(--primary) 14%) !important;
+}
 
-main[class*="max-w-[1600px]"] > div:first-of-type > div:last-child > *:hover,
-main[class*="max-w-[1600px]"] button:hover:not(:disabled) { box-shadow: 0 10px 26px -22px color-mix(in oklab, var(--primary) 55%, transparent); }
+main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel:hover {
+  border-color: color-mix(in oklab, var(--border) 58%, var(--primary) 42%) !important;
+}
+main[class*="max-w-[1600px]"] > form.panel:focus-within {
+  border-color: color-mix(in oklab, var(--border) 30%, var(--primary) 70%) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 9%, transparent), 0 16px 34px -28px color-mix(in oklab, var(--primary) 30%, transparent) !important;
+}
+
+/* Keep artwork colors intact; only add a faint violet ambient halo behind the player. */
+main[class*="max-w-[1600px]"] > div.grid > div:first-child::before { opacity: 0.34 !important; }
+main[class*="max-w-[1600px]"] > div.grid > div:first-child::after { opacity: 0.22 !important; }
 
 .pulse-dot { animation: mc-soft-pulse 2.4s ease-in-out infinite !important; }
-
-@keyframes mc-soft-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.62; } }
+@keyframes mc-soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.62; }
+}
 
 @media (max-width: 720px) {
   main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel,
-  main[class*="max-w-[1600px]"] > form.panel { backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px); }
+  main[class*="max-w-[1600px]"] > form.panel { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
