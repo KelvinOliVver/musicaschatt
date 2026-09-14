@@ -10,8 +10,7 @@ interface PlayerVelarisBackgroundProps {
 
 function hslToHex(hsl: string, lightnessOffset = 0): string {
   const match = hsl.match(/hsl\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)%\s*,\s*(\d+(?:\.\d+)?)%\s*\)/i);
-  if (!match) return "#60a5fa";
-
+  if (!match) return "#596275";
   const h = ((Number(match[1]) % 360) + 360) % 360;
   const s = Math.max(0, Math.min(100, Number(match[2]))) / 100;
   const l = Math.max(0, Math.min(100, Number(match[3]) + lightnessOffset)) / 100;
@@ -32,11 +31,11 @@ function fallbackHue(id: string): number {
 function fallbackPalette(id: string): string[] {
   const hue = fallbackHue(id);
   return [
-    `hsl(${hue}, 88%, 62%)`,
-    `hsl(${(hue + 34) % 360}, 82%, 54%)`,
-    `hsl(${(hue + 78) % 360}, 78%, 42%)`,
-    `hsl(${(hue + 145) % 360}, 72%, 30%)`,
-  ].map((color, index) => hslToHex(color, index === 0 ? 8 : 0));
+    `hsl(${hue}, 58%, 48%)`,
+    `hsl(${(hue + 42) % 360}, 52%, 42%)`,
+    `hsl(${(hue + 86) % 360}, 48%, 34%)`,
+    `hsl(${(hue + 140) % 360}, 42%, 26%)`,
+  ].map((color) => hslToHex(color));
 }
 
 export function PlayerVelarisBackground({ current, isPlaying = false }: PlayerVelarisBackgroundProps) {
@@ -44,12 +43,12 @@ export function PlayerVelarisBackground({ current, isPlaying = false }: PlayerVe
 
   const colors = useMemo(() => {
     if (accentColor) {
-      return [hslToHex(accentColor, 16), hslToHex(accentColor, 4), hslToHex(accentColor, -12), hslToHex(accentColor, -28)];
+      return [hslToHex(accentColor, 3), hslToHex(accentColor, -5), hslToHex(accentColor, -14), hslToHex(accentColor, -24)];
     }
     return fallbackPalette(current?.id ?? "musicaschatt");
   }, [accentColor, current?.id]);
 
-  const glowColor = accentColor ?? `hsl(${fallbackHue(current?.id ?? "musicaschatt")}, 82%, 58%)`;
+  const glowColor = accentColor ?? `hsl(${fallbackHue(current?.id ?? "musicaschatt")}, 58%, 48%)`;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
@@ -57,16 +56,16 @@ export function PlayerVelarisBackground({ current, isPlaying = false }: PlayerVe
         height="100%"
         bg="#030305"
         colors={colors}
-        speed={isPlaying ? 2.8 : 0.65}
-        grain={0.045}
-        className="absolute inset-0 h-full w-full opacity-85"
+        speed={isPlaying ? 0.72 : 0.18}
+        grain={0.012}
+        className="absolute inset-0 h-full w-full opacity-25"
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-background/10 via-background/45 to-background/95" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background/45 via-background/82 to-background" />
       <div
         className="absolute inset-0 transition-opacity duration-1000"
         style={{
-          background: `radial-gradient(circle at 50% 40%, ${glowColor} 0%, transparent 46%)`,
-          opacity: isPlaying ? 0.12 : 0.045,
+          background: `radial-gradient(ellipse at 50% 38%, ${glowColor} 0%, transparent 52%)`,
+          opacity: isPlaying ? 0.025 : 0.01,
         }}
       />
     </div>
