@@ -1,0 +1,200 @@
+/*
+ * MusicasChatt — visual redesign
+ * Direction: restrained, editorial, glass-matte, premium.
+ * No layout/logic changes. The goal is to make the whole product feel calmer,
+ * softer and more intentional without looking like an AI-generated dashboard.
+ */
+
+:root,
+.dark {
+  --radius: 0.9rem;
+  --background: oklch(0.105 0.008 265);
+  --foreground: oklch(0.965 0.006 260);
+  --surface: oklch(0.145 0.010 265 / 0.82);
+  --surface-raised: oklch(0.18 0.012 265 / 0.9);
+  --card: oklch(0.145 0.010 265 / 0.78);
+  --card-foreground: oklch(0.965 0.006 260);
+  --popover: oklch(0.16 0.012 265 / 0.96);
+  --popover-foreground: oklch(0.965 0.006 260);
+  --primary: oklch(0.76 0.115 275);
+  --primary-foreground: oklch(0.13 0.018 270);
+  --secondary: oklch(0.205 0.012 265 / 0.9);
+  --secondary-foreground: oklch(0.93 0.008 260);
+  --muted: oklch(0.19 0.01 265 / 0.82);
+  --muted-foreground: oklch(0.68 0.012 265);
+  --accent: oklch(0.22 0.018 275 / 0.82);
+  --accent-foreground: oklch(0.96 0.006 260);
+  --border: oklch(0.31 0.012 265 / 0.62);
+  --input: oklch(0.27 0.012 265 / 0.68);
+  --ring: oklch(0.76 0.115 275);
+  --online: oklch(0.73 0.13 155);
+  --offline: oklch(0.58 0.01 265);
+  --vip: oklch(0.82 0.12 88);
+  --youtube: oklch(0.65 0.2 25);
+  --shadow-panel: 0 18px 55px -34px oklch(0 0 0 / 0.95);
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 18%, transparent), 0 18px 50px -28px color-mix(in oklab, var(--primary) 28%, transparent);
+  --gradient-stage: radial-gradient(900px 560px at 12% -12%, oklch(0.48 0.09 275 / 0.10), transparent 68%), radial-gradient(780px 520px at 100% 92%, oklch(0.42 0.07 300 / 0.07), transparent 72%), linear-gradient(180deg, oklch(0.12 0.008 265), oklch(0.085 0.006 265));
+}
+
+html,
+body {
+  background-color: var(--background) !important;
+}
+
+body {
+  background-image: var(--gradient-stage) !important;
+  background-attachment: fixed;
+  color: var(--foreground);
+}
+
+/* Matte glass: translucent enough to feel layered, opaque enough to stay clean. */
+.panel,
+header.panel,
+form.panel {
+  background: linear-gradient(180deg, oklch(0.18 0.012 265 / 0.76), oklch(0.13 0.008 265 / 0.74)) !important;
+  border-color: oklch(0.34 0.012 265 / 0.46) !important;
+  box-shadow: var(--shadow-panel), inset 0 1px 0 oklch(1 0 0 / 0.035) !important;
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+}
+
+.panel:hover {
+  border-color: oklch(0.42 0.025 275 / 0.42) !important;
+}
+
+/* Buttons: quiet, tactile, not neon. */
+button,
+a[class*="bg-primary"],
+[role="button"] {
+  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+button:hover:not(:disabled),
+a[class*="bg-primary"]:hover,
+[role="button"]:hover {
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled),
+a[class*="bg-primary"]:active,
+[role="button"]:active {
+  transform: translateY(0) scale(0.985);
+}
+
+.bg-gradient-primary {
+  background: linear-gradient(135deg, oklch(0.72 0.11 275), oklch(0.67 0.10 305)) !important;
+  box-shadow: 0 10px 28px -18px oklch(0.65 0.12 285 / 0.75);
+}
+
+/* Inputs */
+input,
+textarea,
+select {
+  border-color: oklch(0.31 0.012 265 / 0.55) !important;
+  background: oklch(0.09 0.006 265 / 0.36) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: oklch(0.62 0.07 275 / 0.7) !important;
+  box-shadow: 0 0 0 3px oklch(0.65 0.08 275 / 0.08) !important;
+}
+
+/* Selection and focus feel */
+::selection {
+  background: oklch(0.68 0.10 275 / 0.30);
+  color: white;
+}
+
+*:focus-visible {
+  outline: 2px solid oklch(0.72 0.10 275 / 0.55);
+  outline-offset: 2px;
+}
+
+/* Scrollbars stay nearly invisible. */
+.scrollbar-slim::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-slim::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+  background: oklch(0.34 0.012 265 / 0.48);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Softer typography hierarchy across the product. */
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.025em;
+}
+
+/* Player-specific calmness. */
+main[class*="max-w-[1600px]"] {
+  gap: 0.9rem !important;
+}
+
+main[class*="max-w-[1600px]"] > div.grid {
+  gap: 0.9rem !important;
+}
+
+main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel {
+  background: oklch(0.15 0.01 265 / 0.72) !important;
+  border-color: oklch(0.34 0.012 265 / 0.42) !important;
+}
+
+main[class*="max-w-[1600px]"] > form.panel {
+  background: oklch(0.135 0.009 265 / 0.70) !important;
+}
+
+/* Don't let the ambient player glow become a second UI element. */
+main[class*="max-w-[1600px]"] > div.grid > div:first-child::before,
+main[class*="max-w-[1600px"] > div.grid > div:first-child::after {
+  opacity: 0.38 !important;
+  filter: blur(48px) !important;
+}
+
+/* Mobile tabs */
+[role="tablist"] {
+  background: oklch(0.13 0.009 265 / 0.72) !important;
+  border-color: oklch(0.32 0.012 265 / 0.48) !important;
+  backdrop-filter: blur(16px);
+}
+
+[role="tab"][data-state="active"] {
+  background: oklch(0.24 0.018 275 / 0.78) !important;
+  box-shadow: inset 0 0 0 1px oklch(0.58 0.07 275 / 0.20) !important;
+}
+
+/* Auth/account surfaces: same visual language, no dashboard clutter. */
+main:not([class*="max-w-[1600px"]]) .panel {
+  backdrop-filter: blur(20px) saturate(110%);
+  -webkit-backdrop-filter: blur(20px) saturate(110%);
+}
+
+/* Reduce decorative motion: elegance over spectacle. */
+@media (prefers-reduced-motion: no-preference) {
+  .panel,
+  button,
+  input,
+  textarea,
+  select {
+    transition-duration: 180ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}
