@@ -200,3 +200,130 @@ main[class*="max-w-[1600px]"] > div.panel.border-destructive\/40 { box-shadow: 0
 @media (prefers-reduced-motion: reduce) {
   main[class*="max-w-[1600px]"] * { transition: none !important; }
 }
+
+/* Refined depth + selective blur: only translucent utility surfaces get blur. */
+main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel,
+main[class*="max-w-[1600px]"] > form.panel,
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
+  backdrop-filter: blur(14px) saturate(108%);
+  -webkit-backdrop-filter: blur(14px) saturate(108%);
+  box-shadow:
+    0 18px 38px -28px oklch(0 0 0 / 0.92),
+    0 1px 0 oklch(1 0 0 / 0.028) inset;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel,
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel {
+  box-shadow:
+    0 22px 46px -32px oklch(0 0 0 / 0.94),
+    0 1px 0 oklch(1 0 0 / 0.025) inset;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
+  border-color: color-mix(in oklab, var(--border) 82%, var(--primary) 18%) !important;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.035);
+}
+
+/* Natural hover: tiny lift only on actual interactive controls. */
+main[class*="max-w-[1600px]"] > div:first-of-type > div:last-child > *,
+main[class*="max-w-[1600px]"] button,
+main[class*="max-w-[1600px]"] [role="tab"] {
+  will-change: transform;
+}
+
+main[class*="max-w-[1600px]"] > div:first-of-type > div:last-child > *:hover,
+main[class*="max-w-[1600px]"] button:hover:not(:disabled),
+main[class*="max-w-[1600px]"] [role="tab"]:hover {
+  transform: translateY(-1px);
+}
+
+main[class*="max-w-[1600px]"] button:active:not(:disabled),
+main[class*="max-w-[1600px]"] [role="tab"]:active {
+  transform: translateY(0) scale(0.985);
+}
+
+/* Primary action: restrained glow, not neon. */
+main[class*="max-w-[1600px]"] > form.panel > button,
+main[class*="max-w-[1600px]"] button.bg-primary,
+main[class*="max-w-[1600px]"] button[class*="bg-primary"] {
+  box-shadow:
+    0 9px 24px -18px color-mix(in oklab, var(--primary) 68%, transparent),
+    inset 0 1px 0 oklch(1 0 0 / 0.08);
+}
+
+main[class*="max-w-[1600px]"] > form.panel > button:hover,
+main[class*="max-w-[1600px]"] button.bg-primary:hover,
+main[class*="max-w-[1600px]"] button[class*="bg-primary"]:hover {
+  box-shadow:
+    0 12px 28px -17px color-mix(in oklab, var(--primary) 72%, transparent),
+    inset 0 1px 0 oklch(1 0 0 / 0.1);
+}
+
+/* Focus feels soft instead of glowing hard. */
+main[class*="max-w-[1600px]"] input:focus,
+main[class*="max-w-[1600px]"] textarea:focus,
+main[class*="max-w-[1600px]"] select:focus {
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--primary) 11%, transparent),
+    0 8px 24px -20px color-mix(in oklab, var(--primary) 38%, transparent) !important;
+}
+
+/* Subtle list motion: content settles in without looking animated. */
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) li,
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) li {
+  animation: mc-row-in 220ms ease-out both;
+}
+
+@keyframes mc-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Quiet status pulse, reserved for connected/live indicators. */
+main[class*="max-w-[1600px]"] .pulse-dot {
+  animation: mc-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes mc-pulse {
+  0%,
+  100% { opacity: 1; }
+  50% { opacity: 0.58; }
+}
+
+/* Avoid blur/transparency on very small screens where it feels heavy. */
+@media (max-width: 720px) {
+  main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel,
+  main[class*="max-w-[1600px]"] > form.panel,
+  main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
+    backdrop-filter: blur(9px) saturate(104%);
+    -webkit-backdrop-filter: blur(9px) saturate(104%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) li,
+  main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) li,
+  main[class*="max-w-[1600px]"] .pulse-dot {
+    animation: none !important;
+  }
+
+  main[class*="max-w-[1600px]"] > div:first-of-type > div:last-child > *,
+  main[class*="max-w-[1600px]"] button,
+  main[class*="max-w-[1600px]"] [role="tab"] {
+    transform: none !important;
+  }
+}
