@@ -6,18 +6,14 @@
 :root,
 .dark {
   --radius: 0.72rem;
-
   --background: oklch(0.105 0.006 265);
   --foreground: oklch(0.94 0.005 260);
-
   --surface: oklch(0.145 0.008 265);
   --surface-raised: oklch(0.175 0.010 265);
   --card: oklch(0.145 0.008 265);
   --card-foreground: oklch(0.94 0.005 260);
   --popover: oklch(0.17 0.009 265);
   --popover-foreground: oklch(0.94 0.005 260);
-
-  /* Muted violet: accent, not neon. */
   --primary: oklch(0.72 0.075 276);
   --primary-foreground: oklch(0.12 0.012 270);
   --secondary: oklch(0.205 0.009 265);
@@ -26,36 +22,22 @@
   --muted-foreground: oklch(0.64 0.009 265);
   --accent: oklch(0.235 0.012 275);
   --accent-foreground: oklch(0.94 0.005 260);
-
   --border: oklch(0.29 0.008 265);
   --input: oklch(0.255 0.008 265);
   --ring: oklch(0.72 0.075 276);
-
   --online: oklch(0.72 0.075 276);
   --offline: oklch(0.55 0.008 265);
   --vip: oklch(0.80 0.105 88);
   --youtube: oklch(0.64 0.18 25);
-
   --shadow-panel: 0 14px 36px -28px oklch(0 0 0 / 0.92);
   --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 14%, transparent), 0 12px 28px -24px color-mix(in oklab, var(--primary) 24%, transparent);
-
-  --gradient-stage:
-    radial-gradient(900px 520px at 50% -18%, oklch(0.30 0.035 276 / 0.08), transparent 70%),
-    linear-gradient(180deg, oklch(0.112 0.006 265), oklch(0.095 0.005 265));
+  --gradient-stage: radial-gradient(900px 520px at 50% -18%, oklch(0.30 0.035 276 / 0.08), transparent 70%), linear-gradient(180deg, oklch(0.112 0.006 265), oklch(0.095 0.005 265));
 }
 
 html,
-body {
-  background-color: var(--background) !important;
-}
+body { background-color: var(--background) !important; }
+body { background-image: var(--gradient-stage) !important; background-attachment: fixed; color: var(--foreground); }
 
-body {
-  background-image: var(--gradient-stage) !important;
-  background-attachment: fixed;
-  color: var(--foreground);
-}
-
-/* Keep surfaces solid enough to read like a real app, not floating glass cards. */
 .panel,
 header.panel,
 form.panel {
@@ -66,39 +48,23 @@ form.panel {
   -webkit-backdrop-filter: none !important;
 }
 
-.panel:hover {
-  border-color: color-mix(in oklab, var(--border) 82%, var(--primary) 18%) !important;
-}
+.panel:hover { border-color: color-mix(in oklab, var(--border) 82%, var(--primary) 18%) !important; }
 
-/* Avoid the generic "everything moves on hover" look. */
 button,
 a[class*="bg-primary"],
 [role="button"] {
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease,
-    box-shadow 150ms ease, opacity 150ms ease;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
 
 button:hover:not(:disabled),
 a[class*="bg-primary"]:hover,
-[role="button"]:hover {
-  transform: none;
-}
-
+[role="button"]:hover,
 button:active:not(:disabled),
 a[class*="bg-primary"]:active,
-[role="button"]:active {
-  transform: none;
-}
+[role="button"]:active { transform: none; }
 
-/* Primary actions: flat, compact, deliberate. */
-.bg-gradient-primary {
-  background: var(--primary) !important;
-  box-shadow: none !important;
-}
-
-.bg-gradient-primary:hover {
-  filter: brightness(1.06);
-}
+.bg-gradient-primary { background: var(--primary) !important; box-shadow: none !important; }
+.bg-gradient-primary:hover { filter: brightness(1.06); }
 
 input,
 textarea,
@@ -115,50 +81,21 @@ select:focus {
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 10%, transparent) !important;
 }
 
-::selection {
-  background: color-mix(in oklab, var(--primary) 26%, transparent);
-  color: var(--foreground);
-}
+::selection { background: color-mix(in oklab, var(--primary) 26%, transparent); color: var(--foreground); }
+*:focus-visible { outline: 2px solid color-mix(in oklab, var(--primary) 60%, transparent); outline-offset: 2px; }
 
-*:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--primary) 60%, transparent);
-  outline-offset: 2px;
-}
-
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: oklch(0.32 0.008 265 / 0.72);
-  border-radius: 999px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-thumb { background: oklch(0.32 0.008 265 / 0.72); border-radius: 999px; }
+*::-webkit-scrollbar-track { background: transparent; }
 
 h1,
 h2,
 h3,
-h4 {
-  letter-spacing: -0.02em;
-}
+h4 { letter-spacing: -0.02em; }
 
-/* /player layout */
-main[class*="max-w-[1600px]"] {
-  gap: 0.8rem !important;
-}
-
-main[class*="max-w-[1600px]"] > div.grid {
-  gap: 0.8rem !important;
-}
-
-/* Top bar */
-main[class*="max-w-[1600px]"] > div:first-of-type {
-  gap: 0.65rem;
-}
+main[class*="max-w-[1600px]"] { gap: 0.8rem !important; }
+main[class*="max-w-[1600px]"] > div.grid { gap: 0.8rem !important; }
+main[class*="max-w-[1600px]"] > div:first-of-type { gap: 0.65rem; }
 
 main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel {
   min-height: 58px;
@@ -170,16 +107,11 @@ main[class*="max-w-[1600px]"] > div:first-of-type img {
   box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent);
 }
 
-/* Status chips should read like metadata, not glowing badges. */
 main[class*="max-w-[1600px]"] > div:first-of-type > div:last-child > * {
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
 }
+main[class*="max-w-[1600px]"] > div:first-of-type > div:last-child > *:hover { transform: none; }
 
-main[class*="max-w-[1600px]"] > div:first-of-type > div:last-child > *:hover {
-  transform: none;
-}
-
-/* Add-music field */
 main[class*="max-w-[1600px]"] > form.panel {
   min-height: 50px;
   background: oklch(0.135 0.006 265) !important;
@@ -192,31 +124,16 @@ main[class*="max-w-[1600px]"] > form.panel:focus-within {
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 8%, transparent) !important;
 }
 
-main[class*="max-w-[1600px]"] > form.panel > input {
-  font-size: 0.875rem;
-}
+main[class*="max-w-[1600px]"] > form.panel > input { font-size: 0.875rem; }
+main[class*="max-w-[1600px]"] > form.panel > button { min-width: 72px; border-radius: 0.58rem; box-shadow: none; }
+main[class*="max-w-[1600px]"] > form.panel > button:hover { filter: brightness(1.06); box-shadow: none; }
 
-main[class*="max-w-[1600px]"] > form.panel > button {
-  min-width: 72px;
-  border-radius: 0.58rem;
-  box-shadow: none;
-}
-
-main[class*="max-w-[1600px]"] > form.panel > button:hover {
-  filter: brightness(1.06);
-  box-shadow: none;
-}
-
-/* Main columns */
 main[class*="max-w-[1600px]"] > div.grid > div > .panel {
   background: var(--surface) !important;
   border-color: var(--border);
   box-shadow: var(--shadow-panel);
 }
-
-main[class*="max-w-[1600px]"] > div.grid > div > .panel:hover {
-  box-shadow: var(--shadow-panel);
-}
+main[class*="max-w-[1600px]"] > div.grid > div > .panel:hover { box-shadow: var(--shadow-panel); }
 
 main[class*="max-w-[1600px]"] > div.grid > div > .panel > header {
   min-height: 50px;
@@ -224,62 +141,38 @@ main[class*="max-w-[1600px]"] > div.grid > div > .panel > header {
   background: var(--surface) !important;
 }
 
-/* Player backdrop: retain atmosphere but turn down the visual noise. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child::before,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child::after {
   opacity: 0.18 !important;
   filter: blur(68px) !important;
 }
 
-main[class*="max-w-[1600px]"] > div.grid > div:first-child > div {
-  border-radius: var(--radius);
-}
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div { border-radius: var(--radius); }
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel { background: var(--surface) !important; }
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button:hover { filter: brightness(1.08); }
 
-main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
-  background: var(--surface) !important;
-}
-
-/* Player controls: subtle hierarchy instead of neon treatment. */
-main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button:hover {
-  filter: brightness(1.08);
-}
-
-/* Queue */
 main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel,
-main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel {
-  overflow: hidden;
-}
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel { overflow: hidden; }
 
 main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel > header,
-main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel > header {
-  background: var(--surface) !important;
-}
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel > header { background: var(--surface) !important; }
 
 main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) li {
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.012);
   transition: background-color 140ms ease, border-color 140ms ease;
 }
-
 main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) li:hover {
   transform: none;
   background: oklch(0.18 0.008 265);
 }
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel > div:last-child { background: oklch(0.125 0.005 265); }
 
-main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel > div:last-child {
-  background: oklch(0.125 0.005 265);
-}
-
-/* Chat */
 main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) li {
   border-radius: 0.5rem;
   transition: background-color 140ms ease;
 }
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) li:hover { background: oklch(0.18 0.008 265); }
 
-main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) li:hover {
-  background: oklch(0.18 0.008 265);
-}
-
-/* Mobile tabs */
 main[class*="max-w-[1600px]"] [role="tablist"] {
   padding: 2px;
   border: 1px solid var(--border);
@@ -287,35 +180,23 @@ main[class*="max-w-[1600px]"] [role="tablist"] {
   background: oklch(0.135 0.006 265) !important;
   backdrop-filter: none;
 }
-
 main[class*="max-w-[1600px]"] [role="tab"] {
   border-radius: 0.5rem;
   transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
-
-main[class*="max-w-[1600px]"] [role="tab"]:hover {
-  transform: none;
-}
-
+main[class*="max-w-[1600px]"] [role="tab"]:hover { transform: none; }
 main[class*="max-w-[1600px]"] [role="tab"][data-state="active"] {
   background: oklch(0.22 0.012 276) !important;
   color: var(--foreground);
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 18%, transparent) !important;
 }
 
-/* Alerts */
-main[class*="max-w-[1600px]"] > div.panel.border-destructive\/40 {
-  box-shadow: 0 10px 28px -24px var(--destructive);
-}
+main[class*="max-w-[1600px]"] > div.panel.border-destructive\/40 { box-shadow: 0 10px 28px -24px var(--destructive); }
 
 @media (max-width: 1023px) {
-  main[class*="max-w-[1600px]"] {
-    padding: 0.7rem;
-  }
+  main[class*="max-w-[1600px]"] { padding: 0.7rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  main[class*="max-w-[1600px"]] * {
-    transition: none !important;
-  }
+  main[class*="max-w-[1600px]"] * { transition: none !important; }
 }
