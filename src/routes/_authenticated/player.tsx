@@ -281,7 +281,7 @@ function PlayerPage() {
 
   return (
     <div className="relative min-h-screen">
-      <PlayerVelarisBackground current={queue.current} />
+      <PlayerVelarisBackground current={queue.current} isPlaying={isCurrentlyPlaying} />
       <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
         <h1 className="sr-only">Player de músicas do chat da Kick</h1>
 
