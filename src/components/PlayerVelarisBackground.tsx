@@ -22,19 +22,14 @@ function hslToHex(hsl: string, lightnessOffset = 0): string {
   return `#${toHex(r1)}${toHex(g1)}${toHex(b1)}`;
 }
 
-function fallbackHue(id: string): number {
-  let hash = 2166136261;
-  for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
-  return (hash >>> 0) % 360;
-}
+const DEFAULT_HUE = 275;
 
-function fallbackPalette(id: string): string[] {
-  const hue = fallbackHue(id);
+function fallbackPalette(): string[] {
   return [
-    `hsl(${hue}, 58%, 48%)`,
-    `hsl(${(hue + 42) % 360}, 52%, 42%)`,
-    `hsl(${(hue + 86) % 360}, 48%, 34%)`,
-    `hsl(${(hue + 140) % 360}, 42%, 26%)`,
+    `hsl(${DEFAULT_HUE}, 58%, 50%)`,
+    `hsl(${DEFAULT_HUE + 18}, 52%, 43%)`,
+    `hsl(${DEFAULT_HUE - 18}, 48%, 34%)`,
+    `hsl(${DEFAULT_HUE}, 40%, 25%)`,
   ].map((color) => hslToHex(color));
 }
 
@@ -43,12 +38,19 @@ export function PlayerVelarisBackground({ current, isPlaying = false }: PlayerVe
 
   const colors = useMemo(() => {
     if (accentColor) {
-      return [hslToHex(accentColor, 3), hslToHex(accentColor, -5), hslToHex(accentColor, -14), hslToHex(accentColor, -24)];
+      return [
+        hslToHex(accentColor, 3),
+        hslToHex(accentColor, -5),
+        hslToHex(accentColor, -14),
+        hslToHex(accentColor, -24),
+      ];
     }
-    return fallbackPalette(current?.id ?? "musicaschatt");
-  }, [accentColor, current?.id]);
+    return fallbackPalette();
+  }, [accentColor]);
 
-  const glowColor = accentColor ?? `hsl(${fallbackHue(current?.id ?? "musicaschatt")}, 58%, 48%)`;
+  // When there is no cover to sample, keep the ambient light aligned with the
+  // same restrained lavender used by the player instead of introducing green.
+  const glowColor = accentColor ?? `hsl(${DEFAULT_HUE}, 58%, 50%)`;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
