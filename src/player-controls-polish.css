@@ -8,11 +8,27 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
   --control-range: #8f67e8;
 }
 
+/* Separate the controls visually from the dark player panel. */
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel > div:has(button[aria-label="Música anterior"]) {
+  margin-top: -0.15rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #292634;
+  border-radius: 0.8rem;
+  background: linear-gradient(180deg, #1c1a25, #16151d);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035), 0 8px 18px -16px rgb(0 0 0 / 0.95);
+}
+
+/* Progress row gets just enough lift to remain readable. */
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel > div:has(.progress-slider) {
+  padding: 0.35rem 0.25rem;
+}
+
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel > div:last-child {
   border-top: 1px solid color-mix(in oklab, var(--border) 82%, white 4%);
   padding-top: 0.85rem;
 }
 
+/* Sliders: visible against the dark player without looking neon. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-root] {
   min-height: 20px;
 }
@@ -53,6 +69,7 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel .font-
   font-size: 0.70rem;
 }
 
+/* Main transport controls: one clear hero action. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label="Tocar"],
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label="Pausar"] {
   width: 48px !important;
@@ -76,41 +93,43 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button
   transform: scale(0.975);
 }
 
+/* Secondary buttons are visibly lighter than the page background. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="anterior" i],
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="próxima" i],
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="próximo" i] {
   width: 40px !important;
   height: 40px !important;
   border-radius: 999px;
-  background: var(--control-surface) !important;
-  border: 1px solid var(--control-border) !important;
-  color: #c5bfcd !important;
-  box-shadow: 0 5px 14px -11px rgb(0 0 0 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.035);
+  background: #23212c !important;
+  border: 1px solid #3a3648 !important;
+  color: #c8c2d2 !important;
+  box-shadow: 0 5px 14px -11px rgb(0 0 0 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.045);
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="anterior" i]:hover,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="próxima" i]:hover,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="próximo" i]:hover {
-  background: var(--control-surface-hover) !important;
-  border-color: #51496a !important;
+  background: #2c2938 !important;
+  border-color: #554b70 !important;
   color: #f0edf5 !important;
   transform: translateY(-1px);
 }
 
+/* Volume control. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="volume" i],
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="mudo" i] {
   width: 32px !important;
   height: 32px !important;
   border-radius: 999px;
-  background: #16151d !important;
-  border: 1px solid #2d2a38 !important;
-  color: #b8b2c1 !important;
+  background: #20202a !important;
+  border: 1px solid #363342 !important;
+  color: #beb8c8 !important;
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="volume" i]:hover,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="mudo" i]:hover {
-  background: #211f29 !important;
-  border-color: #4a4260 !important;
+  background: #2a2834 !important;
+  border-color: #4b4360 !important;
   color: #eeeaf5 !important;
 }
 
