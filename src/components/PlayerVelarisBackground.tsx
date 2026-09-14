@@ -5,6 +5,7 @@ import type { QueueItem } from "@/lib/types";
 
 interface PlayerVelarisBackgroundProps {
   current: QueueItem | null;
+  isPlaying?: boolean;
 }
 
 function hslToHex(hsl: string, lightnessOffset = 0): string {
@@ -23,7 +24,7 @@ function hslToHex(hsl: string, lightnessOffset = 0): string {
   return `#${toHex(r1)}${toHex(g1)}${toHex(b1)}`;
 }
 
-export function PlayerVelarisBackground({ current }: PlayerVelarisBackgroundProps) {
+export function PlayerVelarisBackground({ current, isPlaying = false }: PlayerVelarisBackgroundProps) {
   const accentColor = useDominantColor(current?.thumbnail);
   const colors = useMemo(() => {
     const accent = accentColor ?? "hsl(145, 65%, 48%)";
@@ -31,16 +32,23 @@ export function PlayerVelarisBackground({ current }: PlayerVelarisBackgroundProp
   }, [accentColor]);
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[-20] overflow-hidden" aria-hidden="true">
+    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
       <Velaris
         height="100%"
         bg="#030303"
         colors={colors}
-        speed={0.7}
-        grain={0.12}
-        className="absolute inset-0 h-full w-full opacity-55"
+        speed={isPlaying ? 2.2 : 0.45}
+        grain={0.08}
+        className="absolute inset-0 h-full w-full opacity-70"
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-background/25 via-background/65 to-background" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background/15 via-background/60 to-background" />
+      <div
+        className={`absolute inset-0 transition-opacity duration-1000 ${isPlaying ? "opacity-100" : "opacity-70"}`}
+        style={{
+          background: `radial-gradient(circle at 50% 42%, ${accentColor ?? "hsl(145 65% 48%)"} 0%, transparent 42%)`,
+          opacity: isPlaying ? 0.08 : 0.035,
+        }}
+      />
     </div>
   );
 }
