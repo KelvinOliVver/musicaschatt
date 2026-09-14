@@ -1,0 +1,57 @@
+/* Performance pass — visual-only, keep the interface responsive. */
+
+/* Hint the compositor only for the few layers that continuously animate. */
+.ambient-glow,
+.ambient-glow-orb {
+  will-change: transform, opacity;
+}
+
+.ambient-glow {
+  contain: layout paint;
+}
+
+.ambient-glow-orb {
+  transform-origin: center;
+  backface-visibility: hidden;
+}
+
+.ambient-glow-dot {
+  will-change: opacity;
+  backface-visibility: hidden;
+}
+
+/* Long lists stay cheap to paint while preserving normal scroll behavior. */
+.scrollbar-slim {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* Avoid costly shadow transitions on large containers. */
+main[class*="max-w-[1600px]"] > div.grid > div > .panel {
+  transition: border-color 180ms ease;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div > .panel:hover {
+  box-shadow: var(--shadow-panel) !important;
+}
+
+/* Blur is intentionally limited to the small chrome layers, not content-heavy lists. */
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel,
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+@media (max-width: 900px) {
+  .ambient-glow-orb {
+    filter: blur(26px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-glow,
+  .ambient-glow-orb,
+  .ambient-glow-dot {
+    will-change: auto;
+  }
+}
