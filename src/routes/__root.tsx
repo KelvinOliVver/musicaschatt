@@ -14,6 +14,7 @@ import sessionChipsCss from "../session-chips.css?url";
 import playerPolishCss from "../player-polish.css?url";
 import siteRedesignCss from "../site-redesign.css?url";
 import onlineAccentFixCss from "../online-accent-fix.css?url";
+import finalThemeCss from "../final-theme.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
@@ -70,6 +71,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: playerPolishCss },
       { rel: "stylesheet", href: siteRedesignCss },
       { rel: "stylesheet", href: onlineAccentFixCss },
+      { rel: "stylesheet", href: finalThemeCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Space+Grotesk:wght@500;600;700&display=swap" },
