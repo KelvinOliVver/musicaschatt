@@ -15,6 +15,7 @@ import playerPolishCss from "../player-polish.css?url";
 import siteRedesignCss from "../site-redesign.css?url";
 import onlineAccentFixCss from "../online-accent-fix.css?url";
 import finalThemeCss from "../final-theme.css?url";
+import pointerLightCss from "../site-pointer-light.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
@@ -72,6 +73,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: siteRedesignCss },
       { rel: "stylesheet", href: onlineAccentFixCss },
       { rel: "stylesheet", href: finalThemeCss },
+      { rel: "stylesheet", href: pointerLightCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Space+Grotesk:wght@500;600;700&display=swap" },
@@ -107,10 +109,41 @@ function AuthSync() {
   return null;
 }
 
+function PointerLight() {
+  useEffect(() => {
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+
+    let raf = 0;
+    let x = window.innerWidth / 2;
+    let y = window.innerHeight / 2;
+
+    const update = () => {
+      document.documentElement.style.setProperty("--pointer-x", `${x}px`);
+      document.documentElement.style.setProperty("--pointer-y", `${y}px`);
+      raf = 0;
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      x = event.clientX;
+      y = event.clientY;
+      if (!raf) raf = window.requestAnimationFrame(update);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
+      <PointerLight />
       <AuthSync />
       <Outlet />
       <Toaster position="top-right" richColors />
