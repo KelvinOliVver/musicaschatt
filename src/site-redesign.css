@@ -1,116 +1,321 @@
-/* MusicasChatt — restrained premium redesign */
+/* MusicasChatt — minimal visual refinement
+ * Visual-only layer. Keeps the existing component structure and behavior intact.
+ * Goal: quieter surfaces, stronger hierarchy, less "AI/glass" styling.
+ */
 
 :root,
 .dark {
-  --radius: 0.9rem;
-  --background: oklch(0.105 0.008 265);
-  --foreground: oklch(0.965 0.006 260);
-  --surface: oklch(0.145 0.010 265 / 0.82);
-  --surface-raised: oklch(0.18 0.012 265 / 0.9);
-  --card: oklch(0.145 0.010 265 / 0.78);
-  --card-foreground: oklch(0.965 0.006 260);
-  --popover: oklch(0.16 0.012 265 / 0.96);
-  --popover-foreground: oklch(0.965 0.006 260);
-  --primary: oklch(0.76 0.115 275);
-  --primary-foreground: oklch(0.13 0.018 270);
-  --secondary: oklch(0.205 0.012 265 / 0.9);
-  --secondary-foreground: oklch(0.93 0.008 260);
-  --muted: oklch(0.19 0.01 265 / 0.82);
-  --muted-foreground: oklch(0.68 0.012 265);
-  --accent: oklch(0.22 0.018 275 / 0.82);
-  --accent-foreground: oklch(0.96 0.006 260);
-  --border: oklch(0.31 0.012 265 / 0.62);
-  --input: oklch(0.27 0.012 265 / 0.68);
-  --ring: oklch(0.76 0.115 275);
+  --radius: 0.72rem;
 
-  /* Online/connected state follows the site's violet identity; no green accents. */
-  --online: oklch(0.76 0.115 275);
-  --offline: oklch(0.58 0.01 265);
-  --vip: oklch(0.82 0.12 88);
-  --youtube: oklch(0.65 0.2 25);
-  --shadow-panel: 0 18px 55px -34px oklch(0 0 0 / 0.95);
-  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 18%, transparent), 0 18px 50px -28px color-mix(in oklab, var(--primary) 28%, transparent);
-  --gradient-stage: radial-gradient(900px 560px at 12% -12%, oklch(0.48 0.09 275 / 0.10), transparent 68%), radial-gradient(780px 520px at 100% 92%, oklch(0.42 0.07 300 / 0.07), transparent 72%), linear-gradient(180deg, oklch(0.12 0.008 265), oklch(0.085 0.006 265));
+  --background: oklch(0.105 0.006 265);
+  --foreground: oklch(0.94 0.005 260);
+
+  --surface: oklch(0.145 0.008 265);
+  --surface-raised: oklch(0.175 0.010 265);
+  --card: oklch(0.145 0.008 265);
+  --card-foreground: oklch(0.94 0.005 260);
+  --popover: oklch(0.17 0.009 265);
+  --popover-foreground: oklch(0.94 0.005 260);
+
+  /* Muted violet: accent, not neon. */
+  --primary: oklch(0.72 0.075 276);
+  --primary-foreground: oklch(0.12 0.012 270);
+  --secondary: oklch(0.205 0.009 265);
+  --secondary-foreground: oklch(0.90 0.005 260);
+  --muted: oklch(0.19 0.007 265);
+  --muted-foreground: oklch(0.64 0.009 265);
+  --accent: oklch(0.235 0.012 275);
+  --accent-foreground: oklch(0.94 0.005 260);
+
+  --border: oklch(0.29 0.008 265);
+  --input: oklch(0.255 0.008 265);
+  --ring: oklch(0.72 0.075 276);
+
+  --online: oklch(0.72 0.075 276);
+  --offline: oklch(0.55 0.008 265);
+  --vip: oklch(0.80 0.105 88);
+  --youtube: oklch(0.64 0.18 25);
+
+  --shadow-panel: 0 14px 36px -28px oklch(0 0 0 / 0.92);
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 14%, transparent), 0 12px 28px -24px color-mix(in oklab, var(--primary) 24%, transparent);
+
+  --gradient-stage:
+    radial-gradient(900px 520px at 50% -18%, oklch(0.30 0.035 276 / 0.08), transparent 70%),
+    linear-gradient(180deg, oklch(0.112 0.006 265), oklch(0.095 0.005 265));
 }
 
-html, body { background-color: var(--background) !important; }
-body { background-image: var(--gradient-stage) !important; background-attachment: fixed; color: var(--foreground); }
-
-.panel, header.panel, form.panel {
-  background: linear-gradient(180deg, oklch(0.18 0.012 265 / 0.76), oklch(0.13 0.008 265 / 0.74)) !important;
-  border-color: oklch(0.34 0.012 265 / 0.46) !important;
-  box-shadow: var(--shadow-panel), inset 0 1px 0 oklch(1 0 0 / 0.035) !important;
-  backdrop-filter: blur(18px) saturate(115%);
-  -webkit-backdrop-filter: blur(18px) saturate(115%);
+html,
+body {
+  background-color: var(--background) !important;
 }
 
-.panel:hover { border-color: oklch(0.42 0.025 275 / 0.42) !important; }
-
-button, a[class*="bg-primary"], [role="button"] {
-  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+body {
+  background-image: var(--gradient-stage) !important;
+  background-attachment: fixed;
+  color: var(--foreground);
 }
-button:hover:not(:disabled), a[class*="bg-primary"]:hover, [role="button"]:hover { transform: translateY(-1px); }
-button:active:not(:disabled), a[class*="bg-primary"]:active, [role="button"]:active { transform: scale(0.985); }
 
+/* Keep surfaces solid enough to read like a real app, not floating glass cards. */
+.panel,
+header.panel,
+form.panel {
+  background: var(--surface) !important;
+  border: 1px solid color-mix(in oklab, var(--border) 92%, transparent) !important;
+  box-shadow: var(--shadow-panel) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.panel:hover {
+  border-color: color-mix(in oklab, var(--border) 82%, var(--primary) 18%) !important;
+}
+
+/* Avoid the generic "everything moves on hover" look. */
+button,
+a[class*="bg-primary"],
+[role="button"] {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease,
+    box-shadow 150ms ease, opacity 150ms ease;
+}
+
+button:hover:not(:disabled),
+a[class*="bg-primary"]:hover,
+[role="button"]:hover {
+  transform: none;
+}
+
+button:active:not(:disabled),
+a[class*="bg-primary"]:active,
+[role="button"]:active {
+  transform: none;
+}
+
+/* Primary actions: flat, compact, deliberate. */
 .bg-gradient-primary {
-  background: linear-gradient(135deg, oklch(0.72 0.11 275), oklch(0.67 0.10 305)) !important;
-  box-shadow: 0 10px 28px -18px oklch(0.65 0.12 285 / 0.75);
+  background: var(--primary) !important;
+  box-shadow: none !important;
 }
 
-input, textarea, select {
-  border-color: oklch(0.31 0.012 265 / 0.55) !important;
-  background: oklch(0.09 0.006 265 / 0.36) !important;
-}
-input:focus, textarea:focus, select:focus {
-  border-color: oklch(0.62 0.07 275 / 0.7) !important;
-  box-shadow: 0 0 0 3px oklch(0.65 0.08 275 / 0.08) !important;
+.bg-gradient-primary:hover {
+  filter: brightness(1.06);
 }
 
-::selection { background: oklch(0.68 0.10 275 / 0.30); color: white; }
-*:focus-visible { outline: 2px solid oklch(0.72 0.10 275 / 0.55); outline-offset: 2px; }
+input,
+textarea,
+select {
+  border-color: color-mix(in oklab, var(--border) 96%, transparent) !important;
+  background: oklch(0.115 0.005 265) !important;
+  box-shadow: none !important;
+}
 
-*::-webkit-scrollbar { width: 6px; height: 6px; }
-*::-webkit-scrollbar-thumb { background: oklch(0.34 0.012 265 / 0.48); border-radius: 999px; }
-*::-webkit-scrollbar-track { background: transparent; }
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: color-mix(in oklab, var(--primary) 58%, var(--border)) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 10%, transparent) !important;
+}
 
-h1, h2, h3, h4 { letter-spacing: -0.025em; }
+::selection {
+  background: color-mix(in oklab, var(--primary) 26%, transparent);
+  color: var(--foreground);
+}
 
-/* /player */
-main[class*="max-w-[1600px]"] { gap: 0.9rem !important; }
-main[class*="max-w-[1600px]"] > div.grid { gap: 0.9rem !important; }
+*:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--primary) 60%, transparent);
+  outline-offset: 2px;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: oklch(0.32 0.008 265 / 0.72);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
+}
+
+/* /player layout */
+main[class*="max-w-[1600px]"] {
+  gap: 0.8rem !important;
+}
+
+main[class*="max-w-[1600px]"] > div.grid {
+  gap: 0.8rem !important;
+}
+
+/* Top bar */
+main[class*="max-w-[1600px]"] > div:first-of-type {
+  gap: 0.65rem;
+}
+
 main[class*="max-w-[1600px]"] > div:first-of-type > div:first-child > header.panel {
-  background: oklch(0.15 0.01 265 / 0.72) !important;
-  border-color: oklch(0.34 0.012 265 / 0.42) !important;
+  min-height: 58px;
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
 }
-main[class*="max-w-[1600px]"] > form.panel { background: oklch(0.135 0.009 265 / 0.70) !important; }
 
-/* Velaris remains the atmospheric background; the interface itself uses violet/graphite. */
+main[class*="max-w-[1600px]"] > div:first-of-type img {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent);
+}
+
+/* Status chips should read like metadata, not glowing badges. */
+main[class*="max-w-[1600px]"] > div:first-of-type > div:last-child > * {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+main[class*="max-w-[1600px]"] > div:first-of-type > div:last-child > *:hover {
+  transform: none;
+}
+
+/* Add-music field */
+main[class*="max-w-[1600px]"] > form.panel {
+  min-height: 50px;
+  background: oklch(0.135 0.006 265) !important;
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+
+main[class*="max-w-[1600px]"] > form.panel:focus-within {
+  border-color: color-mix(in oklab, var(--primary) 50%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 8%, transparent) !important;
+}
+
+main[class*="max-w-[1600px]"] > form.panel > input {
+  font-size: 0.875rem;
+}
+
+main[class*="max-w-[1600px]"] > form.panel > button {
+  min-width: 72px;
+  border-radius: 0.58rem;
+  box-shadow: none;
+}
+
+main[class*="max-w-[1600px]"] > form.panel > button:hover {
+  filter: brightness(1.06);
+  box-shadow: none;
+}
+
+/* Main columns */
+main[class*="max-w-[1600px]"] > div.grid > div > .panel {
+  background: var(--surface) !important;
+  border-color: var(--border);
+  box-shadow: var(--shadow-panel);
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div > .panel:hover {
+  box-shadow: var(--shadow-panel);
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div > .panel > header {
+  min-height: 50px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 88%, transparent);
+  background: var(--surface) !important;
+}
+
+/* Player backdrop: retain atmosphere but turn down the visual noise. */
 main[class*="max-w-[1600px]"] > div.grid > div:first-child::before,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child::after {
-  opacity: 0.28 !important;
-  filter: blur(52px) !important;
+  opacity: 0.18 !important;
+  filter: blur(68px) !important;
 }
 
-[role="tablist"] {
-  background: oklch(0.13 0.009 265 / 0.72) !important;
-  border-color: oklch(0.32 0.012 265 / 0.48) !important;
-  backdrop-filter: blur(16px);
-}
-[role="tab"][data-state="active"] {
-  background: oklch(0.24 0.018 275 / 0.78) !important;
-  box-shadow: inset 0 0 0 1px oklch(0.58 0.07 275 / 0.20) !important;
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div {
+  border-radius: var(--radius);
 }
 
-/* Account/auth pages inherit the same quiet glass language. */
-main:not([class*="max-w-[1600px]"]) .panel {
-  backdrop-filter: blur(20px) saturate(110%);
-  -webkit-backdrop-filter: blur(20px) saturate(110%);
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
+  background: var(--surface) !important;
+}
+
+/* Player controls: subtle hierarchy instead of neon treatment. */
+main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button:hover {
+  filter: brightness(1.08);
+}
+
+/* Queue */
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel,
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel {
+  overflow: hidden;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel > header,
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) > .panel > header {
+  background: var(--surface) !important;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) li {
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.012);
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) li:hover {
+  transform: none;
+  background: oklch(0.18 0.008 265);
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(2) > .panel > div:last-child {
+  background: oklch(0.125 0.005 265);
+}
+
+/* Chat */
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) li {
+  border-radius: 0.5rem;
+  transition: background-color 140ms ease;
+}
+
+main[class*="max-w-[1600px]"] > div.grid > div:nth-child(3) li:hover {
+  background: oklch(0.18 0.008 265);
+}
+
+/* Mobile tabs */
+main[class*="max-w-[1600px]"] [role="tablist"] {
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 0.66rem;
+  background: oklch(0.135 0.006 265) !important;
+  backdrop-filter: none;
+}
+
+main[class*="max-w-[1600px]"] [role="tab"] {
+  border-radius: 0.5rem;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+main[class*="max-w-[1600px]"] [role="tab"]:hover {
+  transform: none;
+}
+
+main[class*="max-w-[1600px]"] [role="tab"][data-state="active"] {
+  background: oklch(0.22 0.012 276) !important;
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 18%, transparent) !important;
+}
+
+/* Alerts */
+main[class*="max-w-[1600px]"] > div.panel.border-destructive\/40 {
+  box-shadow: 0 10px 28px -24px var(--destructive);
 }
 
 @media (max-width: 1023px) {
-  main[class*="max-w-[1600px]"] { padding: 0.75rem; }
+  main[class*="max-w-[1600px]"] {
+    padding: 0.7rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+  main[class*="max-w-[1600px"]] * {
+    transition: none !important;
+  }
 }
