@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ChannelBar } from "@/components/ChannelBar";
 import { ChatFeed } from "@/components/ChatFeed";
 import { PlayerPanel } from "@/components/PlayerPanel";
+import { PlayerVelarisBackground } from "@/components/PlayerVelarisBackground";
 import { QueueList } from "@/components/QueueList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,19 +23,12 @@ import type { StageControls } from "@/components/YouTubeStage";
 
 const DEFAULT_CHANNEL = "roceiraplay";
 
-// Nomes usados pra dar uma identidade amigável a cada ouvinte (em vez de
-// "Ouvinte (roce...)" repetido pra todo mundo, que não distinguia ninguém).
 const LISTENER_NAMES = [
   "Foguete", "Cometa", "Nebulosa", "Aurora", "Vulcão", "Tempestade", "Bússola", "Farol",
   "Corvo", "Lince", "Falcão", "Pantera", "Coiote", "Tucano", "Onça", "Coral",
   "Girassol", "Cactos", "Vagalume", "Cristal",
 ];
 
-/**
- * Gera (e persiste no navegador) um nome amigável pra esta aba/pessoa. Fica
- * salvo no localStorage, então continua o mesmo entre recarregamentos da
- * página — cada pessoa mantém seu nome e cor consistentes.
- */
 function getFriendlyListenerName(clientId: string): string {
   const KEY = "musicas-chat-listener-name";
   try {
@@ -56,7 +50,6 @@ function getFriendlyListenerName(clientId: string): string {
   return name;
 }
 
-/** Cor estável do avatar, derivada do clientId — a mesma pessoa sempre com a mesma cor. */
 function colorForClient(clientId: string): string {
   let hash = 0;
   for (const ch of clientId) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
@@ -84,39 +77,19 @@ function PlayerPage() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const playerControlsRef = useRef<StageControls | null>(null);
 
-  // Identidade estável desta aba/cliente, usada para eleger o host.
   const clientIdRef = useRef<string>(crypto.randomUUID());
-  // Guarda o horário de entrada UMA vez — reusado em toda atualização de
-  // presença (ex: quando o nome/foto reais carregam depois), pra não mudar
-  // a ordem de quem é host toda vez que o perfil atualiza.
   const joinedAtRef = useRef<string>(new Date().toISOString());
 
-  // Estados remotos efêmeros (não persistidos), só para reação imediata de play/pause/seek.
   const [remoteSeek, setRemoteSeek] = useState<number | null>(null);
   const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
-
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
-
-  // Estado de play/pause "de verdade" (vindo do PlayerPanel via callback) e
-  // a cor dominante da capa atual — compartilhados com o player, a fila e o
-  // chat, pra os três terem o mesmo "halo" de luz atrás, na mesma cor.
   const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
   const accentColor = useDominantColor(queue.current?.thumbnail);
 
-  // Nome e foto reais da conta (tabela "profiles" — "Nome de exibição" e
-  // avatar configurados em /conta), usados na lista de "quem tá ouvindo
-  // agora" em vez de um nome inventado. Derivados como valores primitivos
-  // (não um objeto novo a cada render) pra não disparar o efeito de
-  // atualização de presença sem necessidade.
   const { data: userProfile } = useProfile();
   const profileName = userProfile?.display_name || null;
   const profileAvatarUrl = userProfile?.avatar_url || null;
 
-  // Host = quem entrou primeiro na sala (desempate por clientId para ser determinístico
-  // e evitar que duas pessoas se considerem host ao mesmo tempo).
-  // Isso controla só o avanço automático da fila quando o vídeo termina — não tem
-  // relação com quem pode usar comandos do chat (isso é checado no kick-chat.ts,
-  // que só aceita comandos vindos do usuário "Pitee4").
   const hostClientId = useMemo(() => {
     if (onlineUsers.length === 0) return null;
     const sorted = [...onlineUsers].sort((a, b) => {
@@ -127,24 +100,12 @@ function PlayerPage() {
   }, [onlineUsers]);
 
   const isHost = hostClientId === clientIdRef.current;
-
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
 
-  // Configurações do site (ex: cooldown do chat) — qualquer pessoa logada
-  // pode editar em /admin, e todo mundo com o site aberto recebe a mudança
-  // em tempo real.
   const { settings } = useAppSettings();
-
-  // Guarda quando foi o último pedido aceito de cada pessoa (por nome de
-  // usuário da Kick, em minúsculas), só na memória desta aba — usado pra
-  // aplicar o cooldown sem precisar bater no banco a cada mensagem.
   const lastRequestByUserRef = useRef<Map<string, number>>(new Map());
 
-  // Estatísticas simples da sessão — derivadas de dados que já temos
-  // carregados (fila + histórico), sem precisar de nenhuma coluna nova no
-  // banco. "Nesta sessão" porque o histórico tem um limite de itens mais
-  // recentes, não representa necessariamente "hoje" inteiro.
   const totalPlayed = queue.history.length;
   const totalRequesters = useMemo(() => {
     const set = new Set<string>();
@@ -171,11 +132,6 @@ function PlayerPage() {
 
     channel
       .on("broadcast", { event: "sync-action" }, ({ payload }) => {
-        // Só o que é efêmero (não vive no banco) precisa de broadcast manual.
-        // Fila e música atual já vêm sincronizadas via postgres_changes dentro
-        // do usePlayerQueue. A posição de playback (heartbeat) agora também
-        // chega por aqui, além de ser gravada no banco, para corrigir o drift
-        // entre players sem depender do round-trip do banco.
         switch (payload.action) {
           case "SEEK":
             setRemoteSeek(payload.time + Math.random() * 0.0001);
@@ -184,9 +140,6 @@ function PlayerPage() {
             setRemotePaused(payload.paused);
             break;
           case "HEARTBEAT":
-            // Correção periódica de drift enviada pelo host a cada poucos
-            // segundos. O PlayerPanel decide se a diferença é grande o
-            // suficiente para valer um seek (ver threshold em PlayerPanel.tsx).
             setRemoteSeek(payload.time + Math.random() * 0.0001);
             break;
         }
@@ -227,10 +180,6 @@ function PlayerPage() {
     };
   }, [slug]);
 
-  // A busca do perfil (react-query) pode terminar DEPOIS do track() inicial
-  // acima (que nesse caso já teria saído com o nome inventado como
-  // fallback). Assim que o nome/avatar chegam, atualiza a presença com os
-  // dados reais — reusando o mesmo joined_at, pra não mexer em quem é host.
   useEffect(() => {
     if (!profileName && !profileAvatarUrl) return;
     if (!channelRef.current) return;
@@ -242,11 +191,6 @@ function PlayerPage() {
     });
   }, [profileName, profileAvatarUrl]);
 
-  // Só o host processa mensagens do chat para adicionar músicas à fila —
-  // evita duplicar quando várias abas estão abertas ao mesmo tempo.
-  // Também aplica o cooldown por pessoa (configurável em /admin): se a
-  // mesma pessoa mandar outro link antes do tempo passar, o pedido é
-  // ignorado silenciosamente (sem banir ninguém, só não adiciona de novo).
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
       if (!isHostRef.current) return;
@@ -257,9 +201,7 @@ function PlayerPage() {
       if (cooldownMs > 0) {
         const usernameKey = message.username.trim().toLowerCase();
         const lastRequestAt = lastRequestByUserRef.current.get(usernameKey) ?? 0;
-        if (Date.now() - lastRequestAt < cooldownMs) {
-          return;
-        }
+        if (Date.now() - lastRequestAt < cooldownMs) return;
         lastRequestByUserRef.current.set(usernameKey, Date.now());
       }
 
@@ -270,14 +212,6 @@ function PlayerPage() {
     [queue, settings.chatCooldownSeconds],
   );
 
-  // Comandos (!skip, !pausar, !limpar, etc.) já chegam filtrados pelo kick-chat.ts,
-  // que só aceita comandos vindos do usuário "Pitee4". Quem pode DIGITAR o
-  // comando no chat não muda (sempre só o Pitee4) — mas antes, toda aba aberta
-  // no site executava o comando de forma independente. Com 2+ pessoas com o
-  // site aberto ao mesmo tempo, um único "!skip" podia disparar duas chamadas
-  // de playNext() quase simultâneas, cada uma lendo a fila local um instante
-  // antes da outra atualizar — resultado: pulava 2 músicas em vez de 1.
-  // Agora só a aba host executa, igual já era feito pros pedidos de música.
   const handleCommand = useCallback(
     (command: string) => {
       if (!isHostRef.current) return;
@@ -320,8 +254,6 @@ function PlayerPage() {
     setManual("");
   }
 
-  // Ações manuais escrevem direto no banco; todo mundo recebe a atualização
-  // automaticamente via postgres_changes (dentro do usePlayerQueue).
   const handlePlayNext = useCallback(() => queue.playNext(), [queue]);
   const handlePlayPrevious = useCallback(() => queue.playPrevious(), [queue]);
   const handlePlayNow = useCallback((id: string) => queue.playNow(id), [queue]);
@@ -332,19 +264,12 @@ function PlayerPage() {
     [queue],
   );
 
-  // Play/pause/seek continuam sendo "watch party": qualquer um pode controlar para todos,
-  // com efeito imediato via broadcast (não precisa esperar o banco).
   const handleSeekBroadcast = useCallback((time: number) => broadcast("SEEK", { time }), [broadcast]);
   const handleTogglePlayBroadcast = useCallback(
     (paused: boolean) => broadcast("TOGGLE_PLAY", { paused }),
     [broadcast],
   );
 
-  // Só o host grava o heartbeat no banco (para quem entrar depois calcular a
-  // posição, e para o cron job do servidor saber quando avançar a fila
-  // sozinho — ver advance_player_queue no Supabase) E manda um broadcast em
-  // tempo real (para corrigir o drift de quem já está na sala, sem esperar
-  // o próximo postgres_changes).
   const handlePlaybackHeartbeat = useCallback(
     (position: number, paused: boolean, duration?: number) => {
       if (!queue.current) return;
@@ -355,156 +280,124 @@ function PlayerPage() {
   );
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
-      <h1 className="sr-only">Player de músicas do chat da Kick</h1>
+    <div className="relative min-h-screen">
+      <PlayerVelarisBackground current={queue.current} />
+      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
+        <h1 className="sr-only">Player de músicas do chat da Kick</h1>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex-1">
-          <ChannelBar
-            slug={slug}
-            status={chat.status}
-            channel={chat.channel}
-            onChangeChannel={setSlug}
-            onReconnect={chat.reconnect}
-          />
-        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex-1">
+            <ChannelBar
+              slug={slug}
+              status={chat.status}
+              channel={chat.channel}
+              onChangeChannel={setSlug}
+              onReconnect={chat.reconnect}
+            />
+          </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          {totalPlayed > 0 && (
-            <span
-              className="hidden items-center gap-1.5 rounded-full border border-border bg-card/50 px-2.5 py-1 text-[11px] text-muted-foreground backdrop-blur-sm sm:inline-flex"
-              title="Estatísticas desta sessão (músicas mais recentes carregadas)"
-            >
-              🎵 {totalPlayed} tocada{totalPlayed === 1 ? "" : "s"} · {totalRequesters} pedindo
-            </span>
-          )}
-          {isHost && (
-            <span
-              className="inline-flex items-center gap-1 rounded-full border border-vip/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-vip"
-              title="Você está monitorando o chat da Kick e controlando o avanço automático da fila"
-            >
-              <Crown className="size-3" aria-hidden />
-              Host
-            </span>
-          )}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 bg-card/50 backdrop-blur-sm">
-                <span className="relative flex size-2">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
-                </span>
-                <Users className="size-4 text-muted-foreground" />
-                <span className="text-xs font-medium">{onlineUsers.length} online</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-3" align="end">
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Pessoas ouvindo agora ({onlineUsers.length})
-                </h4>
-                <div className="max-h-48 overflow-y-auto space-y-1.5">
-                  {onlineUsers.map((user, idx) => (
-                    <div
-                      key={user.presence_ref || idx}
-                      className="flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted/50"
-                    >
-                      {user.avatarUrl ? (
-                        <img
-                          src={user.avatarUrl}
-                          alt=""
-                          className="size-5 shrink-0 rounded-full object-cover"
-                        />
-                      ) : (
-                        <span
-                          className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                          style={{ backgroundColor: colorForClient(user.clientId) }}
-                          aria-hidden
-                        >
-                          {user.username.replace("Ouvinte ", "").charAt(0)}
-                        </span>
-                      )}
-                      <span className="truncate font-medium">{user.username}</span>
-                      {user.clientId === hostClientId && (
-                        <Crown className="size-3 shrink-0 text-vip" aria-hidden />
-                      )}
-                    </div>
-                  ))}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {totalPlayed > 0 && (
+              <span
+                className="hidden items-center gap-1.5 rounded-full border border-border bg-card/50 px-2.5 py-1 text-[11px] text-muted-foreground backdrop-blur-sm sm:inline-flex"
+                title="Estatísticas desta sessão (músicas mais recentes carregadas)"
+              >
+                🎵 {totalPlayed} tocada{totalPlayed === 1 ? "" : "s"} · {totalRequesters} pedindo
+              </span>
+            )}
+            {isHost && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-vip/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-vip"
+                title="Você está monitorando o chat da Kick e controlando o avanço automático da fila"
+              >
+                <Crown className="size-3" aria-hidden />
+                Host
+              </span>
+            )}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 bg-card/50 backdrop-blur-sm">
+                  <span className="relative flex size-2">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
+                  </span>
+                  <Users className="size-4 text-muted-foreground" />
+                  <span className="text-xs font-medium">{onlineUsers.length} online</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-3" align="end">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Pessoas ouvindo agora ({onlineUsers.length})
+                  </h4>
+                  <div className="max-h-48 overflow-y-auto space-y-1.5">
+                    {onlineUsers.map((user, idx) => (
+                      <div
+                        key={user.presence_ref || idx}
+                        className="flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted/50"
+                      >
+                        {user.avatarUrl ? (
+                          <img src={user.avatarUrl} alt="" className="size-5 shrink-0 rounded-full object-cover" />
+                        ) : (
+                          <span
+                            className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                            style={{ backgroundColor: colorForClient(user.clientId) }}
+                            aria-hidden
+                          >
+                            {user.username.replace("Ouvinte ", "").charAt(0)}
+                          </span>
+                        )}
+                        <span className="truncate font-medium">{user.username}</span>
+                        {user.clientId === hostClientId && <Crown className="size-3 shrink-0 text-vip" aria-hidden />}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-      </div>
 
-      {chat.error && (
-        <div className="panel flex items-center gap-3 border-destructive/40 px-4 py-3 text-sm">
-          <AlertTriangle className="size-4 shrink-0 text-destructive" aria-hidden />
-          <span className="text-muted-foreground">{chat.error}</span>
-        </div>
-      )}
+        {chat.error && (
+          <div className="panel flex items-center gap-3 border-destructive/40 px-4 py-3 text-sm">
+            <AlertTriangle className="size-4 shrink-0 text-destructive" aria-hidden />
+            <span className="text-muted-foreground">{chat.error}</span>
+          </div>
+        )}
 
-      <form onSubmit={handleManualAdd} className="panel flex items-center gap-2 px-3 py-2">
-        <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-        <Input
-          value={manual}
-          onChange={(event) => setManual(event.target.value)}
-          placeholder="Link ou ID do YouTube"
-          aria-label="Adicionar música manualmente"
-          className="h-8 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
-        />
-        <Button type="submit" size="sm" className="bg-gradient-primary h-8 px-3 text-primary-foreground">
-          Tocar
-        </Button>
-      </form>
-
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)_minmax(280px,0.9fr)]">
-        <PlayerPanel
-          current={queue.current}
-          next={queue.queue[0] ?? null}
-          hasPrevious={queue.history.length > 0}
-          hasNext={queue.queue.length > 0}
-          isHost={isHost}
-          onNext={handlePlayNext}
-          onPrevious={handlePlayPrevious}
-          remoteSeek={remoteSeek}
-          remotePaused={remotePaused}
-          onSeekChange={handleSeekBroadcast}
-          onTogglePlayChange={handleTogglePlayBroadcast}
-          onPlaybackHeartbeat={handlePlaybackHeartbeat}
-          onPlayingStateChange={setIsCurrentlyPlaying}
-          controlsRef={playerControlsRef}
-        />
-
-        <div className="hidden min-h-[420px] flex-col lg:flex">
-          <QueueList
-            items={queue.queue}
-            history={queue.history}
-            onPlayNow={handlePlayNow}
-            onRemove={handleRemoveItem}
-            onClear={handleClearQueue}
-            onMove={handleMoveItem}
-            accentColor={accentColor}
-            isPlaying={isCurrentlyPlaying}
+        <form onSubmit={handleManualAdd} className="panel flex items-center gap-2 px-3 py-2">
+          <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <Input
+            value={manual}
+            onChange={(event) => setManual(event.target.value)}
+            placeholder="Link ou ID do YouTube"
+            aria-label="Adicionar música manualmente"
+            className="h-8 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
           />
-        </div>
+          <Button type="submit" size="sm" className="bg-gradient-primary h-8 px-3 text-primary-foreground">
+            Tocar
+          </Button>
+        </form>
 
-        <div className="hidden min-h-[420px] flex-col lg:flex">
-          <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} />
-        </div>
+        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)_minmax(280px,0.9fr)]">
+          <PlayerPanel
+            current={queue.current}
+            next={queue.queue[0] ?? null}
+            hasPrevious={queue.history.length > 0}
+            hasNext={queue.queue.length > 0}
+            isHost={isHost}
+            onNext={handlePlayNext}
+            onPrevious={handlePlayPrevious}
+            remoteSeek={remoteSeek}
+            remotePaused={remotePaused}
+            onSeekChange={handleSeekBroadcast}
+            onTogglePlayChange={handleTogglePlayBroadcast}
+            onPlaybackHeartbeat={handlePlaybackHeartbeat}
+            onPlayingStateChange={setIsCurrentlyPlaying}
+            controlsRef={playerControlsRef}
+          />
 
-        <Tabs defaultValue="fila" className="flex min-h-[420px] flex-col lg:hidden">
-          <TabsList className="w-full">
-            <TabsTrigger value="fila" className="flex-1 gap-1.5">
-              <ListMusic className="size-4" aria-hidden />
-              Fila ({queue.queue.length})
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="flex-1 gap-1.5">
-              <MessageSquare className="size-4" aria-hidden />
-              Chat
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="fila" className="mt-3 flex min-h-0 flex-1 flex-col">
+          <div className="hidden min-h-[420px] flex-col lg:flex">
             <QueueList
               items={queue.queue}
               history={queue.history}
@@ -515,12 +408,41 @@ function PlayerPage() {
               accentColor={accentColor}
               isPlaying={isCurrentlyPlaying}
             />
-          </TabsContent>
-          <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
+          </div>
+
+          <div className="hidden min-h-[420px] flex-col lg:flex">
             <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </main>
+          </div>
+
+          <Tabs defaultValue="fila" className="flex min-h-[420px] flex-col lg:hidden">
+            <TabsList className="w-full">
+              <TabsTrigger value="fila" className="flex-1 gap-1.5">
+                <ListMusic className="size-4" aria-hidden />
+                Fila ({queue.queue.length})
+              </TabsTrigger>
+              <TabsTrigger value="chat" className="flex-1 gap-1.5">
+                <MessageSquare className="size-4" aria-hidden />
+                Chat
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="fila" className="mt-3 flex min-h-0 flex-1 flex-col">
+              <QueueList
+                items={queue.queue}
+                history={queue.history}
+                onPlayNow={handlePlayNow}
+                onRemove={handleRemoveItem}
+                onClear={handleClearQueue}
+                onMove={handleMoveItem}
+                accentColor={accentColor}
+                isPlaying={isCurrentlyPlaying}
+              />
+            </TabsContent>
+            <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
+              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </main>
+    </div>
   );
 }
