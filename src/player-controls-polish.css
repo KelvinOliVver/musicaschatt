@@ -4,8 +4,8 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
   --control-surface: #171620;
   --control-surface-hover: #211f2b;
   --control-border: #343142;
-  --control-track: #3b3847;
-  --control-range: #8f67e8;
+  --control-track: #403b4d;
+  --control-range: #9a70ee;
 }
 
 /* Separate the controls visually from the dark player panel. */
@@ -24,7 +24,7 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel > div:
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel > div:last-child {
-  border-top: 1px solid color-mix(in oklab, var(--border) 82%, white 4%);
+  border-top: 1px solid #2a2635;
   padding-top: 0.85rem;
 }
 
@@ -43,15 +43,15 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-range] {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #7652cf, var(--control-range)) !important;
-  box-shadow: 0 0 10px -6px #9a76ed;
+  background: linear-gradient(90deg, #7d58cf, var(--control-range)) !important;
+  box-shadow: 0 0 10px -6px rgb(154 118 237 / 0.72);
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-thumb] {
   width: 13px !important;
   height: 13px !important;
-  border: 2px solid #a78be9 !important;
-  background: #252230 !important;
+  border: 2px solid #a88be7 !important;
+  background: #272430 !important;
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.48), 0 0 0 0 rgb(143 103 232 / 0.18);
   transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
@@ -59,7 +59,7 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-root]:hover [data-radix-slider-thumb],
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel [data-radix-slider-root]:focus-within [data-radix-slider-thumb] {
   transform: scale(1.12);
-  border-color: #b89df1 !important;
+  border-color: #b79ef0 !important;
   box-shadow: 0 3px 10px rgb(0 0 0 / 0.5), 0 0 0 4px rgb(143 103 232 / 0.12);
 }
 
@@ -75,9 +75,9 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button
   width: 48px !important;
   height: 48px !important;
   border-radius: 999px;
-  background: linear-gradient(145deg, #9f78ef, #815bd5) !important;
+  background: linear-gradient(145deg, #a882f0, #875edb) !important;
   color: #fff !important;
-  border: 1px solid rgb(190 164 246 / 0.42) !important;
+  border: 1px solid rgb(199 177 246 / 0.5) !important;
   box-shadow: 0 10px 22px -14px rgb(143 103 232 / 0.78), inset 0 1px 0 rgb(255 255 255 / 0.16);
 }
 
@@ -100,17 +100,17 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button
   width: 40px !important;
   height: 40px !important;
   border-radius: 999px;
-  background: #23212c !important;
-  border: 1px solid #3a3648 !important;
-  color: #c8c2d2 !important;
+  background: #282532 !important;
+  border: 1px solid #433d50 !important;
+  color: #cbc4d7 !important;
   box-shadow: 0 5px 14px -11px rgb(0 0 0 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.045);
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="anterior" i]:hover,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="próxima" i]:hover,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="próximo" i]:hover {
-  background: #2c2938 !important;
-  border-color: #554b70 !important;
+  background: #302c3c !important;
+  border-color: #5a4f78 !important;
   color: #f0edf5 !important;
   transform: translateY(-1px);
 }
@@ -121,16 +121,16 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button
   width: 32px !important;
   height: 32px !important;
   border-radius: 999px;
-  background: #20202a !important;
-  border: 1px solid #363342 !important;
-  color: #beb8c8 !important;
+  background: #24222d !important;
+  border: 1px solid #3d3849 !important;
+  color: #c1bacb !important;
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="volume" i]:hover,
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button[aria-label*="mudo" i]:hover {
-  background: #2a2834 !important;
-  border-color: #4b4360 !important;
-  color: #eeeaf5 !important;
+  background: #2e2a3a !important;
+  border-color: #554a6c !important;
+  color: #f0edf5 !important;
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button:focus-visible,
