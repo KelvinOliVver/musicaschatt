@@ -327,3 +327,121 @@ main[class*="max-w-[1600px]"] .pulse-dot {
     transform: none !important;
   }
 }
+
+/* Site-wide violet identity: vivid enough to read as purple, restrained enough to stay premium. */
+:root,
+.dark {
+  --background: oklch(0.105 0.010 282);
+  --foreground: oklch(0.955 0.006 285);
+  --surface: oklch(0.145 0.014 282);
+  --surface-raised: oklch(0.185 0.018 282);
+  --card: oklch(0.145 0.014 282);
+  --card-foreground: oklch(0.955 0.006 285);
+  --popover: oklch(0.17 0.016 282);
+  --popover-foreground: oklch(0.955 0.006 285);
+  --primary: oklch(0.70 0.145 292);
+  --primary-foreground: oklch(0.13 0.022 285);
+  --secondary: oklch(0.205 0.018 282);
+  --secondary-foreground: oklch(0.93 0.008 285);
+  --muted: oklch(0.19 0.014 282);
+  --muted-foreground: oklch(0.67 0.018 282);
+  --accent: oklch(0.245 0.028 292);
+  --accent-foreground: oklch(0.96 0.006 285);
+  --border: oklch(0.30 0.018 282);
+  --input: oklch(0.255 0.016 282);
+  --ring: oklch(0.72 0.15 292);
+  --online: oklch(0.72 0.15 292);
+  --offline: oklch(0.55 0.014 282);
+  --gradient-stage:
+    radial-gradient(900px 560px at 12% -10%, oklch(0.48 0.16 292 / 0.13), transparent 67%),
+    radial-gradient(780px 520px at 100% 100%, oklch(0.40 0.12 315 / 0.10), transparent 72%),
+    linear-gradient(180deg, oklch(0.125 0.012 282), oklch(0.092 0.008 282));
+}
+
+/* Shared surfaces across the entire application use the same violet depth language. */
+.panel,
+header.panel,
+form.panel,
+[role="dialog"],
+[role="menu"],
+[data-radix-popper-content-wrapper] > * {
+  border-color: color-mix(in oklab, var(--border) 88%, var(--primary) 12%) !important;
+  box-shadow:
+    0 18px 42px -30px oklch(0 0 0 / 0.94),
+    0 1px 0 oklch(1 0 0 / 0.035) inset !important;
+}
+
+/* Violet tint is strongest where it helps orientation: header, controls, tabs and active states. */
+header.panel,
+form.panel {
+  background:
+    linear-gradient(180deg, oklch(0.19 0.022 292 / 0.74), oklch(0.145 0.014 282 / 0.92)) !important;
+  backdrop-filter: blur(12px) saturate(112%);
+  -webkit-backdrop-filter: blur(12px) saturate(112%);
+}
+
+button.bg-primary,
+button[class*="bg-primary"],
+.bg-gradient-primary {
+  background: linear-gradient(135deg, oklch(0.72 0.15 292), oklch(0.64 0.13 315)) !important;
+  color: oklch(0.985 0.004 285) !important;
+  border-color: color-mix(in oklab, var(--primary) 60%, transparent) !important;
+}
+
+button.bg-primary:hover:not(:disabled),
+button[class*="bg-primary"]:hover:not(:disabled),
+.bg-gradient-primary:hover {
+  filter: brightness(1.055) saturate(1.05);
+}
+
+[role="tablist"] {
+  border-color: color-mix(in oklab, var(--border) 72%, var(--primary) 28%) !important;
+  background: oklch(0.14 0.014 282 / 0.86) !important;
+  backdrop-filter: blur(12px) saturate(110%);
+  -webkit-backdrop-filter: blur(12px) saturate(110%);
+}
+
+[role="tab"][data-state="active"] {
+  background: oklch(0.25 0.032 292) !important;
+  box-shadow:
+    inset 0 0 0 1px oklch(0.68 0.13 292 / 0.30),
+    0 8px 22px -18px oklch(0.60 0.16 292 / 0.75) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: oklch(0.62 0.12 292 / 0.78) !important;
+  box-shadow:
+    0 0 0 2px oklch(0.65 0.13 292 / 0.12),
+    0 10px 24px -20px oklch(0.58 0.15 292 / 0.58) !important;
+}
+
+/* Keep media branding recognizable, while the surrounding interface remains purple. */
+.text-youtube,
+.text-red-500,
+.text-red-600 {
+  color: var(--youtube);
+}
+
+/* Site-wide background accents without changing component structure. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(520px 360px at 18% 12%, oklch(0.50 0.16 292 / 0.07), transparent 72%),
+    radial-gradient(480px 330px at 86% 78%, oklch(0.44 0.13 315 / 0.05), transparent 74%);
+}
+
+@media (max-width: 720px) {
+  header.panel,
+  form.panel,
+  [role="dialog"],
+  [role="menu"] {
+    backdrop-filter: blur(8px) saturate(106%);
+    -webkit-backdrop-filter: blur(8px) saturate(106%);
+  }
+}
