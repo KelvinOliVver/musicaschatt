@@ -223,9 +223,13 @@ function PlayerPage() {
         queue.playPrevious();
         toast.info("Voltando para a música anterior pelo chat!");
       } else if (command === "!pausar") {
+        // O remetente não depende de receber o próprio broadcast para pausar.
+        // Atualizamos o estado local imediatamente e sincronizamos os demais clientes.
+        setRemotePaused(true);
         broadcast("TOGGLE_PLAY", { paused: true });
         toast.info("Pausado pelo comando do chat!");
       } else if (command === "!continuar") {
+        setRemotePaused(false);
         broadcast("TOGGLE_PLAY", { paused: false });
         toast.info("Retomado pelo comando do chat!");
       } else if (command === "!limpar") {
