@@ -3,23 +3,32 @@ import { getKickChannelInfo } from "./kick.functions";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatStatus, KickChannelInfo, KickChatMessage } from "./types";
 
-/** Public Pusher app key used by kick.com's own web chat. */
+/** Legacy public Pusher endpoint. Kept as a fallback for channels/environments where it still works. */
 const KICK_PUSHER_KEY = "32cbd69e4b950bf97679";
 const KICK_PUSHER_URL = `wss://ws-us2.pusher.com/app/${KICK_PUSHER_KEY}?protocol=7&client=js&version=8.4.0&flash=false`;
+const KICK_VIEWER_TOKEN_URL = "https://websockets.kick.com/viewer/v1/token";
+const KICK_VIEWER_SOCKET_URL = "wss://websockets.kick.com/viewer/v1/connect?token=";
+const KICK_CLIENT_TOKEN = "e1393935a959b4020a4491574f6490129f678acdaa92760471263db43487f823";
 const CHAT_EVENT = "App\\Events\\ChatMessageEvent";
 const MAX_MESSAGES = 120;
 
 interface PusherEnvelope {
   event?: string;
-  data?: string;
+  data?: string | Record<string, unknown>;
   channel?: string;
+  type?: string;
 }
 
 interface KickChatPayload {
   id?: string;
   content?: string;
+  message?: string;
   created_at?: string;
   sender?: {
+    username?: string;
+    identity?: { color?: string };
+  };
+  user?: {
     username?: string;
     identity?: { color?: string };
   };
@@ -96,10 +105,68 @@ async function loadChatHistory(channelSlug: string): Promise<KickChatMessage[]> 
   } as KickChatMessage));
 }
 
+async function fetchKickViewerToken(): Promise<string | null> {
+  try {
+    // Kick's current viewer gateway uses a short-lived, single-use token.
+    // This is best-effort: if the browser cannot access the token endpoint,
+    // the legacy Pusher connection below remains available as a fallback.
+    await fetch("https://kick.com/", {
+      method: "GET",
+      headers: { Accept: "text/html,application/xhtml+xml" },
+      credentials: "include",
+      cache: "no-store",
+    }).catch(() => undefined);
+
+    const response = await fetch(KICK_VIEWER_TOKEN_URL, {
+      method: "GET",
+      headers: {
+        Accept: "application/json, text/plain, */*",
+        "X-CLIENT-TOKEN": KICK_CLIENT_TOKEN,
+        Referer: "https://kick.com/",
+      },
+      credentials: "include",
+      cache: "no-store",
+    });
+
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { data?: { token?: string } };
+    return payload.data?.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function parseEnvelopeData(data: PusherEnvelope["data"]): KickChatPayload | null {
+  if (!data) return null;
+
+  try {
+    if (typeof data === "string") return JSON.parse(data) as KickChatPayload;
+    return data as KickChatPayload;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeChatPayload(payload: KickChatPayload): {
+  content: string;
+  username: string;
+  color: string | null;
+} | null {
+  const content = (payload.content ?? payload.message ?? "").trim();
+  const username = (payload.sender?.username ?? payload.user?.username ?? "").trim();
+  if (!content) return null;
+
+  return {
+    content,
+    username,
+    color: payload.sender?.identity?.color ?? payload.user?.identity?.color ?? null,
+  };
+}
+
 /**
- * Connects to a Kick channel's public chat over the Pusher WebSocket protocol
- * and streams incoming messages. Reconnects automatically with backoff.
- * Recent chat history is persisted in Supabase and restored after refresh.
+ * Connects to a Kick channel's public chat and streams incoming messages.
+ * Kick changed its realtime transport in 2026, so the current viewer gateway
+ * is attempted first and the old Pusher endpoint is retained as a fallback.
  */
 export function useKickChat(
   slug: string,
@@ -130,6 +197,7 @@ export function useKickChat(
     let disposed = false;
     let socket: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let pingTimer: ReturnType<typeof setInterval> | undefined;
     let retries = 0;
 
     setMessages([]);
@@ -142,20 +210,147 @@ export function useKickChat(
       setMessages((current) => mergeMessages(current, history));
     });
 
-    const openSocket = (info: KickChannelInfo) => {
+    const handleChatPayload = (payload: KickChatPayload) => {
+      const normalizedPayload = normalizeChatPayload(payload);
+      if (!normalizedPayload) return;
+
+      const { content, username, color } = normalizedPayload;
+      const cleanUsername = username.toLowerCase();
+      const commandText = content.trim().toLowerCase();
+
+      if (cleanUsername === "pitee4") {
+        const commandAliases: Record<string, string> = {
+          "!next": "!proxima",
+          "!pular": "!proxima",
+          "!prev": "!anterior",
+          "!previous": "!anterior",
+          "!voltar": "!anterior",
+          "!pause": "!pausar",
+          "!parar": "!pausar",
+          "!resume": "!continuar",
+          "!play": "!continuar",
+          "!retomar": "!continuar",
+          "!clear": "!limpar",
+          "!limparfila": "!limpar",
+        };
+
+        const canonicalCommand = commandAliases[commandText] ?? commandText;
+        const supportedCommands = new Set([
+          "!skip",
+          "!proxima",
+          "!back",
+          "!anterior",
+          "!pausar",
+          "!continuar",
+          "!limpar",
+        ]);
+
+        if (supportedCommands.has(canonicalCommand)) {
+          const commandMessage: KickChatMessage = {
+            id: payload.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            username: username || "Pitee4",
+            color,
+            content: canonicalCommand,
+            createdAt: payload.created_at ?? new Date().toISOString(),
+            kind: "command",
+          };
+
+          setMessages((current) => mergeMessages(current, [commandMessage]));
+          persistMessage(commandMessage, normalized);
+          onCommandRef.current?.(canonicalCommand, username || "Pitee4");
+          return;
+        }
+      }
+
+      const message: KickChatMessage = {
+        id: payload.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        username: username || "desconhecido",
+        color,
+        content,
+        createdAt: payload.created_at ?? new Date().toISOString(),
+        kind: "message",
+      };
+
+      setMessages((current) => mergeMessages(current, [message]));
+      persistMessage(message, normalized);
+      onMessageRef.current?.(message);
+    };
+
+    const openSocket = (info: KickChannelInfo, useCurrentGateway: boolean) => {
       if (disposed) return;
       setStatus(retries === 0 ? "connecting" : "reconnecting");
+
+      if (useCurrentGateway) {
+        void fetchKickViewerToken().then((token) => {
+          if (disposed) return;
+          if (!token) {
+            openSocket(info, false);
+            return;
+          }
+
+          const ws = new WebSocket(`${KICK_VIEWER_SOCKET_URL}${encodeURIComponent(token)}`);
+          socket = ws;
+
+          ws.onopen = () => {
+            ws.send(JSON.stringify({
+              event: "pusher:subscribe",
+              data: { auth: "", channel: `chatrooms.${info.chatroomId}.v2` },
+            }));
+            ws.send(JSON.stringify({
+              type: "channel_handshake",
+              data: { message: { channelId: info.channelId } },
+            }));
+
+            pingTimer = setInterval(() => {
+              if (ws.readyState !== WebSocket.OPEN) return;
+              ws.send(JSON.stringify({ event: "pusher:ping", data: {} }));
+            }, 20000);
+          };
+
+          ws.onmessage = (event) => {
+            let envelope: PusherEnvelope;
+            try {
+              envelope = JSON.parse(String(event.data)) as PusherEnvelope;
+            } catch {
+              return;
+            }
+
+            if (envelope.event === "pusher:connection_established") return;
+            if (envelope.event === "pusher_internal:subscription_succeeded") {
+              retries = 0;
+              setStatus("connected");
+              return;
+            }
+            if (envelope.event !== CHAT_EVENT) return;
+
+            const payload = parseEnvelopeData(envelope.data);
+            if (payload) handleChatPayload(payload);
+          };
+
+          ws.onerror = () => {
+            if (!disposed) setStatus("reconnecting");
+          };
+
+          ws.onclose = () => {
+            if (disposed) return;
+            if (pingTimer) clearInterval(pingTimer);
+            pingTimer = undefined;
+            setStatus("reconnecting");
+            retries += 1;
+            retryTimer = setTimeout(() => openSocket(info, true), Math.min(1000 * 2 ** Math.min(retries, 5), 20000));
+          };
+        });
+        return;
+      }
 
       const ws = new WebSocket(KICK_PUSHER_URL);
       socket = ws;
 
       ws.onopen = () => {
-        ws.send(
-          JSON.stringify({
-            event: "pusher:subscribe",
-            data: { auth: "", channel: `chatrooms.${info.chatroomId}.v2` },
-          }),
-        );
+        ws.send(JSON.stringify({
+          event: "pusher:subscribe",
+          data: { auth: "", channel: `chatrooms.${info.chatroomId}.v2` },
+        }));
       };
 
       ws.onmessage = (event) => {
@@ -172,78 +367,10 @@ export function useKickChat(
           setStatus("connected");
           return;
         }
-        if (envelope.event !== CHAT_EVENT || !envelope.data) return;
+        if (envelope.event !== CHAT_EVENT) return;
 
-        let payload: KickChatPayload;
-        try {
-          payload = JSON.parse(envelope.data) as KickChatPayload;
-        } catch {
-          return;
-        }
-
-        const content = payload.content?.trim() ?? "";
-        const username = payload.sender?.username ?? "";
-        if (!content) return;
-
-        const cleanUsername = username.trim().toLowerCase();
-
-        if (cleanUsername === "pitee4") {
-          const lowerContent = content.toLowerCase();
-          const commandAliases: Record<string, string> = {
-            "!next": "!proxima",
-            "!pular": "!proxima",
-            "!prev": "!anterior",
-            "!previous": "!anterior",
-            "!voltar": "!anterior",
-            "!pause": "!pausar",
-            "!parar": "!pausar",
-            "!resume": "!continuar",
-            "!play": "!continuar",
-            "!retomar": "!continuar",
-            "!clear": "!limpar",
-            "!limparfila": "!limpar",
-          };
-
-          const canonicalCommand = commandAliases[lowerContent] ?? lowerContent;
-          const supportedCommands = new Set([
-            "!skip",
-            "!proxima",
-            "!back",
-            "!anterior",
-            "!pausar",
-            "!continuar",
-            "!limpar",
-          ]);
-
-          if (supportedCommands.has(canonicalCommand)) {
-            const commandMessage: KickChatMessage = {
-              id: payload.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-              username: username || "Pitee4",
-              color: payload.sender?.identity?.color ?? null,
-              content: canonicalCommand,
-              createdAt: payload.created_at ?? new Date().toISOString(),
-              kind: "command",
-            };
-
-            setMessages((current) => mergeMessages(current, [commandMessage]));
-            persistMessage(commandMessage, normalized);
-            onCommandRef.current?.(canonicalCommand, username);
-            return;
-          }
-        }
-
-        const message: KickChatMessage = {
-          id: payload.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          username: username || "desconhecido",
-          color: payload.sender?.identity?.color ?? null,
-          content,
-          createdAt: payload.created_at ?? new Date().toISOString(),
-          kind: "message",
-        };
-
-        setMessages((current) => mergeMessages(current, [message]));
-        persistMessage(message, normalized);
-        onMessageRef.current?.(message);
+        const payload = parseEnvelopeData(envelope.data);
+        if (payload) handleChatPayload(payload);
       };
 
       ws.onerror = () => {
@@ -254,8 +381,7 @@ export function useKickChat(
         if (disposed) return;
         setStatus("reconnecting");
         retries += 1;
-        const delay = Math.min(1000 * 2 ** Math.min(retries, 5), 20000);
-        retryTimer = setTimeout(() => openSocket(info), delay);
+        retryTimer = setTimeout(() => openSocket(info, true), Math.min(1000 * 2 ** Math.min(retries, 5), 20000));
       };
     };
 
@@ -263,7 +389,7 @@ export function useKickChat(
       .then((info) => {
         if (disposed) return;
         setChannel(info);
-        openSocket(info);
+        openSocket(info, true);
       })
       .catch((cause: unknown) => {
         if (disposed) return;
@@ -274,6 +400,7 @@ export function useKickChat(
     return () => {
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
+      if (pingTimer) clearInterval(pingTimer);
       if (socket) {
         socket.onclose = null;
         socket.onerror = null;
