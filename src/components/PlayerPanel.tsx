@@ -305,9 +305,9 @@ export function PlayerPanel({
           </div>
 
           <div className="flex items-center gap-3.5 py-0.5">
-            <span className="w-10 shrink-0 text-xs tabular-nums text-muted-foreground">{formatTime(shown)}</span>
-            <Slider className="progress-slider" value={[Math.min(shown, progress.duration || 0)]} max={progress.duration || 100} step={1} disabled={!current || progress.duration <= 0} onValueChange={([value]) => setScrubbing(value ?? 0)} onValueCommit={([value]) => { const targetTime = value ?? 0; controlsRef.current?.seekTo(targetTime); setScrubbing(null); onSeekChange?.(targetTime); }} aria-label="Progresso da música" />
-            <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{formatTime(progress.duration)}</span>
+            <span className="player-time-readout w-10 shrink-0 text-xs tabular-nums">{formatTime(shown)}</span>
+            <Slider className="progress-slider text-primary" value={[Math.min(shown, progress.duration || 0)]} max={progress.duration || 100} step={1} disabled={!current || progress.duration <= 0} onValueChange={([value]) => setScrubbing(value ?? 0)} onValueCommit={([value]) => { const targetTime = value ?? 0; controlsRef.current?.seekTo(targetTime); setScrubbing(null); onSeekChange?.(targetTime); }} aria-label="Progresso da música" />
+            <span className="player-time-readout w-10 shrink-0 text-right text-xs tabular-nums">{formatTime(progress.duration)}</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-5">
@@ -319,8 +319,8 @@ export function PlayerPanel({
 
             <div className="flex min-w-40 flex-1 items-center gap-3">
               <Button size="icon" variant="ghost" className="size-8 shrink-0 rounded-full transition-colors duration-200 hover:bg-white/[0.05]" onClick={() => setMuted((value) => !value)} aria-label={muted ? "Tirar do mudo" : "Deixar mudo"}>{muted ? <VolumeX className="size-4 text-muted-foreground" aria-hidden /> : <Volume2 className="size-4 text-muted-foreground" aria-hidden />}</Button>
-              <Slider value={[muted ? 0 : volume]} onValueChange={([value]) => { const newVol = value ?? 0; setVolume(newVol); if (newVol > 0) setMuted(false); onVolumeChange?.(newVol); }} max={100} step={1} aria-label="Volume" />
-              <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{muted ? 0 : volume}</span>
+              <Slider className="volume-slider text-primary" value={[muted ? 0 : volume]} onValueChange={([value]) => { const newVol = value ?? 0; setVolume(newVol); if (newVol > 0) setMuted(false); onVolumeChange?.(newVol); }} max={100} step={1} aria-label="Volume" />
+              <span className="volume-readout w-8 shrink-0 text-right text-xs tabular-nums">{muted ? 0 : volume}</span>
             </div>
           </div>
 
