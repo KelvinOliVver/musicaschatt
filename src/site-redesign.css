@@ -445,3 +445,28 @@ body::before {
     -webkit-backdrop-filter: blur(8px) saturate(106%);
   }
 }
+
+
+/* Player controls: progress, volume and readouts share the Play button violet. */
+main[class*="max-w-[1600px]"] .progress-slider [data-radix-slider-track],
+main[class*="max-w-[1600px]"] .volume-slider [data-radix-slider-track] {
+  background: oklch(0.24 0.04 292 / 0.72) !important;
+}
+main[class*="max-w-[1600px]"] .progress-slider [data-radix-slider-range],
+main[class*="max-w-[1600px]"] .volume-slider [data-radix-slider-range] {
+  background: oklch(0.68 0.14 292) !important;
+}
+main[class*="max-w-[1600px]"] .progress-slider [data-radix-slider-thumb],
+main[class*="max-w-[1600px]"] .volume-slider [data-radix-slider-thumb] {
+  border-color: oklch(0.72 0.15 292 / 0.72) !important;
+  background: oklch(0.14 0.018 282) !important;
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 292 / 0.12) !important;
+}
+main[class*="max-w-[1600px]"] .progress-slider:hover [data-radix-slider-range],
+main[class*="max-w-[1600px]"] .volume-slider:hover [data-radix-slider-range] {
+  background: oklch(0.73 0.15 292) !important;
+}
+main[class*="max-w-[1600px]"] .player-time-readout,
+main[class*="max-w-[1600px]"] .volume-readout {
+  color: oklch(0.72 0.15 292) !important;
+}
