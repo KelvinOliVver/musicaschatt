@@ -76,14 +76,14 @@ export function ChannelBar({
         <div
           className={cn(
             "flex h-8 items-center gap-2 rounded-full border px-2.5 text-xs transition-colors",
-            status === "connected" && "border-online/30 bg-online/5 text-foreground",
+            status === "connected" && "border-primary/35 bg-primary/5 text-foreground",
             status === "error" && "border-destructive/30 bg-destructive/5 text-destructive",
             status !== "connected" && status !== "error" && "border-border bg-muted/30 text-muted-foreground",
           )}
           title={channel ? `Canal: ${channel.displayName}` : STATUS_LABEL[status]}
         >
           {status === "connected" ? (
-            <Check className="size-3.5 text-online" aria-hidden />
+            <Check className="size-3.5 text-primary" aria-hidden />
           ) : status === "error" ? (
             <WifiOff className="size-3.5" aria-hidden />
           ) : (
