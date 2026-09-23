@@ -160,9 +160,9 @@ main[class*="max-w-[1600px]"] > div.grid > div:first-child > div {
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel {
   position: relative;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--surface-raised) 20%, transparent), transparent 30%),
-    var(--surface);
+  background: color-mix(in oklab, var(--surface) 62%, transparent) !important;
+  backdrop-filter: blur(18px) saturate(112%);
+  -webkit-backdrop-filter: blur(18px) saturate(112%);
 }
 
 main[class*="max-w-[1600px]"] > div.grid > div:first-child > div > .panel button {
