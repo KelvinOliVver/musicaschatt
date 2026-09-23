@@ -223,8 +223,6 @@ function PlayerPage() {
         queue.playPrevious();
         toast.info("Voltando para a música anterior pelo chat!");
       } else if (command === "!pausar") {
-        // O remetente não depende de receber o próprio broadcast para pausar.
-        // Atualizamos o estado local imediatamente e sincronizamos os demais clientes.
         setRemotePaused(true);
         broadcast("TOGGLE_PLAY", { paused: true });
         toast.info("Pausado pelo comando do chat!");
@@ -322,8 +320,8 @@ function PlayerPage() {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 bg-card/50 backdrop-blur-sm">
                   <span className="relative flex size-2">
-                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500"></span>
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-55"></span>
+                    <span className="relative inline-flex size-2 rounded-full bg-primary"></span>
                   </span>
                   <Users className="size-4 text-muted-foreground" />
                   <span className="text-xs font-medium">{onlineUsers.length} online</span>
