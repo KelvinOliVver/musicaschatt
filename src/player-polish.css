@@ -263,3 +263,29 @@ main[class*="max-w-[1600px]"] > div.panel.border-destructive\/40 {
     transform: none !important;
   }
 }
+
+
+/* Sliders do player — mesmo roxo lavanda do botão principal, sem verde. */
+main[class*="max-w-[1600px]"] .progress-slider [data-radix-slider-track],
+main[class*="max-w-[1600px]"] .volume-slider [data-radix-slider-track] {
+  background: color-mix(in oklab, var(--primary) 16%, var(--background)) !important;
+}
+
+main[class*="max-w-[1600px]"] .progress-slider [data-radix-slider-range],
+main[class*="max-w-[1600px]"] .volume-slider [data-radix-slider-range] {
+  background: var(--primary) !important;
+  box-shadow: 0 0 10px color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+main[class*="max-w-[1600px]"] .progress-slider [data-radix-slider-thumb],
+main[class*="max-w-[1600px]"] .volume-slider [data-radix-slider-thumb] {
+  border-color: color-mix(in oklab, var(--primary) 70%, white 30%) !important;
+  background: var(--primary) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 16%, transparent), 0 3px 10px -3px color-mix(in oklab, var(--primary) 45%, transparent);
+}
+
+main[class*="max-w-[1600px]"] .progress-slider [data-radix-slider-thumb]:focus-visible,
+main[class*="max-w-[1600px]"] .volume-slider [data-radix-slider-thumb]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent), 0 3px 12px -3px color-mix(in oklab, var(--primary) 50%, transparent);
+}
