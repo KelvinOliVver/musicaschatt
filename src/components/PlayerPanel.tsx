@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
 import { Equalizer } from "@/components/Equalizer";
-import Velaris from "@/components/ui/velaris";
 import { useDominantColor } from "@/hooks/use-dominant-color";
 import type { QueueItem } from "@/lib/types";
 
@@ -194,11 +193,6 @@ export function PlayerPanel({
   }, [current?.id]);
 
   const accentColor = useDominantColor(current?.thumbnail);
-  const velarisColors = useMemo(() => {
-    if (!accentColor) return undefined;
-    return [hslToHex(accentColor, 10), hslToHex(accentColor, 0), hslToHex(accentColor, -12), hslToHex(accentColor, -28)];
-  }, [accentColor]);
-
   useEffect(() => { onPlayingStateChange?.(Boolean(current) && !paused); }, [current, paused, onPlayingStateChange]);
 
   const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
@@ -238,20 +232,11 @@ export function PlayerPanel({
         aria-hidden
       />
       <section className="panel relative z-0 overflow-hidden" style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}>
-        <Velaris
-          height="100%"
-          bg="#050505"
-          colors={velarisColors}
-          speed={0.8}
-          grain={0.16}
-          className="pointer-events-none absolute inset-0 z-0 opacity-60"
-        />
         <div className="relative z-10 flex flex-col gap-5 overflow-hidden rounded-[inherit] p-5">
           {current?.thumbnail && (
             <div key={current.id} className="pointer-events-none absolute inset-0 -z-10 scale-110 bg-cover bg-center opacity-45 blur-2xl transition-opacity duration-700" style={{ backgroundImage: `url(${current.thumbnail})` }} aria-hidden />
           )}
           <div className="pointer-events-none absolute inset-0 -z-10 bg-[color-mix(in_oklab,var(--track-accent,var(--primary))_28%,transparent)] mix-blend-multiply transition-colors duration-700" aria-hidden />
-          <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/20 via-background/60 to-background" aria-hidden />
 
           <div ref={fullscreenContainerRef} onMouseMove={showControlsTemporarily} className="group relative overflow-hidden rounded-xl bg-black shadow-lg shadow-black/20 ring-1 ring-white/[0.06] transition-opacity duration-300" style={{ opacity: videoOpacity }}>
             {current ? (
