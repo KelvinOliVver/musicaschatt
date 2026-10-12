@@ -209,6 +209,8 @@ export type Database = {
     }
     Functions: {
       advance_player_queue: { Args: never; Returns: undefined }
+      play_previous_queue_item: { Args: never; Returns: string }
+      play_queue_item: { Args: { p_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
