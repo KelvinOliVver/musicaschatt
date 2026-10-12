@@ -7,38 +7,112 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
-      chat_messages: {
+      app_settings: {
         Row: {
-          id: string
-          channel_slug: string
-          username: string
-          color: string | null
-          content: string
-          created_at: string
-          kind: string
+          chat_cooldown_seconds: number
+          id: number
+          updated_at: string
         }
         Insert: {
-          id: string
-          channel_slug: string
-          username: string
-          color?: string | null
-          content: string
-          created_at?: string
-          kind?: string
+          chat_cooldown_seconds?: number
+          id?: number
+          updated_at?: string
         }
         Update: {
-          id?: string
-          channel_slug?: string
-          username?: string
-          color?: string | null
-          content?: string
+          chat_cooldown_seconds?: number
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      kick_bot_rate_limit: {
+        Row: {
+          id: boolean
+          last_sent_at: string | null
+        }
+        Insert: {
+          id?: boolean
+          last_sent_at?: string | null
+        }
+        Update: {
+          id?: boolean
+          last_sent_at?: string | null
+        }
+        Relationships: []
+      }
+      kick_bot_seen_events: {
+        Row: {
+          message_id: string
+          received_at: string
+        }
+        Insert: {
+          message_id: string
+          received_at?: string
+        }
+        Update: {
+          message_id?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
+      kick_bot_tokens: {
+        Row: {
+          access_token: string
+          expires_at: string
+          kick_user_id: number | null
+          kick_username: string | null
+          refresh_token: string
+          role: string
+          scope: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          expires_at: string
+          kick_user_id?: number | null
+          kick_username?: string | null
+          refresh_token: string
+          role: string
+          scope?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          expires_at?: string
+          kick_user_id?: number | null
+          kick_username?: string | null
+          refresh_token?: string
+          role?: string
+          scope?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      kick_oauth_states: {
+        Row: {
+          code_verifier: string
+          created_at: string
+          role: string
+          state: string
+        }
+        Insert: {
+          code_verifier: string
           created_at?: string
-          kind?: string
+          role: string
+          state: string
+        }
+        Update: {
+          code_verifier?: string
+          created_at?: string
+          role?: string
+          state?: string
         }
         Relationships: []
       }
@@ -69,6 +143,7 @@ export type Database = {
           duration_seconds?: number | null
           id?: string
           is_paused?: boolean | null
+          playback_position?: number | null
           played_at?: string | null
           position?: number | null
           priority?: boolean
@@ -113,7 +188,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          avatar_url?: string
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           id: string
@@ -134,6 +209,8 @@ export type Database = {
     }
     Functions: {
       advance_player_queue: { Args: never; Returns: undefined }
+      play_previous_queue_item: { Args: never; Returns: string }
+      play_queue_item: { Args: { p_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
@@ -167,8 +244,10 @@ export type Tables<
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -243,19 +322,21 @@ export type Enums<
     : never
 
 export type CompositeTypes<
-  PublicSchemaCompositeTypeNameOrOptions extends
+  PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicSchemaCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicSchemaCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never) = never,
-> = PublicSchemaCompositeTypeNameOrOptions extends {
+> = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[PublicSchemaCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : never
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {

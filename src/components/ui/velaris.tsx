@@ -182,7 +182,7 @@ const Velaris = ({
       gl.uniform1f(locs.grain, grain);
       gl.uniform3f(locs.bg, ...hexToRgb(bg));
       const palette = colors.slice(0, 4);
-      while (palette.length < 4) palette.push(DEFAULT_COLORS[palette.length]);
+      while (palette.length < 4) palette.push(DEFAULT_COLORS[palette.length] ?? "#000000");
       gl.uniform3fv(locs.colors, new Float32Array(palette.flatMap(hexToRgb)));
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       raf = requestAnimationFrame(render);

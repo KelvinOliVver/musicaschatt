@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791764270249,
+      "tag": "0000_restore_player_queue_navigation_functions",
+      "breakpoints": true
+    }
+  ]
+}
