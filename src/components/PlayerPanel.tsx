@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Crown,
   ExternalLink,
@@ -19,6 +19,7 @@ import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
 import { Equalizer } from "@/components/Equalizer";
 import { useDominantColor } from "@/hooks/use-dominant-color";
 import type { QueueItem } from "@/lib/types";
+import sessionImage from "@/assets/music-session.jpg";
 
 const VOLUME_KEY = "musicas-chat-volume";
 const DRIFT_THRESHOLD_SECONDS = 1.5;
@@ -225,20 +226,10 @@ export function PlayerPanel({
   const overlayControlsOpacity = isFullscreen ? controlsVisible ? "opacity-100" : "opacity-0" : "opacity-0 group-hover:opacity-100";
 
   return (
-    <div className="relative z-0">
-      <div
-        className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] blur-2xl transition-opacity duration-700"
-        style={{ background: `radial-gradient(closest-side, color-mix(in oklab, ${accentColor ?? "var(--primary)"} 55%, transparent), transparent 75%)`, opacity: current && !paused ? 0.9 : 0.35 }}
-        aria-hidden
-      />
+    <div className="music-player-stage relative z-0">
       <section className="panel relative z-0 overflow-hidden" style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}>
-        <div className="relative z-10 flex flex-col gap-5 overflow-hidden rounded-[inherit] p-5">
-          {current?.thumbnail && (
-            <div key={current.id} className="pointer-events-none absolute inset-0 -z-10 scale-110 bg-cover bg-center opacity-45 blur-2xl transition-opacity duration-700" style={{ backgroundImage: `url(${current.thumbnail})` }} aria-hidden />
-          )}
-          <div className="pointer-events-none absolute inset-0 -z-10 bg-[color-mix(in_oklab,var(--track-accent,var(--primary))_28%,transparent)] mix-blend-multiply transition-colors duration-700" aria-hidden />
-
-          <div ref={fullscreenContainerRef} onMouseMove={showControlsTemporarily} className="group relative overflow-hidden rounded-xl bg-black shadow-lg shadow-black/20 ring-1 ring-white/[0.06] transition-opacity duration-300" style={{ opacity: videoOpacity }}>
+        <div className="player-content relative z-10 flex flex-col">
+          <div ref={fullscreenContainerRef} onMouseMove={showControlsTemporarily} className="player-video group relative overflow-hidden transition-opacity duration-300" style={{ opacity: videoOpacity }}>
             {current ? (
               <>
                 <YouTubeStage
@@ -252,24 +243,21 @@ export function PlayerPanel({
                   onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
                   controlsRef={controlsRef}
                 />
-                <button type="button" onClick={() => setPaused((value) => { const nextVal = !value; onTogglePlayChange?.(nextVal); return nextVal; })} className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors hover:bg-black/20" aria-label={paused ? "Tocar" : "Pausar"}>
-                  <span className={`flex size-14 items-center justify-center rounded-full bg-black/60 text-white shadow-lg shadow-black/25 backdrop-blur-sm transition-opacity ${overlayControlsOpacity}`}>
+                <Button variant="ghost" type="button" onClick={() => setPaused((value) => { const nextVal = !value; onTogglePlayChange?.(nextVal); return nextVal; })} className="absolute inset-0 h-full w-full rounded-none hover:bg-media-background/20" aria-label={paused ? "Tocar" : "Pausar"}>
+                  <span className={`flex size-14 items-center justify-center rounded-full bg-media-background/60 text-hero-foreground backdrop-blur-sm transition-opacity ${overlayControlsOpacity}`}>
                     {paused ? <Play className="size-6 translate-x-0.5" aria-hidden /> : <Pause className="size-6" aria-hidden />}
                   </span>
-                </button>
-                <button type="button" onClick={(event) => { event.stopPropagation(); toggleFullscreen(); }} className={`absolute right-2 top-2 z-10 flex size-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-opacity hover:bg-black/80 focus-visible:opacity-100 ${overlayControlsOpacity}`} aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}>
+                </Button>
+                <Button variant="ghost" size="icon" type="button" onClick={(event) => { event.stopPropagation(); toggleFullscreen(); }} className={`absolute right-2 top-2 z-10 flex size-9 items-center justify-center rounded-full bg-media-background/60 text-hero-foreground backdrop-blur-sm transition-opacity hover:bg-media-background/80 focus-visible:opacity-100 ${overlayControlsOpacity}`} aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}>
                   {isFullscreen ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
-                </button>
+                </Button>
               </>
             ) : (
-              <div className="relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden rounded-xl border border-white/[0.06] bg-gradient-to-br from-surface-raised via-background to-surface-raised px-6 text-center">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.14),transparent_55%)]" aria-hidden />
-                <div className="relative mb-4 flex size-20 items-center justify-center rounded-full border border-primary/20 bg-primary/[0.08] shadow-[0_0_45px_hsl(var(--primary)/0.12)]">
-                  <Music2 className="size-9 text-primary" strokeWidth={1.6} aria-hidden />
-                </div>
-                <h2 className="relative text-lg font-semibold tracking-tight text-foreground">Nenhuma música tocando</h2>
-                <p className="relative mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">A fila está vazia. Mande um link do YouTube no chat para colocar a próxima música.</p>
-                <div className="relative mt-4 rounded-full border border-white/[0.06] bg-white/[0.03] px-3 py-1 text-[11px] text-muted-foreground">🎵 Aguardando o próximo pedido</div>
+              <div className="player-empty relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden px-6 text-center">
+                <img src={sessionImage} alt="" width={1200} height={800} />
+                <HeadphonesIcon />
+                <h2 className="mt-5 text-lg font-semibold">Pronto para o próximo play</h2>
+                <p className="mt-2 text-sm text-muted-foreground">Nenhuma música tocando.</p>
               </div>
             )}
           </div>
@@ -281,7 +269,7 @@ export function PlayerPanel({
                   {current.priority && <span className="bg-gradient-vip inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-vip-foreground"><Crown className="size-3" aria-hidden /> VIP</span>}
                   <Youtube className="size-4 text-youtube" aria-hidden />
                   {!paused && <Equalizer bars={4} className="h-3" />}
-                  {current.title ? <h2 className="min-w-0 flex-1 truncate text-2xl font-bold tracking-tight sm:text-3xl">{current.title}</h2> : <h2 className="min-w-0 flex-1 animate-pulse truncate text-2xl font-bold text-muted-foreground/50 sm:text-3xl">Tocando {current.trackId}</h2>}
+                  {current.title ? <h2 className="min-w-0 flex-1 player-title text-2xl font-semibold">{current.title}</h2> : <h2 className="min-w-0 flex-1 player-title animate-pulse text-2xl font-semibold text-muted-foreground">Tocando {current.trackId}</h2>}
                   <ExternalLinkButton url={current.url} />
                 </div>
                 <p className="mt-1.5 text-sm text-muted-foreground">Pedido por <span className="font-medium text-foreground" style={current.requesterColor ? { color: current.requesterColor } : undefined}>{current.requestedBy}</span>{current.author ? ` · ${current.author}` : ""}</p>
@@ -295,23 +283,22 @@ export function PlayerPanel({
             <span className="player-time-readout w-10 shrink-0 text-right text-xs tabular-nums">{formatTime(progress.duration)}</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-5">
+          <div className="player-controls flex flex-wrap items-center gap-5">
             <div className="flex items-center gap-2">
-              <Button size="icon" variant="secondary" className="size-10 rounded-full border border-white/[0.06] bg-white/[0.03] transition-all duration-200 hover:border-white/[0.1] hover:bg-white/[0.07] active:scale-95" onClick={onPrevious} disabled={!hasPrevious} aria-label="Música anterior"><SkipBack className="size-4" aria-hidden /></Button>
-              <Button size="icon" className="bg-gradient-primary glow size-12 rounded-full text-primary-foreground shadow-lg shadow-primary/25 transition-all duration-200 hover:scale-[1.04] hover:shadow-xl hover:shadow-primary/30 active:scale-95" onClick={() => setPaused((value) => { const nextVal = !value; onTogglePlayChange?.(nextVal); return nextVal; })} disabled={!current} aria-label={paused ? "Tocar" : "Pausar"}>{paused ? <Play className="size-5" aria-hidden /> : <Pause className="size-5" aria-hidden />}</Button>
-              <Button size="icon" variant="secondary" className="size-10 rounded-full border border-white/[0.06] bg-white/[0.03] transition-all duration-200 hover:border-white/[0.1] hover:bg-white/[0.07] active:scale-95" onClick={onNext} disabled={!hasNext && !current} aria-label="Próxima música"><SkipForward className="size-4" aria-hidden /></Button>
+              <Button size="icon" variant="secondary" className="size-10 rounded-full bg-transparent hover:bg-secondary" onClick={onPrevious} disabled={!hasPrevious} aria-label="Música anterior"><SkipBack className="size-4" aria-hidden /></Button>
+              <Button size="icon" className="size-12 rounded-full bg-primary text-primary-foreground hover:scale-105" onClick={() => setPaused((value) => { const nextVal = !value; onTogglePlayChange?.(nextVal); return nextVal; })} disabled={!current} aria-label={paused ? "Tocar" : "Pausar"}>{paused ? <Play className="size-5" aria-hidden /> : <Pause className="size-5" aria-hidden />}</Button>
+              <Button size="icon" variant="secondary" className="size-10 rounded-full bg-transparent hover:bg-secondary" onClick={onNext} disabled={!hasNext && !current} aria-label="Próxima música"><SkipForward className="size-4" aria-hidden /></Button>
             </div>
 
-            <div className="flex min-w-40 flex-1 items-center gap-3">
-              <Button size="icon" variant="ghost" className="size-8 shrink-0 rounded-full transition-colors duration-200 hover:bg-white/[0.05]" onClick={() => setMuted((value) => !value)} aria-label={muted ? "Tirar do mudo" : "Deixar mudo"}>{muted ? <VolumeX className="size-4 text-muted-foreground" aria-hidden /> : <Volume2 className="size-4 text-muted-foreground" aria-hidden />}</Button>
+            <div className="player-volume flex flex-1 items-center gap-2">
+              <Button size="icon" variant="ghost" className="size-8 shrink-0 rounded-full transition-colors duration-200 hover:bg-secondary" onClick={() => setMuted((value) => !value)} aria-label={muted ? "Tirar do mudo" : "Deixar mudo"}>{muted ? <VolumeX className="size-4 text-muted-foreground" aria-hidden /> : <Volume2 className="size-4 text-muted-foreground" aria-hidden />}</Button>
               <Slider className="volume-slider text-primary" value={[muted ? 0 : volume]} onValueChange={([value]) => { const newVol = value ?? 0; setVolume(newVol); if (newVol > 0) setMuted(false); onVolumeChange?.(newVol); }} max={100} step={1} aria-label="Volume" />
               <span className="volume-readout w-8 shrink-0 text-right text-xs tabular-nums">{muted ? 0 : volume}</span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-3 text-xs text-muted-foreground">
+          <div className="player-up-next flex items-center justify-between gap-2 text-muted-foreground">
             <span className="truncate">{next ? <>A seguir: <span className="text-foreground">{next.title ?? next.trackId}</span></> : "Fila vazia — a próxima música que cair no chat toca aqui."}</span>
-            <span className="hidden sm:inline">Espaço: pausar · Shift + ← → : pular · M: mudo</span>
           </div>
         </div>
       </section>
@@ -322,3 +309,4 @@ export function PlayerPanel({
 function ExternalLinkButton({ url }: { url: string }) {
   return <a href={url} target="_blank" rel="noreferrer" className="text-muted-foreground transition-colors hover:text-primary" aria-label="Abrir no YouTube"><ExternalLink className="size-4" aria-hidden /></a>;
 }
+function HeadphonesIcon() { return <span className="relative text-primary"><Music2 className="size-12" strokeWidth={1.3} /></span>; }

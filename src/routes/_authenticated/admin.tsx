@@ -7,11 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppSettings } from "@/hooks/use-app-settings";
 
+import { MusicSidebar } from "@/components/MusicSidebar";
+
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
     meta: [
-      { title: "Administração · Kick Music Player" },
-      { name: "description", content: "Configurações do site." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { title: "Administração · Music Chat" },
+      { name: "description", content: "Ajuste os pedidos de música da sua comunidade no Music Chat." },
+      { property: "og:title", content: "Administração · Music Chat" },
+      { property: "og:description", content: "Ajuste os pedidos de música da sua comunidade no Music Chat." },
     ],
   }),
   component: AdminPage,
@@ -42,7 +48,7 @@ function AdminPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-10">
+    <div className="music-shell"><MusicSidebar active="account" /><main className="music-page music-account-page flex min-h-screen flex-col gap-6">
       <Link
         to="/player"
         className="inline-flex w-fit items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -85,6 +91,6 @@ function AdminPage() {
           Salvar alterações
         </Button>
       </form>
-    </main>
+    </main></div>
   );
 }

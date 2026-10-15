@@ -10,12 +10,16 @@ import { Label } from "@/components/ui/label";
 import { initialsOf, useProfile } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 
+import { MusicSidebar } from "@/components/MusicSidebar";
+
 export const Route = createFileRoute("/_authenticated/conta")({
   head: () => ({
     meta: [
-      { title: "Minha conta · Kick Music Player" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { title: "Minha conta · Music Chat" },
       { name: "description", content: "Edite seu nome de exibição e avatar do player." },
-      { property: "og:title", content: "Minha conta · Kick Music Player" },
+      { property: "og:title", content: "Minha conta · Music Chat" },
       {
         property: "og:description",
         content: "Edite seu nome de exibição e avatar do player.",
@@ -63,7 +67,7 @@ function AccountPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-10">
+    <div className="music-shell"><MusicSidebar active="account" /><main className="music-page music-account-page flex min-h-screen flex-col gap-6">
       <Link
         to="/player"
         className="inline-flex w-fit items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -118,6 +122,6 @@ function AccountPage() {
           Salvar alterações
         </Button>
       </form>
-    </main>
+    </main></div>
   );
 }

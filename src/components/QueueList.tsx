@@ -106,16 +106,7 @@ export function QueueList({
   }
 
   return (
-    <div className="relative z-0 flex min-h-0 flex-1 flex-col">
-      <div
-        className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] blur-2xl transition-opacity duration-700"
-        style={{
-          background: `radial-gradient(closest-side, color-mix(in oklab, ${accentColor ?? "var(--primary)"} 55%, transparent), transparent 75%)`,
-          opacity: isPlaying ? 0.7 : 0.25,
-        }}
-        aria-hidden
-      />
-
+    <div className="music-queue relative z-0 flex min-h-0 flex-1 flex-col">
       <section className="panel relative z-0 flex min-h-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
           <div className="flex min-w-0 items-center gap-2">
@@ -167,7 +158,7 @@ export function QueueList({
                 return (
                   <li
                     key={item.id}
-                    className={`group relative flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-3 transition-all duration-200 hover:-translate-y-px hover:bg-accent/35 ${
+                    className={`music-queue-row group relative flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-3 transition-all duration-200 hover:-translate-y-px hover:bg-accent/35 ${
                       isExiting
                         ? "pointer-events-none translate-x-1 opacity-0"
                         : isMounted
@@ -199,8 +190,8 @@ export function QueueList({
                     </span>
 
                     <div
-                      className={`relative size-11 shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-inset transition-all duration-200 group-hover:scale-[1.02] ${
-                        isNext ? "ring-primary/20" : "ring-black/10"
+                      className={`queue-artwork relative size-11 shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-inset transition-all duration-200 group-hover:scale-[1.02] ${
+                        isNext ? "ring-primary/20" : "ring-border"
                       }`}
                     >
                       {item.thumbnail ? (
@@ -215,7 +206,6 @@ export function QueueList({
                           <Music2 className="size-4 text-muted-foreground" aria-hidden />
                         </div>
                       )}
-                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/15 via-transparent to-white/[0.05]" />
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -248,7 +238,7 @@ export function QueueList({
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="queue-actions flex shrink-0 items-center">
                       {onMove && (
                         <div className="flex flex-col">
                           <Button
@@ -301,10 +291,12 @@ export function QueueList({
 
         {history.length > 0 && (
           <div className="shrink-0 border-t border-border">
-            <button
+            <Button
+              variant="ghost"
               type="button"
+              aria-expanded={showHistory}
               onClick={() => setShowHistory((v) => !v)}
-              className="flex w-full items-center justify-between px-5 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-all duration-200 hover:bg-accent/30 hover:text-foreground active:scale-[0.995]"
+              className="flex h-auto w-full items-center justify-between rounded-none px-5 py-3 text-xs font-semibold text-muted-foreground transition-all duration-200 hover:bg-accent/30 hover:text-foreground active:scale-[0.995]"
             >
               <span className="flex items-center gap-2">
                 <History className="size-3.5" aria-hidden />
@@ -318,7 +310,7 @@ export function QueueList({
               ) : (
                 <ChevronDown className="size-3.5" aria-hidden />
               )}
-            </button>
+            </Button>
             {showHistory && (
               <ScrollArea className="max-h-48">
                 <ol className="divide-y divide-border">

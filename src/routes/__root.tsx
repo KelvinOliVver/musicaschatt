@@ -11,14 +11,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import sessionChipsCss from "../session-chips.css?url";
-import playerPolishCss from "../player-polish.css?url";
-import siteRedesignCss from "../site-redesign.css?url";
-import onlineAccentFixCss from "../online-accent-fix.css?url";
-import finalThemeCss from "../final-theme.css?url";
-import pointerLightCss from "../site-pointer-light.css?url";
-import performancePolishCss from "../performance-polish.css?url";
-import playerControlsPolishCss from "../player-controls-polish.css?url";
+import musicInterfaceCss from "../music-interface.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
@@ -64,21 +57,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Kick Music Player" },
+      { title: "Music Chat" },
       { name: "description", content: "Toque as músicas pedidas no chat da Kick em uma fila automática." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "stylesheet", href: sessionChipsCss },
-      { rel: "stylesheet", href: playerPolishCss },
-      { rel: "stylesheet", href: siteRedesignCss },
-      { rel: "stylesheet", href: onlineAccentFixCss },
-      { rel: "stylesheet", href: finalThemeCss },
-      { rel: "stylesheet", href: pointerLightCss },
-      { rel: "stylesheet", href: performancePolishCss },
-      { rel: "stylesheet", href: playerControlsPolishCss },
+      { rel: "stylesheet", href: musicInterfaceCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Space+Grotesk:wght@500;600;700&display=swap" },
@@ -148,7 +134,6 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <PointerLight />
       <AuthSync />
       <Outlet />
       <Toaster position="top-right" richColors />

@@ -194,7 +194,7 @@
   h3,
   h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
   }
 }
 
@@ -418,3 +418,51 @@
   box-shadow: 0 0 0 4px color-mix(in oklab, var(--track-accent, var(--primary)) 25%, transparent);
   transition: box-shadow 0.4s ease;
 }
+
+/* Authoritative Music Chat palette: neutral charcoal, soft violet, warm VIP. */
+:root, .dark {
+  --radius: 0.5rem;
+  --background: oklch(0.14 0.004 285);
+  --foreground: oklch(0.96 0.003 285);
+  --sidebar: oklch(0.11 0.004 285);
+  --sidebar-glass: oklch(0.11 0.004 285 / 0.94);
+  --surface: oklch(0.20 0.007 285 / 0.66);
+  --surface-raised: oklch(0.24 0.008 285 / 0.8);
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.21 0.008 285);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.75 0.135 295);
+  --primary-foreground: oklch(0.16 0.018 295);
+  --secondary: oklch(0.25 0.007 285);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.22 0.006 285);
+  --muted-foreground: oklch(0.66 0.01 285);
+  --accent: oklch(0.29 0.035 295 / 0.6);
+  --accent-foreground: var(--foreground);
+  --border: oklch(1 0 0 / 0.08);
+  --input: oklch(1 0 0 / 0.12);
+  --ring: var(--primary);
+  --vip: oklch(0.81 0.13 85);
+  --vip-foreground: oklch(0.2 0.03 85);
+  --online: oklch(0.75 0.13 155);
+  --offline: var(--muted-foreground);
+  --media-background: oklch(0.08 0 0);
+  --hero-foreground: oklch(0.99 0 0);
+  --hero-muted: oklch(0.90 0.008 285);
+  --hero-scrim: linear-gradient(90deg, oklch(0.10 0.01 285 / 0.88), oklch(0.10 0.01 285 / 0.54) 45%, oklch(0.10 0.01 285 / 0.03) 100%);
+  --session-scrim: linear-gradient(0deg, oklch(0.08 0.005 285 / 0.92), oklch(0.08 0.005 285 / 0.04));
+  --auth-scrim: oklch(0.10 0.007 285 / 0.78);
+  --gradient-stage: none;
+  --gradient-primary: linear-gradient(var(--primary), var(--primary));
+  --gradient-vip: linear-gradient(var(--vip), var(--vip));
+  --shadow-panel: 0 12px 40px -18px oklch(0 0 0 / 0.45);
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 15%, transparent);
+}
+@theme inline {
+  --color-media-background: var(--media-background);
+  --color-hero-foreground: var(--hero-foreground);
+}
+button, a, input { -webkit-tap-highlight-color: transparent; }
+button, a { transition-duration: 160ms; }
+input { min-width: 0; }

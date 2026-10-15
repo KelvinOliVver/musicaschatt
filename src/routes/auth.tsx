@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2, Radio } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,17 +9,21 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { isSignupOpen } from "@/lib/setup.functions";
+import heroImage from "@/assets/hero-bg.jpg";
+import logo from "@/assets/logo-icon.jpg.asset.json";
 
 export const Route = createFileRoute("/auth")({
   loader: () => isSignupOpen(),
   head: () => ({
     meta: [
-      { title: "Entrar · Kick Music Player" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { title: "Entrar · Music Chat" },
       {
         name: "description",
         content: "Acesse o player que toca as músicas pedidas no chat da Kick.",
       },
-      { property: "og:title", content: "Entrar · Kick Music Player" },
+      { property: "og:title", content: "Entrar · Music Chat" },
       {
         property: "og:description",
         content: "Acesse o player que toca as músicas pedidas no chat da Kick.",
@@ -100,17 +104,17 @@ function AuthPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
+    <main className="music-auth flex min-h-screen items-center justify-center px-4 py-24">
+      <img src={heroImage} alt="" className="music-auth-backdrop" />
+      <Button asChild variant="ghost" className="auth-back"><Link to="/"><ArrowLeft /> Music Chat</Link></Button>
+      <div className="auth-form w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <span className="bg-gradient-primary glow flex size-12 items-center justify-center rounded-xl text-primary-foreground">
-            <Radio className="size-6" aria-hidden />
-          </span>
+          <img src={logo.url} alt="Music Chat" className="auth-logo" width={48} height={48} />
           <h1 className="text-2xl font-bold">
             {mode === "signup" ? "Criar seu acesso" : "Entrar no player"}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Área restrita — só quem tem acesso controla a fila de músicas.
+            Sua comunidade está a um play de distância.
           </p>
         </div>
 
@@ -162,7 +166,8 @@ function AuthPage() {
           </form>
 
           {signupOpen && (
-            <button
+            <Button
+              variant="ghost"
               type="button"
               onClick={() => setMode((value) => (value === "signin" ? "signup" : "signin"))}
               className="text-center text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
@@ -170,7 +175,7 @@ function AuthPage() {
               {mode === "signin"
                 ? "Primeiro acesso? Criar minha conta"
                 : "Já tenho conta, quero entrar"}
-            </button>
+            </Button>
           )}
         </div>
       </div>
