@@ -34,7 +34,7 @@ function renderMessageContent(content: string) {
     if (match.index > lastIndex) {
       parts.push({ type: "text", value: content.slice(lastIndex, match.index) });
     }
-    parts.push({ type: "emote", id: match[1]!, name: match[2]! });
+    parts.push({ type: "emote", id: match[1] ?? "", name: match[2] ?? "" });
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < content.length) {
@@ -59,10 +59,10 @@ function renderMessageContent(content: string) {
 
 const statusConfig: Record<ChatStatus, { label: string; className: string; icon: typeof Radio }> = {
   idle: { label: "Desconectado", className: "text-muted-foreground", icon: Radio },
-  resolving: { label: "Conectando…", className: "text-amber-400", icon: LoaderCircle },
-  connecting: { label: "Conectando…", className: "text-amber-400", icon: LoaderCircle },
-  connected: { label: "Online", className: "text-emerald-400", icon: CheckCircle2 },
-  reconnecting: { label: "Reconectando…", className: "text-amber-400", icon: RotateCcw },
+  resolving: { label: "Conectando…", className: "text-vip", icon: LoaderCircle },
+  connecting: { label: "Conectando…", className: "text-vip", icon: LoaderCircle },
+  connected: { label: "Online", className: "text-online", icon: CheckCircle2 },
+  reconnecting: { label: "Reconectando…", className: "text-vip", icon: RotateCcw },
   error: { label: "Erro de conexão", className: "text-destructive", icon: Radio },
 };
 
@@ -184,16 +184,7 @@ export function ChatFeed({ messages, accentColor, isPlaying = false, status = "i
   const StatusIcon = connection.icon;
 
   return (
-    <div className="relative z-0 flex h-full max-h-[600px] flex-col">
-      <div
-        className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] blur-2xl transition-opacity duration-700"
-        style={{
-          background: `radial-gradient(closest-side, color-mix(in oklab, ${accentColor ?? "var(--primary)"} 55%, transparent), transparent 75%)`,
-          opacity: isPlaying ? 0.7 : 0.25,
-        }}
-        aria-hidden
-      />
-
+    <div className="music-chat relative z-0 flex flex-col">
       <section className="panel relative z-0 flex h-full max-h-[600px] flex-col">
         <header className="flex items-center gap-2 border-b border-border px-5 py-4 shrink-0">
           <MessageSquare className="size-4 text-primary" aria-hidden />

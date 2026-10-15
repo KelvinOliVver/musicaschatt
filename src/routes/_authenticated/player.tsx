@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ChannelBar } from "@/components/ChannelBar";
 import { ChatFeed } from "@/components/ChatFeed";
 import { PlayerPanel } from "@/components/PlayerPanel";
-import { PlayerVelarisBackground } from "@/components/PlayerVelarisBackground";
+import { MusicSidebar } from "@/components/MusicSidebar";
 import { QueueList } from "@/components/QueueList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,14 @@ function colorForClient(clientId: string): string {
 }
 
 export const Route = createFileRoute("/_authenticated/player")({
+  head: () => ({ meta: [
+    { title: "Sala de música · Music Chat" },
+    { name: "description", content: "Ouça os pedidos da comunidade, acompanhe a fila e o chat da Kick." },
+    { property: "og:title", content: "Sala de música · Music Chat" },
+    { property: "og:description", content: "Ouça os pedidos da comunidade, acompanhe a fila e o chat da Kick." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary_large_image" },
+  ] }),
   component: PlayerPage,
 });
 
@@ -282,12 +290,10 @@ function PlayerPage() {
   );
 
   return (
-    <div className="relative min-h-screen">
-      <PlayerVelarisBackground current={queue.current} isPlaying={isCurrentlyPlaying} />
-      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4">
-        <h1 className="sr-only">Player de músicas do chat da Kick</h1>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="music-shell">
+      <MusicSidebar active="player" />
+      <main className="music-page music-player-page">
+        <div className="music-topbar">
           <div className="flex-1">
             <ChannelBar
               slug={slug}
@@ -342,7 +348,7 @@ function PlayerPage() {
                           <img src={user.avatarUrl} alt="" className="size-5 shrink-0 rounded-full object-cover" />
                         ) : (
                           <span
-                            className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                            className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-primary-foreground"
                             style={{ backgroundColor: colorForClient(user.clientId) }}
                             aria-hidden
                           >
@@ -367,21 +373,25 @@ function PlayerPage() {
           </div>
         )}
 
-        <form onSubmit={handleManualAdd} className="panel flex items-center gap-2 px-3 py-2">
+        <div className="music-player-header">
+          <div><h1>Sala de música</h1><p>Na companhia de @{slug}</p></div>
+          <span className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><ListMusic className="size-4" />{queue.queue.length} na fila</span>
+        </div>
+        <form onSubmit={handleManualAdd} className="music-add-track">
           <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <Input
             value={manual}
             onChange={(event) => setManual(event.target.value)}
-            placeholder="Link ou ID do YouTube"
+            placeholder="Cole um link do YouTube"
             aria-label="Adicionar música manualmente"
             className="h-8 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
           />
           <Button type="submit" size="sm" className="bg-gradient-primary h-8 px-3 text-primary-foreground">
-            Tocar
+            <Plus className="size-3.5" /> Adicionar
           </Button>
         </form>
 
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)_minmax(280px,0.9fr)]">
+        <div className="music-player-grid">
           <PlayerPanel
             current={queue.current}
             next={queue.queue[0] ?? null}
@@ -399,7 +409,7 @@ function PlayerPage() {
             controlsRef={playerControlsRef}
           />
 
-          <div className="hidden min-h-[420px] flex-col lg:flex">
+          <div className="music-queue-column hidden md:flex">
             <QueueList
               items={queue.queue}
               history={queue.history}
@@ -412,11 +422,11 @@ function PlayerPage() {
             />
           </div>
 
-          <div className="hidden min-h-[420px] flex-col lg:flex">
-            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} />
+          <div className="music-chat-column hidden md:block">
+            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} />
           </div>
 
-          <Tabs defaultValue="fila" className="flex min-h-[420px] flex-col lg:hidden">
+          <Tabs defaultValue="fila" className="music-player-tabs flex min-h-[420px] flex-col md:hidden">
             <TabsList className="w-full">
               <TabsTrigger value="fila" className="flex-1 gap-1.5">
                 <ListMusic className="size-4" aria-hidden />
@@ -440,7 +450,7 @@ function PlayerPage() {
               />
             </TabsContent>
             <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
-              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} />
+              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} />
             </TabsContent>
           </Tabs>
         </div>

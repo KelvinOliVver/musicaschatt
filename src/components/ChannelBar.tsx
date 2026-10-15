@@ -42,7 +42,7 @@ export function ChannelBar({
   }
 
   return (
-    <header className="panel flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
+    <header className="music-channel-bar flex flex-wrap items-center gap-x-4 gap-y-2">
       <Link to="/" className="group flex shrink-0 items-center gap-2.5">
         <img
           src={logoIcon.url}
