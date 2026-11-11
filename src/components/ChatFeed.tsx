@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, CheckCircle2, LoaderCircle, MessageSquare, Music2, Radio, RotateCcw, Zap } from "lucide-react";
+import { SocialEmbed, findSocialVideo } from "@/components/SocialEmbed";
 import { hasTrackLink } from "@/lib/link-parser";
 import { Button } from "@/components/ui/button";
 import type { ChatStatus, KickChatMessage } from "@/lib/types";
@@ -259,6 +260,7 @@ export function ChatFeed({ messages, accentColor, isPlaying = false, status = "i
                           </span>
                           <span className="text-muted-foreground">: </span>
                           <span className="text-foreground/90">{renderMessageContent(message.content)}</span>
+                          {(() => { const v = findSocialVideo(message.content); return v ? <SocialEmbed video={v} /> : null; })()}
                         </>
                       )}
                     </li>
