@@ -139,3 +139,12 @@
   .music-auth .auth-form { padding: 26px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+/* Chat sempre visível: fica embaixo do player, ao lado da fila */
+@media (min-width: 1101px) {
+  .music-queue-column { grid-column: 2; grid-row: 1 / span 2; height: auto; min-height: 550px; max-height: none; }
+  .music-chat-column { grid-column: 1; grid-row: 2; }
+}
+@media (min-width: 768px) {
+  .music-chat-column { display: flex !important; flex-direction: column; height: 420px; min-height: 420px; }
+  .music-chat-column > * { flex: 1; min-height: 0; }
+}
