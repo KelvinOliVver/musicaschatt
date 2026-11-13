@@ -4,11 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 export interface AppSettings {
   chatCooldownSeconds: number;
   blockedUsernames: string[];
+  obsToken: string | null;
+  obsVolume: number;
+  obsMuted: boolean;
 }
 
 type BlocklistSaveResult = "shared" | "local" | false;
 
-const DEFAULT_SETTINGS: AppSettings = { chatCooldownSeconds: 20, blockedUsernames: [] };
+const DEFAULT_SETTINGS: AppSettings = { chatCooldownSeconds: 20, blockedUsernames: [], obsToken: null, obsVolume: 70, obsMuted: false };
 const BLOCKLIST_LOCAL_KEY = "musicas-chat-blocked-kick-usernames";
 
 function readLocalBlocklist(): string[] | null {
@@ -42,7 +45,7 @@ export function useAppSettings() {
   const refresh = useCallback(async () => {
     const { data, error } = await supabase
       .from("app_settings")
-      .select("chat_cooldown_seconds, blocked_usernames")
+      .select("chat_cooldown_seconds, blocked_usernames, obs_token, obs_volume, obs_muted")
       .eq("id", 1)
       .maybeSingle();
 
@@ -51,6 +54,9 @@ export function useAppSettings() {
       setSettings({
         chatCooldownSeconds: data.chat_cooldown_seconds,
         blockedUsernames: local ?? data.blocked_usernames ?? [],
+        obsToken: data.obs_token ?? null,
+        obsVolume: data.obs_volume ?? 70,
+        obsMuted: data.obs_muted ?? false,
       });
     } else if (local !== null) {
       setSettings((current) => ({ ...current, blockedUsernames: local }));
