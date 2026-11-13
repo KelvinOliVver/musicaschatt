@@ -597,7 +597,7 @@ function PlayerPage() {
                 🎵 {totalPlayed} tocada{totalPlayed === 1 ? "" : "s"} · {totalRequesters} pedindo
               </span>
             )}
-            {!obsMode && <StreamerSettingsPanel preferences={preferences} onUpdate={updatePreferences} canManage={isAdministrator} globalCooldown={settings.chatCooldownSeconds} obsToken={settings.obsToken} />}
+            {!obsMode && <StreamerSettingsPanel preferences={preferences} onUpdate={updatePreferences} canManage={isAdministrator} globalCooldown={settings.chatCooldownSeconds} obsToken={settings.obsToken} channel={slug} />}
             {!obsMode && <LiveStatsPanel history={queue.history} queue={queue.queue} rejectedCount={rejectedCount} />}
             <Popover>
               <PopoverTrigger asChild>
