@@ -764,7 +764,7 @@ function PlayerPage() {
             controlsRef={playerControlsRef}
           />
 
-          <div className="music-queue-column hidden md:flex">
+          <div className="music-queue-column hidden min-w-0 max-w-full overflow-hidden md:flex">
             <QueueList
               canManage={isHost}
               voteMode={preferences.voteMode}
@@ -782,7 +782,7 @@ function PlayerPage() {
             />
           </div>
 
-          <div className="music-chat-column hidden md:block">
+          <div className="music-chat-column hidden min-w-0 max-w-full overflow-hidden md:block">
             <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} requestOutcomes={requestOutcomes} />
           </div>
 
