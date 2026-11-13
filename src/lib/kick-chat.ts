@@ -14,6 +14,22 @@ const CHAT_EVENT = "App\\Events\\ChatMessageEvent";
 const MAX_MESSAGES = 150;
 const AVATAR_REFRESH_MS = 5 * 60 * 1000;
 
+// Retain IDs across reconnections on the same tab. WebSocket retries can
+// replay messages and must never trigger the same queue/command twice.
+const recentlyProcessedByChannel = new Map<string, Set<string>>();
+function processedIdsForChannel(channel: string): Set<string> {
+  let ids = recentlyProcessedByChannel.get(channel);
+  if (!ids) {
+    ids = new Set<string>();
+    recentlyProcessedByChannel.set(channel, ids);
+    if (recentlyProcessedByChannel.size > 4) {
+      const oldest = recentlyProcessedByChannel.keys().next().value;
+      if (oldest) recentlyProcessedByChannel.delete(oldest);
+    }
+  }
+  return ids;
+}
+
 interface PusherEnvelope {
   event?: string;
   data?: string | Record<string, unknown>;
@@ -189,6 +205,7 @@ export function useKickChat(
   slug: string,
   onMessage?: (message: KickChatMessage) => void,
   onCommand?: (command: string, username: string) => void,
+  shouldPersist?: () => boolean,
 ): UseKickChatResult {
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -201,6 +218,8 @@ export function useKickChat(
 
   const onCommandRef = useRef(onCommand);
   onCommandRef.current = onCommand;
+  const shouldPersistRef = useRef(shouldPersist);
+  shouldPersistRef.current = shouldPersist;
 
   const reconnect = useCallback(() => setAttempt((value) => value + 1), []);
 
@@ -216,7 +235,7 @@ export function useKickChat(
 
     let disposed = false;
     // Avoid replaying the same song request or chat command after reconnects.
-    const seenMessageIds = new Set<string>();
+    const seenMessageIds = processedIdsForChannel(normalized);
     let socket: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let pingTimer: ReturnType<typeof setInterval> | undefined;
@@ -326,7 +345,7 @@ export function useKickChat(
           };
 
           setMessages((current) => mergeMessages(current, [commandMessage]));
-          persistMessage(commandMessage, normalized);
+          if (shouldPersistRef.current?.() ?? true) persistMessage(commandMessage, normalized);
           onCommandRef.current?.(canonicalCommand, username || "Pitee4");
           return;
         }
@@ -343,7 +362,7 @@ export function useKickChat(
       };
 
       setMessages((current) => mergeMessages(current, [message]));
-      persistMessage(message, normalized);
+      if (shouldPersistRef.current?.() ?? true) persistMessage(message, normalized);
       onMessageRef.current?.(message);
     };
 
