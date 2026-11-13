@@ -19,6 +19,7 @@ import { Slider } from "@/components/ui/slider";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
 import { Equalizer } from "@/components/Equalizer";
 import { SocialStage } from "@/components/SocialStage";
+import { InstagramCleanStage } from "@/components/InstagramCleanStage";
 import { SourceIcon } from "@/components/SourceIcon";
 import { isSocialSource, sourceLabel } from "@/lib/social-video";
 import { useDominantColor } from "@/hooks/use-dominant-color";
@@ -313,7 +314,26 @@ export function PlayerPanel({
           <div ref={fullscreenContainerRef} onMouseMove={showControlsTemporarily} className="player-video group relative overflow-hidden transition-opacity duration-300" style={{ opacity: videoOpacity }}>
             {current ? (
               <>
-                {isSocialSource(current.source) ? (
+                {current.source === "instagram" ? (
+                  <InstagramCleanStage
+                    key={current.id}
+                    trackId={current.trackId}
+                    originalUrl={current.url}
+                    muted={muted}
+                    volume={volume}
+                    paused={paused}
+                    autoAdvanceOnFailure={isHost && hasNext}
+                    onUnavailable={() => { if (isHost && hasNext) onNext(); }}
+                    onEnded={() => { if (isHost) onNext(); }}
+                    onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+                    onPlayingChange={(playing) => {
+                      const newPaused = !playing;
+                      setPaused(newPaused);
+                      if (isHost) onTogglePlayChange?.(newPaused);
+                    }}
+                    controlsRef={controlsRef}
+                  />
+                ) : isSocialSource(current.source) ? (
                   <SocialStage
                     key={current.id}
                     source={current.source}
@@ -382,7 +402,7 @@ export function PlayerPanel({
           {isInstagramVideo ? (
             <div className="social-player-native-controls flex flex-wrap items-center justify-between gap-3 border-t border-border/70 py-3">
               <span className="text-xs text-muted-foreground">
-                O Instagram tenta iniciar sozinho. Se estiver parado, toque no vídeo para reproduzir.
+                O player tenta reproduzir o vídeo diretamente, sem abrir o cartão do Instagram.
               </span>
               <div className="flex items-center gap-2">
                 <Button type="button" size="sm" variant="secondary" onClick={onPrevious} disabled={!hasPrevious} className="gap-2">
