@@ -30,11 +30,14 @@ export const getInstagramPublicMedia = createServerFn({ method: "GET" })
     let media: InstagramPublicMedia = { videoUrl: null, size: null };
     // Optional owner-operated resolver. Requests stay on the server; browser
     // clients never receive the endpoint's API token or configuration.
-    const cobaltPromise = resolveInstagramWithCobalt({
-      endpoint: process.env.COBALT_API_URL,
-      token: process.env.COBALT_API_KEY,
-      canonicalUrl: `https://www.instagram.com/${data.kind}/${encodeURIComponent(data.trackId)}/`,
-    });
+    const cobaltApiKey = process.env.COBALT_API_KEY;
+    const cobaltPromise = cobaltApiKey
+      ? resolveInstagramWithCobalt({
+          endpoint: process.env.COBALT_API_URL || "https://musicaschatt-cobalt.onrender.com",
+          token: cobaltApiKey,
+          canonicalUrl: `https://www.instagram.com/${data.kind}/${encodeURIComponent(data.trackId)}/`,
+        })
+      : Promise.resolve(null);
     try {
       // Fixed trusted host + validated shortcode; no arbitrary proxy URLs,
       // cookie forwarding or Instagram authentication bypass.
