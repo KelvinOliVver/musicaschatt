@@ -12,8 +12,9 @@ interface Props {
   canManage: boolean;
   globalCooldown: number;
   obsToken?: string | null;
+  channel?: string;
 }
-export function StreamerSettingsPanel({ preferences, onUpdate, canManage, globalCooldown, obsToken }: Props) {
+export function StreamerSettingsPanel({ preferences, onUpdate, canManage, globalCooldown, obsToken, channel = "roceiraplay" }: Props) {
   const [draft, setDraft] = useState(preferences);
   const [nick, setNick] = useState("");
   const [saving, setSaving] = useState(false);
@@ -148,10 +149,10 @@ export function StreamerSettingsPanel({ preferences, onUpdate, canManage, global
               disabled={!obsUrl} onClick={() => { if (obsUrl) copy(obsUrl,"URL do OBS copiada."); }}>
               <Copy className="size-4"/> Copiar fonte OBS sem login
             </Button>
-            <Button variant="outline" className="w-full justify-start gap-2 text-xs" size="sm" onClick={() => copy(`${window.location.origin}/remote`, "Link do controle remoto copiado.")}>
+            <Button variant="outline" className="w-full justify-start gap-2 text-xs" size="sm" onClick={() => copy(`${window.location.origin}/remote?channel=${encodeURIComponent(channel)}`, "Link do controle remoto copiado.")}>
               <Smartphone className="size-4"/> Copiar link do controle pelo celular
             </Button>
-            <a href="/remote" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+            <a href={`/remote?channel=${encodeURIComponent(channel)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
               Abrir controle remoto <ExternalLink className="size-3"/>
             </a>
           </section>
