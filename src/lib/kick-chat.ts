@@ -191,10 +191,15 @@ export function useKickChat(
     const normalized = slug.trim().toLowerCase();
     if (!normalized) {
       setStatus("idle");
+      setMessages([]);
+      setChannel(null);
+      setError(null);
       return;
     }
 
     let disposed = false;
+    // Avoid replaying the same song request or chat command after reconnects.
+    const seenMessageIds = new Set<string>();
     let socket: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let pingTimer: ReturnType<typeof setInterval> | undefined;
@@ -207,12 +212,23 @@ export function useKickChat(
 
     void loadChatHistory(normalized).then((history) => {
       if (disposed) return;
+      for (const message of history) seenMessageIds.add(message.id);
       setMessages((current) => mergeMessages(current, history));
     });
 
     const handleChatPayload = (payload: KickChatPayload) => {
       const normalizedPayload = normalizeChatPayload(payload);
       if (!normalizedPayload) return;
+
+      const messageId = payload.id == null ? null : String(payload.id);
+      if (messageId && seenMessageIds.has(messageId)) return;
+      if (messageId) {
+        seenMessageIds.add(messageId);
+        if (seenMessageIds.size > 1000) {
+          const oldestId = seenMessageIds.values().next().value;
+          if (oldestId) seenMessageIds.delete(oldestId);
+        }
+      }
 
       const { content, username, color } = normalizedPayload;
       const cleanUsername = username.toLowerCase();
@@ -247,7 +263,7 @@ export function useKickChat(
 
         if (supportedCommands.has(canonicalCommand)) {
           const commandMessage: KickChatMessage = {
-            id: payload.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            id: messageId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             username: username || "Pitee4",
             color,
             content: canonicalCommand,
@@ -263,7 +279,7 @@ export function useKickChat(
       }
 
       const message: KickChatMessage = {
-        id: payload.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        id: messageId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         username: username || "desconhecido",
         color,
         content,
