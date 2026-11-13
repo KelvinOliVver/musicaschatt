@@ -761,3 +761,60 @@
   .music-player-stage .social-player-native-controls { align-items: flex-start; }
   .music-shell.is-theater-shell .music-player-stage .social-stage { height: 100%; }
 }
+
+/* Instagram video focus: the official embed includes a fixed profile header,
+   engagement controls and a large white footer. Crop those surrounding areas
+   at the iframe boundary (cross-origin content is never modified). The native
+   embed stays available with "Ver post completo" for varying post layouts. */
+.music-player-stage .social-stage--instagram .instagram-reel-window {
+  position: relative;
+  z-index: 1;
+  flex: 0 1 auto;
+  width: min(100%, 440px);
+  height: 100%;
+  max-height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: #08080a;
+}
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-video-only {
+  --instagram-header-cut: 54px;
+  height: auto;
+  aspect-ratio: 5 / 6;
+  max-height: 100%;
+  border-radius: 3px;
+}
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-video-only > .social-stage-frame,
+.music-shell.is-theater-shell .music-player-stage .social-stage--instagram .instagram-reel-window.is-video-only > .social-stage-frame {
+  position: absolute;
+  top: calc(-1 * var(--instagram-header-cut));
+  left: 0;
+  display: block;
+  width: calc(100% + 18px);
+  max-width: none;
+  height: calc(100% + 400px);
+  min-height: 0;
+  border: 0;
+  overflow: hidden;
+}
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-full-post > .social-stage-frame {
+  position: relative;
+  top: auto;
+  left: auto;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+.music-player-stage .social-stage--instagram .instagram-view-toggle {
+  z-index: 20;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .45);
+}
+@media (max-width: 767px) {
+  .music-player-stage .social-stage--instagram .instagram-reel-window {
+    width: min(100%, 400px);
+  }
+  .music-player-stage .social-stage--instagram .instagram-reel-window.is-video-only {
+    --instagram-header-cut: 46px;
+  }
+}
