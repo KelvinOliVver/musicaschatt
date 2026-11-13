@@ -858,3 +858,65 @@
     --cinema-reserved-height: 245px;
   }
 }
+
+/* Player-only collapsible navigation. Other pages retain the regular sidebar. */
+.music-shell .music-sidebar {
+  transition: transform 220ms ease, visibility 220ms ease;
+}
+.music-shell.is-sidebar-collapsed .music-sidebar {
+  transform: translateX(-105%);
+  visibility: hidden;
+  pointer-events: none;
+}
+.music-shell.is-sidebar-collapsed .music-page.music-player-page {
+  margin-left: 0;
+  max-width: none;
+}
+.music-sidebar-toggle {
+  position: fixed;
+  z-index: 45;
+  top: 14px;
+  left: 244px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--sidebar);
+  color: var(--muted-foreground);
+  box-shadow: 0 3px 16px rgba(0, 0, 0, .18);
+  transition: left 220ms ease, background-color 150ms ease, color 150ms ease;
+}
+.music-sidebar-toggle:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.music-shell.is-sidebar-collapsed .music-sidebar-toggle { left: 14px; }
+.music-shell.is-sidebar-collapsed .music-player-page > .music-topbar {
+  padding-left: 52px;
+}
+.music-shell.is-theater-shell .music-sidebar-toggle { display: none; }
+@media (min-width: 768px) and (max-width: 1100px) {
+  .music-sidebar-toggle { left: 212px; }
+}
+@media (max-width: 767px) {
+  .music-shell.is-sidebar-collapsed .music-sidebar {
+    transform: translateY(-105%);
+  }
+  .music-sidebar-toggle,
+  .music-shell.is-sidebar-collapsed .music-sidebar-toggle {
+    left: auto;
+    right: 12px;
+    top: 14px;
+  }
+  .music-shell.is-sidebar-collapsed .music-player-page > .music-topbar {
+    padding-left: 0;
+    padding-right: 45px;
+  }
+  .music-shell:not(.is-sidebar-collapsed) .music-player-page > .music-topbar {
+    padding-top: 76px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .music-shell .music-sidebar,
+  .music-sidebar-toggle { transition: none; }
+}
