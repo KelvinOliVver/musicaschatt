@@ -192,7 +192,7 @@ export function PlayerPanel({
       ) return;
 
       if (event.code === "Space") {
-        if (!current) return;
+        if (!current || current.source === "instagram") return;
         event.preventDefault();
         setPaused((value) => {
           const nextValue = !value;
@@ -205,7 +205,7 @@ export function PlayerPanel({
       } else if (event.shiftKey && event.code === "ArrowLeft") {
         event.preventDefault();
         onPrevious();
-      } else if (current && ["ArrowLeft", "ArrowRight", "KeyJ", "KeyL"].includes(event.code)) {
+      } else if (current && current.source !== "instagram" && ["ArrowLeft", "ArrowRight", "KeyJ", "KeyL"].includes(event.code)) {
         event.preventDefault();
         const backwards = event.code === "ArrowLeft" || event.code === "KeyJ";
         const position = controlsRef.current?.getCurrentTime() ?? progressRef.current.current;
@@ -218,7 +218,7 @@ export function PlayerPanel({
         controlsRef.current?.seekTo(nextPosition);
         setProgress((value) => ({ ...value, current: nextPosition }));
         onSeekChange?.(nextPosition);
-      } else if (event.code === "KeyM") {
+      } else if (event.code === "KeyM" && current?.source !== "instagram") {
         setMuted((value) => !value);
       }
     }
@@ -227,6 +227,7 @@ export function PlayerPanel({
   }, [current?.id, controlsRef, onNext, onPrevious, onSeekChange, onTogglePlayChange]);
 
   const shown = scrubbing ?? progress.current;
+  const isInstagramVideo = current?.source === "instagram";
   const [videoOpacity, setVideoOpacity] = useState(1);
   const previousTrackIdRef = useRef<string | undefined>(current?.id);
   useEffect(() => {
@@ -317,6 +318,7 @@ export function PlayerPanel({
                     key={current.id}
                     source={current.source}
                     trackId={current.trackId}
+                    originalUrl={current.url}
                     muted={muted}
                     paused={paused}
                     onEnded={() => { if (isHost) onNext(); }}
@@ -370,36 +372,54 @@ export function PlayerPanel({
             ) : <p className="text-sm text-muted-foreground">Fila vazia — aguardando um novo pedido.</p>}
           </div>
 
-          <div className="flex items-center gap-3.5 py-0.5">
-            <span className="player-time-readout w-10 shrink-0 text-xs tabular-nums">{formatTime(shown)}</span>
-            <Slider className="progress-slider text-primary" value={[Math.min(shown, progress.duration || 0)]} max={progress.duration || 100} step={1} disabled={!current || progress.duration <= 0} onValueChange={([value]) => setScrubbing(value ?? 0)} onValueCommit={([value]) => { const targetTime = value ?? 0; controlsRef.current?.seekTo(targetTime); setScrubbing(null); onSeekChange?.(targetTime); }} aria-label="Progresso da música" />
-            <span className="player-time-readout w-10 shrink-0 text-right text-xs tabular-nums">{formatTime(progress.duration)}</span>
-          </div>
-
-          <div className="player-controls flex flex-wrap items-center gap-5">
-            <div className="flex items-center gap-2">
-              <Button size="icon" variant="secondary" className="size-10 rounded-full bg-transparent hover:bg-secondary" onClick={onPrevious} disabled={!hasPrevious} aria-label="Música anterior"><SkipBack className="size-4" aria-hidden /></Button>
-              <Button size="icon" className="size-12 rounded-full bg-primary text-primary-foreground hover:scale-105" onClick={() => setPaused((value) => { const nextVal = !value; onTogglePlayChange?.(nextVal); return nextVal; })} disabled={!current} aria-label={paused ? "Tocar" : "Pausar"}>{paused ? <Play className="size-5" aria-hidden /> : <Pause className="size-5" aria-hidden />}</Button>
-              <Button size="icon" variant="secondary" className="size-10 rounded-full bg-transparent hover:bg-secondary" onClick={onNext} disabled={!hasNext && !current} aria-label="Próxima música"><SkipForward className="size-4" aria-hidden /></Button>
+          {isInstagramVideo ? (
+            <div className="social-player-native-controls flex flex-wrap items-center justify-between gap-3 border-t border-border/70 py-3">
+              <span className="text-xs text-muted-foreground">
+                Para reproduzir ou pausar, use o próprio vídeo do Instagram.
+              </span>
+              <div className="flex items-center gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={onPrevious} disabled={!hasPrevious} className="gap-2">
+                  <SkipBack className="size-4" aria-hidden /> Anterior
+                </Button>
+                <Button type="button" size="sm" onClick={onNext} className="gap-2">
+                  Próximo pedido <SkipForward className="size-4" aria-hidden />
+                </Button>
+              </div>
             </div>
-
-            <div className="player-volume flex flex-1 items-center gap-2">
-              <Button size="icon" variant="ghost" className="size-8 shrink-0 rounded-full transition-colors duration-200 hover:bg-secondary" onClick={() => setMuted((value) => !value)} aria-label={muted ? "Tirar do mudo" : "Deixar mudo"}>{muted ? <VolumeX className="size-4 text-muted-foreground" aria-hidden /> : <Volume2 className="size-4 text-muted-foreground" aria-hidden />}</Button>
-              <Slider className="volume-slider text-primary" value={[muted ? 0 : volume]} onValueChange={([value]) => { const newVol = value ?? 0; setVolume(newVol); if (newVol > 0) setMuted(false); onVolumeChange?.(newVol); }} max={100} step={1} aria-label="Volume" />
-              <span className="volume-readout w-8 shrink-0 text-right text-xs tabular-nums">{muted ? 0 : volume}</span>
+          ) : (
+            <>
+            <div className="flex items-center gap-3.5 py-0.5">
+              <span className="player-time-readout w-10 shrink-0 text-xs tabular-nums">{formatTime(shown)}</span>
+              <Slider className="progress-slider text-primary" value={[Math.min(shown, progress.duration || 0)]} max={progress.duration || 100} step={1} disabled={!current || progress.duration <= 0} onValueChange={([value]) => setScrubbing(value ?? 0)} onValueCommit={([value]) => { const targetTime = value ?? 0; controlsRef.current?.seekTo(targetTime); setScrubbing(null); onSeekChange?.(targetTime); }} aria-label="Progresso da música" />
+              <span className="player-time-readout w-10 shrink-0 text-right text-xs tabular-nums">{formatTime(progress.duration)}</span>
             </div>
-          </div>
+  
+            <div className="player-controls flex flex-wrap items-center gap-5">
+              <div className="flex items-center gap-2">
+                <Button size="icon" variant="secondary" className="size-10 rounded-full bg-transparent hover:bg-secondary" onClick={onPrevious} disabled={!hasPrevious} aria-label="Música anterior"><SkipBack className="size-4" aria-hidden /></Button>
+                <Button size="icon" className="size-12 rounded-full bg-primary text-primary-foreground hover:scale-105" onClick={() => setPaused((value) => { const nextVal = !value; onTogglePlayChange?.(nextVal); return nextVal; })} disabled={!current} aria-label={paused ? "Tocar" : "Pausar"}>{paused ? <Play className="size-5" aria-hidden /> : <Pause className="size-5" aria-hidden />}</Button>
+                <Button size="icon" variant="secondary" className="size-10 rounded-full bg-transparent hover:bg-secondary" onClick={onNext} disabled={!hasNext && !current} aria-label="Próxima música"><SkipForward className="size-4" aria-hidden /></Button>
+              </div>
+  
+              <div className="player-volume flex flex-1 items-center gap-2">
+                <Button size="icon" variant="ghost" className="size-8 shrink-0 rounded-full transition-colors duration-200 hover:bg-secondary" onClick={() => setMuted((value) => !value)} aria-label={muted ? "Tirar do mudo" : "Deixar mudo"}>{muted ? <VolumeX className="size-4 text-muted-foreground" aria-hidden /> : <Volume2 className="size-4 text-muted-foreground" aria-hidden />}</Button>
+                <Slider className="volume-slider text-primary" value={[muted ? 0 : volume]} onValueChange={([value]) => { const newVol = value ?? 0; setVolume(newVol); if (newVol > 0) setMuted(false); onVolumeChange?.(newVol); }} max={100} step={1} aria-label="Volume" />
+                <span className="volume-readout w-8 shrink-0 text-right text-xs tabular-nums">{muted ? 0 : volume}</span>
+              </div>
+            </div>
+            </>
+          )}
 
           <div className="player-up-next flex items-center justify-between gap-2 text-muted-foreground">
             <span className="truncate">{next ? <>A seguir: <span className="text-foreground">{next.title ?? (isSocialSource(next.source) ? `Vídeo do ${sourceLabel(next.source)}` : next.trackId)}</span></> : "Fila vazia — a próxima música que cair no chat toca aqui."}</span>
           </div>
-          <div className="music-player-shortcuts flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground/80" aria-label="Atalhos de teclado">
+          {!isInstagramVideo && <div className="music-player-shortcuts flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground/80" aria-label="Atalhos de teclado">
             <Keyboard className="size-3.5" aria-hidden />
             <span><kbd>Espaço</kbd> pausa</span>
             <span><kbd>←</kbd> <kbd>→</kbd> ±5s</span>
             <span><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd> anterior/próxima</span>
             <span><kbd>M</kbd> mudo</span>
-          </div>
+          </div>}
         </div>
       </section>
     </div>
