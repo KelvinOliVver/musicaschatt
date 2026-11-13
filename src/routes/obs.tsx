@@ -78,7 +78,7 @@ function ObsPage() {
         <div className="music-player-grid is-theater-mode">
           <div className="music-player-stage">
             <PlayerPanel current={track} next={null} hasPrevious={false} hasNext={false}
-              isHost={false} remoteSync={sync} theaterMode={true}
+              isHost={false} forceMuted={new URLSearchParams(window.location.search).get("audio") === "0"} remoteSync={sync} theaterMode={true}
               onNext={() => {}} onPrevious={() => {}} />
           </div>
         </div>
