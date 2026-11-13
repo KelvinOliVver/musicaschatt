@@ -465,7 +465,7 @@ export function ChatFeed({
                               >{name}</a>
                             ) : (
                               <span className="max-w-full truncate text-xs font-semibold">{name}</span>
-                            )
+                            )}
                             {isCommand && (
                               <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
                                 Comando
