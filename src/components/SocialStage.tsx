@@ -3,6 +3,11 @@ import { RotateCcw, SlidersHorizontal, Volume2 } from "lucide-react";
 import { createWorkerTicker, type StageControls } from "@/components/YouTubeStage";
 import { socialEmbedUrl, sourceLabel } from "@/lib/social-video";
 import {
+  inferInstagramLayoutFromImage,
+  instagramPublicPreviewUrls,
+  type InferredInstagramLayout,
+} from "@/lib/instagram-auto-fit";
+import {
   DEFAULT_INSTAGRAM_FRAMING,
   decodeInstagramFraming,
   instagramFramingKey,
@@ -12,6 +17,7 @@ import {
 } from "@/lib/instagram-framing";
 
 const instagramLayouts: { value: InstagramLayout; label: string }[] = [
+  { value: "auto", label: "Automático" },
   { value: "portrait", label: "Vertical" },
   { value: "landscape", label: "16:9" },
   { value: "standard", label: "4:3" },
@@ -21,10 +27,7 @@ const instagramLayouts: { value: InstagramLayout; label: string }[] = [
 function getSavedInstagramFraming(trackId: string): InstagramFraming {
   if (typeof window === "undefined") return { ...DEFAULT_INSTAGRAM_FRAMING };
   try {
-    return decodeInstagramFraming(
-      window.sessionStorage.getItem(instagramFramingKey(trackId)),
-      window.sessionStorage.getItem(`music-chat-reel-layout:${trackId}`),
-    );
+    return decodeInstagramFraming(window.sessionStorage.getItem(instagramFramingKey(trackId)));
   } catch {
     return { ...DEFAULT_INSTAGRAM_FRAMING };
   }
@@ -73,11 +76,66 @@ export function SocialStage({
   // Use the same initial markup on SSR and client; restore saved crop in an effect.
   const [framing, setFraming] = useState<InstagramFraming>({ ...DEFAULT_INSTAGRAM_FRAMING });
   const [showFramingSettings, setShowFramingSettings] = useState(false);
+  // Until an actual preview is available, show the complete native embed.
+  // Guessing a portrait crop would hide landscape Reels.
+  const [autoLayout, setAutoLayout] = useState<InferredInstagramLayout>("full");
 
   useEffect(() => {
     setFraming(getSavedInstagramFraming(trackId));
     setShowFramingSettings(false);
   }, [trackId]);
+
+  useEffect(() => {
+    if (source !== "instagram" || framing.layout !== "auto") return;
+
+    let disposed = false;
+    let photo: HTMLImageElement | null = null;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    const previews = instagramPublicPreviewUrls(trackId);
+    let nextPreview = 0;
+    setAutoLayout("full");
+
+    function tryPreview() {
+      if (photo) {
+        photo.onload = null;
+        photo.onerror = null;
+      }
+      if (timeout !== null) clearTimeout(timeout);
+      if (disposed) return;
+      const src = previews[nextPreview++];
+      if (!src) return; // Safe native post fallback, never a forced crop.
+
+      const image = new Image();
+      photo = image;
+      let settled = false;
+      const complete = (layout: InferredInstagramLayout | null) => {
+        if (disposed || settled) return;
+        settled = true;
+        if (timeout !== null) clearTimeout(timeout);
+        if (layout && layout !== "full") setAutoLayout(layout);
+        else tryPreview();
+      };
+
+      image.onload = () => {
+        complete(inferInstagramLayoutFromImage(image.naturalWidth, image.naturalHeight));
+      };
+      image.onerror = () => complete(null);
+      timeout = setTimeout(() => complete(null), 2200);
+      image.src = src;
+    }
+
+    tryPreview();
+    return () => {
+      disposed = true;
+      if (timeout !== null) clearTimeout(timeout);
+      if (photo) {
+        photo.onload = null;
+        photo.onerror = null;
+      }
+    };
+  }, [source, trackId, framing.layout]);
+
+  const effectiveLayout = framing.layout === "auto" ? autoLayout : framing.layout;
 
   function updateInstagramFraming(patch: Partial<InstagramFraming>) {
     const updated = normalizeInstagramFraming({ ...framing, ...patch });
@@ -225,7 +283,7 @@ export function SocialStage({
   return (
     <div className={`social-stage social-stage--${source} relative flex aspect-video w-full items-center justify-center overflow-hidden bg-media-background`}>
       {source === "instagram" ? (
-        <div className={`instagram-reel-window is-${framing.layout}`} style={instagramFrameStyle}>
+        <div className={`instagram-reel-window is-${effectiveLayout}`} style={instagramFrameStyle}>
           {embedFrame}
         </div>
       ) : embedFrame}
@@ -259,9 +317,11 @@ export function SocialStage({
               className={`instagram-layout-option rounded-sm px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${instagramLayout === value ? "bg-primary text-primary-foreground" : "text-white hover:bg-white/20"}`}
               onClick={() => updateInstagramFraming({ layout: value, zoom: 100, verticalOffset: 0 })}
               aria-pressed={framing.layout === value}
-              title={value === "landscape"
-                ? "Enquadrar o vídeo horizontal em 16:9"
-                : value === "standard"
+              title={value === "auto"
+                ? "Detectar a proporção pela prévia pública quando disponível"
+                : value === "landscape"
+                  ? "Enquadrar o vídeo horizontal em 16:9"
+                  : value === "standard"
                   ? "Enquadrar o vídeo em 4:3"
                   : value === "portrait"
                     ? "Mostrar o Reel vertical"
@@ -277,7 +337,7 @@ export function SocialStage({
             aria-expanded={showFramingSettings}
             aria-controls="instagram-framing-settings"
             aria-label="Ajustar zoom e posição do Instagram"
-            disabled={framing.layout === "full"}
+            disabled={effectiveLayout === "full"}
             title="Ajustar zoom e posição do vídeo"
           >
             <SlidersHorizontal className="size-3.5" aria-hidden />
@@ -285,7 +345,7 @@ export function SocialStage({
           </button>
         </div>
       )}
-      {source === "instagram" && showFramingSettings && framing.layout !== "full" && (
+      {source === "instagram" && showFramingSettings && effectiveLayout !== "full" && (
         <div
           id="instagram-framing-settings"
           className="instagram-framing-settings absolute bottom-14 right-2 z-20 w-[min(290px,calc(100%-16px))] rounded-md border border-white/20 bg-[#17171b]/95 p-3 text-white shadow-xl"
