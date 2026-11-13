@@ -303,10 +303,9 @@ export function useKickChat(
       const normalizedUsername = normalizeKickUsername(username);
       if (normalizedUsername && avatarUrl) avatarByUser.set(normalizedUsername, avatarUrl);
       const resolvedAvatar = avatarUrl ?? avatarByUser.get(normalizedUsername ?? "") ?? null;
-      const cleanUsername = username.toLowerCase();
       const commandText = content.trim().toLowerCase();
 
-      if (cleanUsername === "pitee4") {
+      { // Parse supported commands for every sender; authorization happens in the player.
         const commandAliases: Record<string, string> = {
           "!next": "!proxima",
           "!pular": "!proxima",
