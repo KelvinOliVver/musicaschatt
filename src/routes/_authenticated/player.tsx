@@ -627,7 +627,7 @@ function PlayerPage() {
           </div>
 
           <div className="music-chat-column hidden md:block">
-            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} onBlockUser={isHost ? blockUsername : undefined} blockedUsernames={settings.blockedUsernames} />
+            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} />
           </div>
 
           <Tabs defaultValue="fila" className="music-player-tabs flex min-h-[420px] flex-col md:hidden">
@@ -654,7 +654,7 @@ function PlayerPage() {
               />
             </TabsContent>
             <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
-              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} onBlockUser={isHost ? blockUsername : undefined} blockedUsernames={settings.blockedUsernames} />
+              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} />
             </TabsContent>
           </Tabs>
         </div>
