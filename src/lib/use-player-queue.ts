@@ -223,10 +223,8 @@ export function usePlayerQueue(): PlayerQueue {
     return data ?? null;
   }, []);
 
-  useEffect(() => {
-    if (current || queue.length === 0) return;
-    void advanceNext().then(() => refresh());
-  }, [current, queue, advanceNext, refresh]);
+  // Auto-start is deliberately owned by the elected host in the player route.
+  // Otherwise every viewer tab could call advance_player_queue at once.
 
   const applyMetadata = useCallback(
     (id: string, track: DetectedTrack) => {
