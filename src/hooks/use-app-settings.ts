@@ -6,18 +6,38 @@ export interface AppSettings {
   blockedUsernames: string[];
 }
 
+type BlocklistSaveResult = "shared" | "local" | false;
+
 const DEFAULT_SETTINGS: AppSettings = { chatCooldownSeconds: 20, blockedUsernames: [] };
+const BLOCKLIST_LOCAL_KEY = "musicas-chat-blocked-kick-usernames";
+
+function readLocalBlocklist(): string[] | null {
+  try {
+    const raw = window.localStorage.getItem(BLOCKLIST_LOCAL_KEY);
+    if (raw === null) return null;
+    const values: unknown = JSON.parse(raw);
+    if (!Array.isArray(values)) return null;
+    return values.filter((value): value is string =>
+      typeof value === "string" && /^[a-z0-9_-]{1,40}$/.test(value));
+  } catch {
+    return null;
+  }
+}
 
 /**
- * Configurações do site (ex: cooldown de pedidos no chat), guardadas numa
- * única linha da tabela "app_settings". Qualquer pessoa logada pode ler e
- * editar — não é restrito por papel/role, é "logado = pode mexer", como foi
- * pedido. Sincroniza em tempo real: se alguém mudar num navegador, todo
- * mundo com o site aberto vê a mudança na hora.
+ * Shared settings with a persistent local moderation fallback. The database
+ * restricts UPDATE to admins; non-admin hosts must still be able to ignore
+ * requesters in their own browser, without escalating database permissions.
  */
 export function useAppSettings() {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<AppSettings>(() => ({
+    ...DEFAULT_SETTINGS,
+    blockedUsernames: readLocalBlocklist() ?? [],
+  }));
   const [loading, setLoading] = useState(true);
+  const [blocklistLocalOnly, setBlocklistLocalOnly] = useState(
+    () => readLocalBlocklist() !== null,
+  );
 
   const refresh = useCallback(async () => {
     const { data, error } = await supabase
@@ -26,9 +46,16 @@ export function useAppSettings() {
       .eq("id", 1)
       .maybeSingle();
 
+    const local = readLocalBlocklist();
     if (!error && data) {
-      setSettings({ chatCooldownSeconds: data.chat_cooldown_seconds, blockedUsernames: data.blocked_usernames ?? [] });
+      setSettings({
+        chatCooldownSeconds: data.chat_cooldown_seconds,
+        blockedUsernames: local ?? data.blocked_usernames ?? [],
+      });
+    } else if (local !== null) {
+      setSettings((current) => ({ ...current, blockedUsernames: local }));
     }
+    setBlocklistLocalOnly(local !== null);
     setLoading(false);
   }, []);
 
@@ -40,7 +67,12 @@ export function useAppSettings() {
         void refresh();
       })
       .subscribe();
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === BLOCKLIST_LOCAL_KEY) void refresh();
+    };
+    window.addEventListener("storage", handleStorage);
     return () => {
+      window.removeEventListener("storage", handleStorage);
       void supabase.removeChannel(channel);
     };
   }, [refresh]);
@@ -58,21 +90,36 @@ export function useAppSettings() {
     return true;
   }, []);
 
-  const updateBlockedUsernames = useCallback(async (usernames: string[]) => {
-    const cleaned = [...new Set(usernames.map((nick) => nick.trim().toLowerCase()).filter((nick) => /^[a-z0-9_-]{1,40}$/.test(nick)))];
+  const updateBlockedUsernames = useCallback(async (usernames: string[]): Promise<BlocklistSaveResult> => {
+    const cleaned = [...new Set(usernames.map((nick) => nick.trim().toLowerCase())
+      .filter((nick) => /^[a-z0-9_-]{1,40}$/.test(nick)))];
+
     const { data, error } = await supabase
       .from("app_settings")
       .update({ blocked_usernames: cleaned, updated_at: new Date().toISOString() })
       .eq("id", 1)
       .select("blocked_usernames")
       .single();
-    if (error || !data) {
-      console.error("[BLOCKED USERNAMES ERROR]", error?.message);
+
+    if (!error && data) {
+      try { window.localStorage.removeItem(BLOCKLIST_LOCAL_KEY); } catch { /* ignored */ }
+      setBlocklistLocalOnly(false);
+      setSettings((current) => ({ ...current, blockedUsernames: data.blocked_usernames }));
+      return "shared";
+    }
+
+    // Authenticated users without the admin role hit RLS. Preserve an actual
+    // working blocklist on this device rather than silently dropping the ban.
+    console.warn("[BLOCKED USERNAMES] Shared save denied; using local list:", error?.message);
+    try {
+      window.localStorage.setItem(BLOCKLIST_LOCAL_KEY, JSON.stringify(cleaned));
+    } catch {
       return false;
     }
-    setSettings((current) => ({ ...current, blockedUsernames: data.blocked_usernames }));
-    return true;
+    setBlocklistLocalOnly(true);
+    setSettings((current) => ({ ...current, blockedUsernames: cleaned }));
+    return "local";
   }, []);
 
-  return { settings, loading, updateCooldown, updateBlockedUsernames };
+  return { settings, loading, blocklistLocalOnly, updateCooldown, updateBlockedUsernames };
 }
