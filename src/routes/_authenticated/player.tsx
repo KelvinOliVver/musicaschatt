@@ -19,6 +19,7 @@ import { usePlayerQueue } from "@/lib/use-player-queue";
 import { useStreamerPreferences } from "@/hooks/use-streamer-preferences";
 import { StreamerSettingsPanel } from "@/components/StreamerSettingsPanel";
 import { normalizeKickUsername } from "@/lib/kick-avatars";
+import { mayUseKickPlayerCommands } from "@/lib/kick-commands";
 import { useProfile } from "@/hooks/use-profile";
 import { useAppSettings } from "@/hooks/use-app-settings";
 import { useDominantColor } from "@/hooks/use-dominant-color";
@@ -100,6 +101,7 @@ function PlayerPage() {
   const { counts: voteCounts, mine: myVotes, vote: voteFor } = useQueueVotes(voteIds);
   const [requestOutcomes, setRequestOutcomes] = useState<Record<string, { status: "accepted" | "rejected"; reason: string }>>({});
   const [rejectedCount, setRejectedCount] = useState(0);
+  const [commandOutcomes, setCommandOutcomes] = useState<Record<string, { status: "executed" | "ignored"; reason: string }>>({});
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const playerControlsRef = useRef<StageControls | null>(null);
@@ -370,38 +372,56 @@ function PlayerPage() {
   }, [queue, settingsLoading, settings.chatCooldownSeconds, recordOutcome]);
 
   const handleCommand = useCallback(
-    (command: string, username: string) => {
+    (command: string, username: string, badges: string[], messageId: string) => {
       if (!isHostRef.current) return;
-      const nick = normalizeKickUsername(username);
-      // Streamer account always has command access; additional moderators are explicitly allowlisted.
-      if (!nick || (nick !== slug.trim().toLowerCase() && !preferencesRef.current.moderatorNicks.includes(nick))) return;
+      const allowed = mayUseKickPlayerCommands(
+        username, slug, preferencesRef.current.moderatorNicks, badges,
+      );
+      const report = (status: "executed" | "ignored", reason: string) => {
+        setCommandOutcomes((current) => ({
+          ...Object.fromEntries(Object.entries(current).slice(-100)),
+          [messageId]: { status, reason },
+        }));
+      };
+      if (!allowed) {
+        report("ignored", "Apenas o streamer ou um moderador da Kick pode controlar o player");
+        return;
+      }
 
       if (command === "!skip" || command === "!proxima") {
-        const head = queue.queue[0];
-        const alternative = head && queue.current && preferencesRef.current.fairQueue
-          ? queue.queue.find((item) => item.priority === head.priority &&
-              item.requestedBy.trim().toLowerCase() !== queue.current!.requestedBy.trim().toLowerCase())
-          : null;
-        if (alternative) queue.playNow(alternative.id);
-        else queue.playNext();
-        toast.info("Música pulada pelo comando do chat!");
+        if (!queue.current && queue.queue.length === 0) {
+          report("ignored", "Não há vídeo para pular");
+          return;
+        }
+        // Reuse the host's queue navigation so voting/fairness also applies.
+        remoteCommandRef.current("next");
+        report("executed", "Avançar para o próximo vídeo");
       } else if (command === "!back" || command === "!anterior") {
-        queue.playPrevious();
-        toast.info("Voltando para a música anterior pelo chat!");
-      } else if (command === "!pausar") {
-        setExternalCommand({ seq: Date.now(), action: "pause" });
-        sendPlaybackSync({ paused: true });
-        toast.info("Pausado pelo comando do chat!");
-      } else if (command === "!continuar") {
-        setExternalCommand({ seq: Date.now(), action: "resume" });
-        sendPlaybackSync({ paused: false });
-        toast.info("Retomado pelo comando do chat!");
+        if (queue.history.length === 0) {
+          report("ignored", "Não há vídeo anterior no histórico");
+          return;
+        }
+        remoteCommandRef.current("previous");
+        report("executed", "Voltar ao vídeo anterior");
+      } else if (command === "!pausar" || command === "!continuar") {
+        if (!queue.current) {
+          report("ignored", "Não há vídeo em reprodução");
+          return;
+        }
+        // The same path used by the mobile controller updates the host,
+        // the shared timeline and the OBS source.
+        remoteCommandRef.current(command === "!pausar" ? "pause" : "resume");
+        report("executed", command === "!pausar" ? "Pausar reprodução" : "Retomar reprodução");
       } else if (command === "!limpar") {
+        if (queue.queue.length === 0) {
+          report("ignored", "A fila já está vazia");
+          return;
+        }
         queue.clearQueue();
-        toast.info("Fila limpa pelo comando do chat!");
+        report("executed", "Limpar pedidos pendentes");
       }
     },
-    [queue, sendPlaybackSync, slug],
+    [queue, slug],
   );
 
   const chat = useKickChat(slug, handleMessage, handleCommand, () => isHostRef.current);
@@ -783,7 +803,7 @@ function PlayerPage() {
           </div>
 
           <div className="music-chat-column hidden min-w-0 max-w-full overflow-hidden md:block">
-            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} requestOutcomes={requestOutcomes} />
+            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} requestOutcomes={requestOutcomes} commandOutcomes={commandOutcomes} />
           </div>
 
           <Tabs defaultValue="fila" className="music-player-tabs flex min-h-[420px] flex-col md:hidden">
@@ -815,7 +835,7 @@ function PlayerPage() {
               />
             </TabsContent>
             <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
-              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} requestOutcomes={requestOutcomes} />
+              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} requestOutcomes={requestOutcomes} commandOutcomes={commandOutcomes} />
             </TabsContent>
           </Tabs>
         </div>
