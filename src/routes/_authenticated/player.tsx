@@ -354,6 +354,7 @@ function PlayerPage() {
   const chat = useKickChat(slug, handleMessage, handleCommand, () => isHostRef.current);
 
   const blockUsername = useCallback(async (rawNick: string) => {
+    if (!isAdministrator) { toast.error("Somente administradores podem bloquear pedidos."); return; }
     const nick = normalizeKickUsername(rawNick.replace(/^@/, ""));
     if (!nick) {
       toast.error("Nick inválido", { description: "Use um nome de usuário da Kick." });
@@ -375,9 +376,10 @@ function PlayerPage() {
       blockedUsernamesRef.current = settings.blockedUsernames;
       toast.error("Não foi possível salvar o bloqueio.");
     }
-  }, [settings.blockedUsernames, updateBlockedUsernames]);
+  }, [settings.blockedUsernames, updateBlockedUsernames, isAdministrator]);
 
   const unblockUsername = useCallback(async (nick: string) => {
+    if (!isAdministrator) return;
     const updated = blockedUsernamesRef.current.filter((user) => user !== nick);
     blockedUsernamesRef.current = updated;
     const saved = await updateBlockedUsernames(updated);
@@ -387,10 +389,11 @@ function PlayerPage() {
       blockedUsernamesRef.current = settings.blockedUsernames;
       toast.error("Não foi possível desbloquear este nick.");
     }
-  }, [settings.blockedUsernames, updateBlockedUsernames]);
+  }, [settings.blockedUsernames, updateBlockedUsernames, isAdministrator]);
 
   function handleManualAdd(event: FormEvent) {
     event.preventDefault();
+    if (!isHostRef.current) { toast.error("Apenas o host pode adicionar vídeos manualmente."); return; }
     const track = parseTrackInput(manual);
     if (!track) {
       toast.error("Link inválido", { description: "Cole um link do YouTube, Instagram (Reels) ou TikTok." });
@@ -406,6 +409,7 @@ function PlayerPage() {
   }
 
   const handlePlayNext = useCallback(() => {
+    if (!isHostRef.current) return;
     const first = queue.queue[0];
     if (!first || !preferences.fairQueue || !queue.current) {
       queue.playNext();
@@ -429,24 +433,24 @@ function PlayerPage() {
     handlePlayNext();
   }, [queue.current?.id, handlePlayNext]);
 
-  const handlePlayPrevious = useCallback(() => queue.playPrevious(), [queue]);
-  const handlePlayNow = useCallback((id: string) => queue.playNow(id), [queue]);
-  const handleRemoveItem = useCallback((id: string) => queue.removeItem(id), [queue]);
-  const handleClearQueue = useCallback(() => queue.clearQueue(), [queue]);
+  const handlePlayPrevious = useCallback(() => { if (isHostRef.current) queue.playPrevious(); }, [queue]);
+  const handlePlayNow = useCallback((id: string) => { if (isHostRef.current) queue.playNow(id); }, [queue]);
+  const handleRemoveItem = useCallback((id: string) => { if (isHostRef.current) queue.removeItem(id); }, [queue]);
+  const handleClearQueue = useCallback(() => { if (isHostRef.current) queue.clearQueue(); }, [queue]);
   const handleMoveItem = useCallback(
-    (id: string, toIndex: number) => queue.moveItem(id, toIndex),
+    (id: string, toIndex: number) => { if (isHostRef.current) queue.moveItem(id, toIndex); },
     [queue],
   );
 
-  const handleSeekBroadcast = useCallback((time: number) => broadcast("SEEK", { time }), [broadcast]);
+  const handleSeekBroadcast = useCallback((time: number) => { if (isHostRef.current) broadcast("SEEK", { time }); }, [broadcast]);
   const handleTogglePlayBroadcast = useCallback(
-    (paused: boolean) => broadcast("TOGGLE_PLAY", { paused }),
+    (paused: boolean) => { if (isHostRef.current) broadcast("TOGGLE_PLAY", { paused }); },
     [broadcast],
   );
 
   const handlePlaybackHeartbeat = useCallback(
     (position: number, paused: boolean, duration?: number) => {
-      if (!queue.current) return;
+      if (!queue.current || !isHostRef.current) return;
       queue.updatePlaybackHeartbeat(queue.current.id, position, paused, duration);
       broadcast("HEARTBEAT", { time: position });
     },
@@ -530,7 +534,7 @@ function PlayerPage() {
                     maxLength={41}
                     className="h-9 min-w-0 flex-1"
                   />
-                  <Button type="submit" size="sm" disabled={settingsLoading || !blockedNickInput.trim()} className="h-9 gap-1">
+                  <Button type="submit" size="sm" disabled={!isAdministrator || settingsLoading || !blockedNickInput.trim()} className="h-9 gap-1">
                     <Ban className="size-3.5" aria-hidden /> Bloquear
                   </Button>
                 </form>
@@ -627,6 +631,7 @@ function PlayerPage() {
             onChange={(event) => setManual(event.target.value)}
             placeholder="Cole um link do YouTube, Instagram ou TikTok"
             aria-label="Adicionar música manualmente"
+            disabled={!isHost}
             className="h-8 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
           />
           <Button type="submit" size="sm" className="bg-gradient-primary h-8 px-3 text-primary-foreground">
@@ -658,6 +663,7 @@ function PlayerPage() {
 
           <div className="music-queue-column hidden md:flex">
             <QueueList
+              canManage={isHost}
               items={queue.queue}
               history={queue.history}
               onPlayNow={handlePlayNow}
@@ -686,6 +692,7 @@ function PlayerPage() {
             </TabsList>
             <TabsContent value="fila" className="mt-3 flex min-h-0 flex-1 flex-col">
               <QueueList
+                canManage={isHost}
                 items={queue.queue}
                 history={queue.history}
                 onPlayNow={handlePlayNow}
