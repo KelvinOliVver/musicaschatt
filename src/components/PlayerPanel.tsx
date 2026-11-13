@@ -325,6 +325,11 @@ export function PlayerPanel({
                     paused={paused}
                     onEnded={() => { if (isHost) onNext(); }}
                     onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+                    onPlayingChange={(playing) => {
+                      const newPaused = !playing;
+                      setPaused(newPaused);
+                      if (isHost) onTogglePlayChange?.(newPaused);
+                    }}
                     controlsRef={controlsRef}
                   />
                 ) : (
