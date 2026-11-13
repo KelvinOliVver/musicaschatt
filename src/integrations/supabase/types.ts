@@ -17,22 +17,40 @@ export type Database = {
       app_settings: {
         Row: {
           chat_cooldown_seconds: number
+          streamer_preferences: Json
+          obs_token: string
+          obs_volume: number
+          obs_muted: boolean
           blocked_usernames: string[]
           id: number
           updated_at: string
         }
         Insert: {
           chat_cooldown_seconds?: number
+          streamer_preferences?: Json
+          obs_token?: string
+          obs_volume?: number
+          obs_muted?: boolean
           blocked_usernames?: string[]
           id?: number
           updated_at?: string
         }
         Update: {
           chat_cooldown_seconds?: number
+          streamer_preferences?: Json
+          obs_token?: string
+          obs_volume?: number
+          obs_muted?: boolean
           blocked_usernames?: string[]
           id?: number
           updated_at?: string
         }
+        Relationships: []
+      }
+      queue_votes: {
+        Row: { item_id: string; voter_id: string; created_at: string }
+        Insert: { item_id: string; voter_id: string; created_at?: string }
+        Update: { item_id?: string; voter_id?: string; created_at?: string }
         Relationships: []
       }
       kick_bot_rate_limit: {
