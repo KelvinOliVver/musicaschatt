@@ -269,8 +269,7 @@ function PlayerPage() {
   }, [slug]);
 
   useEffect(() => {
-    if (!profileName && !profileAvatarUrl) return;
-    if (!channelRef.current) return;
+    if (!roleLoaded || !channelRef.current) return;
     void channelRef.current.track({
       clientId: clientIdRef.current,
       username: profileName ?? getFriendlyListenerName(clientIdRef.current),
