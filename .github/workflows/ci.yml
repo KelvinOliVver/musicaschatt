@@ -53,6 +53,9 @@ jobs:
       - name: Test independent Instagram extraction
         run: node --test infra/cobalt/yt-dlp.test.mjs
 
+      - name: Test public Instagram GraphQL media resolver
+        run: node --test infra/cobalt/ig-graphql.test.mjs
+
       - name: Build Cobalt + yt-dlp container
         run: docker build --file infra/cobalt/Dockerfile --tag music-chat-media:ci .
 
