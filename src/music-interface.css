@@ -559,3 +559,83 @@
   .music-player-shortcuts { gap: 8px; }
   .music-chat .chat-user-avatar { width: 30px; height: 30px; }
 }
+
+/* Modo cinema: o player cresce no mesmo DOM, mantendo o iframe e o áudio vivos.
+   A fila e o chat continuam disponíveis abaixo do vídeo. */
+.music-stage-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+.music-session-caption { white-space: nowrap; }
+.music-theater-toggle {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--foreground);
+  white-space: nowrap;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.music-theater-toggle:hover,
+.music-theater-toggle[aria-pressed="true"] {
+  background: var(--secondary);
+  border-color: var(--primary);
+}
+.music-player-grid.is-theater-mode {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.music-player-grid.is-theater-mode > .music-player-stage {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  width: 100%;
+  min-width: 0;
+}
+.music-player-grid.is-theater-mode .music-player-stage .panel {
+  max-width: 1650px;
+  margin-inline: auto;
+}
+.music-player-grid.is-theater-mode .music-player-stage .player-video {
+  width: 100%;
+  max-width: min(100%, 148svh);
+  margin-inline: auto;
+}
+.music-player-grid.is-theater-mode .music-player-stage .player-content {
+  max-width: 1650px;
+}
+@media (min-width: 768px) {
+  /* Esconde a navegação lateral para liberar espaço para filmes e vídeos. */
+  .music-shell.is-theater-shell .music-sidebar {
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-100%);
+  }
+  .music-shell.is-theater-shell .music-page {
+    margin-left: 0;
+    max-width: none;
+    padding-inline: clamp(22px, 3vw, 64px);
+  }
+  .music-player-grid.is-theater-mode {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .music-player-grid.is-theater-mode > .music-queue-column {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 340px;
+    height: 430px;
+  }
+  .music-player-grid.is-theater-mode > .music-chat-column {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 340px;
+    height: 430px;
+  }
+}
+@media (max-width: 767px) {
+  .music-stage-actions { gap: 4px; }
+  .music-stage-actions .music-session-caption { display: none; }
+  .music-player-grid.is-theater-mode .music-player-stage .panel { padding: 8px; }
+  .music-player-grid.is-theater-mode .music-player-stage .player-content { padding-inline: 0; }
+  .music-theater-toggle { font-size: 11px; }
+}

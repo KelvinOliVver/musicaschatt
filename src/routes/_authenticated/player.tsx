@@ -92,6 +92,7 @@ function PlayerPage() {
   const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
+  const [theaterMode, setTheaterMode] = useState(false);
   const accentColor = useDominantColor(queue.current?.thumbnail);
 
   const { data: userProfile } = useProfile();
@@ -290,7 +291,7 @@ function PlayerPage() {
   );
 
   return (
-    <div className="music-shell">
+    <div className={`music-shell${theaterMode ? " is-theater-shell" : ""}`}>
       <MusicSidebar active="player" />
       <main className="music-page music-player-page">
         <div className="music-topbar">
@@ -399,8 +400,10 @@ function PlayerPage() {
           </Button>
         </form>
 
-        <div className="music-player-grid">
+        <div className={`music-player-grid${theaterMode ? " is-theater-mode" : ""}`}>
           <PlayerPanel
+            theaterMode={theaterMode}
+            onToggleTheaterMode={() => setTheaterMode((value) => !value)}
             current={queue.current}
             next={queue.queue[0] ?? null}
             hasPrevious={queue.history.length > 0}

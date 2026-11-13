@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Crown,
+  Clapperboard,
   ExternalLink,
   Maximize2,
   Minimize2,
@@ -44,6 +45,9 @@ interface PlayerPanelProps {
   onPlaybackHeartbeat?: (position: number, paused: boolean, duration?: number) => void;
   controlsRef?: React.MutableRefObject<StageControls | null>;
   onPlayingStateChange?: (isPlaying: boolean) => void;
+  /** Enlarge the embedded video while leaving the queue and chat below it. */
+  theaterMode?: boolean;
+  onToggleTheaterMode?: () => void;
 }
 
 function formatTime(seconds: number): string {
@@ -87,6 +91,8 @@ export function PlayerPanel({
   onPlaybackHeartbeat,
   onPlayingStateChange,
   controlsRef: externalControlsRef,
+  theaterMode = false,
+  onToggleTheaterMode,
 }: PlayerPanelProps) {
   const [volume, setVolume] = useState(() => {
     if (typeof window === "undefined") return 70;
@@ -281,9 +287,26 @@ export function PlayerPanel({
   return (
     <div className="music-player-stage relative z-0">
       <section className="panel relative z-0 overflow-hidden" style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}>
-        <div className="music-stage-label" aria-hidden>
-          <span><span className="music-stage-live-dot" /> REPRODUÇÃO / 01</span>
-          <span>SESSÃO COMPARTILHADA</span>
+        <div className="music-stage-label">
+          <span><span className="music-stage-live-dot" aria-hidden /> REPRODUÇÃO / 01</span>
+          <div className="music-stage-actions">
+            <span className="music-session-caption">SESSÃO COMPARTILHADA</span>
+            {onToggleTheaterMode && (
+              <Button
+                type="button"
+                size="sm"
+                variant={theaterMode ? "secondary" : "ghost"}
+                className="music-theater-toggle h-8 gap-2 px-2.5 text-[11px] font-semibold normal-case tracking-normal"
+                onClick={onToggleTheaterMode}
+                aria-pressed={theaterMode}
+                aria-label={theaterMode ? "Voltar ao tamanho normal do player" : "Ampliar player para assistir em modo cinema"}
+                title={theaterMode ? "Voltar ao layout normal" : "Assistir com player maior"}
+              >
+                {theaterMode ? <Minimize2 className="size-4" aria-hidden /> : <Clapperboard className="size-4" aria-hidden />}
+                {theaterMode ? "Tamanho normal" : "Modo cinema"}
+              </Button>
+            )}
+          </div>
         </div>
         <div className="player-content relative z-10 flex flex-col">
           <div ref={fullscreenContainerRef} onMouseMove={showControlsTemporarily} className="player-video group relative overflow-hidden transition-opacity duration-300" style={{ opacity: videoOpacity }}>
