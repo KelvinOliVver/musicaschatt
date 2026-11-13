@@ -374,10 +374,18 @@ function PlayerPage() {
         )}
 
         <div className="music-player-header">
-          <div><h1>Sala de música</h1><p>Na companhia de @{slug}</p></div>
-          <span className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><ListMusic className="size-4" />{queue.queue.length} na fila</span>
+          <div className="music-player-heading">
+            <span className="music-section-overline">AO VIVO / SALA 01</span>
+            <h1>Sala de música<span className="music-heading-dot">.</span></h1>
+            <p>A música vem do chat de <strong>@{slug}</strong>. A fila é de todo mundo.</p>
+          </div>
+          <div className="music-player-context">
+            <span className="music-section-overline">PRÓXIMOS PEDIDOS</span>
+            <span className="music-player-queue-count"><ListMusic size={16} aria-hidden />{queue.queue.length} na fila</span>
+          </div>
         </div>
         <form onSubmit={handleManualAdd} className="music-add-track">
+          <span className="music-add-label">ADICIONAR /</span>
           <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <Input
             value={manual}
