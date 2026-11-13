@@ -713,3 +713,51 @@
   .music-shell.is-theater-shell .music-stage-label { margin-bottom: 3px; }
   .music-shell.is-theater-shell .music-player-stage .player-content { gap: 4px; }
 }
+
+/* Social video embeds: only the requested portrait video is centered on a
+   dark stage. Never stretch a 9:16 Reel/TikTok into a 16:9 landscape iframe. */
+.music-player-stage .player-video:has(.social-stage) {
+  background: var(--media-background);
+}
+.music-player-stage .social-stage {
+  width: 100%;
+  height: clamp(370px, 66svh, 740px);
+  min-height: 0;
+  aspect-ratio: auto;
+  overflow: hidden;
+  background: var(--media-background);
+}
+.music-player-stage .social-stage-frame {
+  display: block;
+  flex: 0 1 auto;
+  width: min(100%, 420px);
+  height: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border: 0;
+  background: #08080a;
+}
+.music-player-stage .social-stage--instagram .social-stage-frame {
+  width: min(100%, 440px);
+}
+.music-player-stage .social-player-native-controls {
+  min-width: 0;
+  gap: 12px;
+}
+/* Cinema keeps the portrait embed as tall as the viewport allows, without
+   adding a second scroll region or restarting playback. */
+.music-shell.is-theater-shell .music-player-stage .social-stage {
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: auto;
+}
+.music-shell.is-theater-shell .music-player-stage .social-stage-frame {
+  height: 100%;
+  max-width: min(100%, 440px);
+}
+@media (max-width: 767px) {
+  .music-player-stage .social-stage { height: clamp(335px, 64svh, 660px); }
+  .music-player-stage .social-stage-frame { width: min(100%, 380px); }
+  .music-player-stage .social-player-native-controls { align-items: flex-start; }
+  .music-shell.is-theater-shell .music-player-stage .social-stage { height: 100%; }
+}
