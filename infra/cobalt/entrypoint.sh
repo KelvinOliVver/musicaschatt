@@ -12,8 +12,8 @@ fi
 
 : "${RENDER_EXTERNAL_URL:?Render must set RENDER_EXTERNAL_URL.}"
 export API_URL="${RENDER_EXTERNAL_URL%/}/"
-export API_PORT="${PORT:-10000}"
-export API_LISTEN_ADDRESS="0.0.0.0"
+export API_PORT="10001"
+export API_LISTEN_ADDRESS="127.0.0.1"
 export API_AUTH_REQUIRED=1
 export API_KEY_URL="file:///tmp/music-chat-keys.json"
 export RATELIMIT_MAX="10"
@@ -29,4 +29,4 @@ umask 077
 printf '{"%s":{"name":"music-chat","limit":10,"allowedServices":["instagram"]}}\n' "${COBALT_API_KEY}" > /tmp/music-chat-keys.json
 
 echo "Starting authenticated Cobalt API for the Music Chat player."
-exec node src/cobalt
+exec node /app/music-chat-gateway.mjs
