@@ -1,35 +1,23 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { RotateCcw, SlidersHorizontal, Volume2 } from "lucide-react";
+import { Volume2 } from "lucide-react";
 import { createWorkerTicker, type StageControls } from "@/components/YouTubeStage";
 import { socialEmbedUrl, sourceLabel } from "@/lib/social-video";
-import { getInstagramVideoDimensions } from "@/lib/instagram-video-fit.functions";
+import { getInstagramPublicMedia } from "@/lib/instagram-video-fit.functions";
 import { getInstagramAutoCrop, type InstagramVideoSize } from "@/lib/instagram-video-fit";
-import {
-  DEFAULT_INSTAGRAM_FRAMING,
-  normalizeInstagramFraming,
-  type InstagramFraming,
-  type InstagramLayout,
-} from "@/lib/instagram-framing";
-
-const instagramLayouts: { value: InstagramLayout; label: string }[] = [
-  { value: "auto", label: "Automático" },
-  { value: "portrait", label: "Vertical" },
-  { value: "landscape", label: "16:9" },
-  { value: "standard", label: "4:3" },
-  { value: "full", label: "Post completo" },
-];
-
 interface SocialStageProps {
   source: "instagram" | "tiktok";
   trackId: string;
   /** Original canonical URL, used to distinguish Instagram Reels from posts. */
   originalUrl?: string;
   muted: boolean;
+  /** Native Instagram video can respect the main player's volume. */
+  volume?: number;
   /** Reflect mute state reported by TikTok, including autoplay muting. */
   onMuteChange?: (muted: boolean) => void;
   paused: boolean;
   onEnded: () => void;
   onProgress: (currentTime: number, duration: number) => void;
+  onPlayingChange?: (playing: boolean) => void;
   controlsRef?: React.MutableRefObject<StageControls | null>;
 }
 
@@ -42,10 +30,11 @@ interface SocialStageProps {
  * the streamer can interact with the embed and skip manually.
  */
 export function SocialStage({
-  source, trackId, originalUrl, muted, onMuteChange, paused, onEnded, onProgress, controlsRef,
+  source, trackId, originalUrl, muted, volume = 70, onMuteChange, paused, onEnded, onProgress, onPlayingChange, controlsRef,
 }: SocialStageProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const nativeVideoRef = useRef<HTMLVideoElement | null>(null);
   const elapsedRef = useRef(0);
   const durationRef = useRef(0);
   const lastTickRef = useRef(Date.now());
@@ -59,34 +48,22 @@ export function SocialStage({
   const [tiktokActuallyMuted, setTiktokActuallyMuted] = useState<boolean | null>(null);
   const [playerError, setPlayerError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
-  // Instagram doesn't expose dimensions of cross-origin embeds. A streamer can
-  // tune the crop for this Reel; changing CSS does not recreate the iframe.
-  // Use the same initial markup on SSR and client; restore saved crop in an effect.
-  const [framing, setFraming] = useState<InstagramFraming>({ ...DEFAULT_INSTAGRAM_FRAMING });
-  const [showFramingSettings, setShowFramingSettings] = useState(false);
-  // Until an actual preview is available, show the complete native embed.
-  // Guessing a portrait crop would hide landscape Reels.
   const [autoSize, setAutoSize] = useState<InstagramVideoSize | null>(null);
+  const [publicVideoUrl, setPublicVideoUrl] = useState<string | null>(null);
+  const [instagramLoading, setInstagramLoading] = useState(source === "instagram");
+  const [nativeFailed, setNativeFailed] = useState(false);
+  const [nativeNeedsGesture, setNativeNeedsGesture] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
-
-  useEffect(() => {
-    // Every new request starts in Auto, never inherits a possibly incorrect
-    // manual crop left in sessionStorage by older releases.
-    setFraming({ ...DEFAULT_INSTAGRAM_FRAMING });
-    setAutoSize(null);
-    setShowFramingSettings(false);
-  }, [trackId]);
 
   useEffect(() => {
     if (source !== "instagram" || !stageRef.current) return;
     const node = stageRef.current;
     const measure = () => {
-      const rect = node.getBoundingClientRect();
+      const bounds = node.getBoundingClientRect();
       setStageSize((previous) => {
-        const width = Math.round(rect.width);
-        const height = Math.round(rect.height);
-        return previous.width === width && previous.height === height
-          ? previous : { width, height };
+        const width = Math.round(bounds.width);
+        const height = Math.round(bounds.height);
+        return previous.width === width && previous.height === height ? previous : { width, height };
       });
     };
     measure();
@@ -96,51 +73,62 @@ export function SocialStage({
   }, [source]);
 
   useEffect(() => {
-    if (source !== "instagram" || framing.layout !== "auto") return;
-
+    if (source !== "instagram") return;
     let disposed = false;
     setAutoSize(null);
-
-    // IMPORTANT: never derive video geometry from a cover image. Instagram
-    // often publishes portrait/square covers for LANDSCAPE Reels. This was
-    // the cause of clips being cropped off-screen in previous versions.
+    setPublicVideoUrl(null);
+    setInstagramLoading(true);
+    setNativeFailed(false);
+    setNativeNeedsGesture(false);
     const kind = originalUrl?.includes("/tv/") ? "tv"
       : originalUrl?.includes("/p/") ? "p" : "reel";
-    void getInstagramVideoDimensions({ data: { trackId, kind } })
-      .then((size) => {
-        if (!disposed) setAutoSize(size);
+    void getInstagramPublicMedia({ data: { trackId, kind } })
+      .then((media) => {
+        if (disposed) return;
+        setAutoSize(media.size);
+        setPublicVideoUrl(media.videoUrl);
+        setInstagramLoading(false);
       })
       .catch(() => {
-        if (!disposed) setAutoSize(null);
+        // Instagram can block public metadata requests. Keep the native
+        // iframe as a fallback instead of breaking the live room.
+        if (!disposed) {
+          setAutoSize(null);
+          setPublicVideoUrl(null);
+          setInstagramLoading(false);
+        }
       });
-
     return () => { disposed = true; };
-  }, [source, trackId, originalUrl, framing.layout]);
+  }, [source, trackId, originalUrl]);
 
-  const autoCrop = framing.layout === "auto"
-    ? getInstagramAutoCrop(stageSize.width, stageSize.height, autoSize)
-    : null;
-  // If neither real metadata nor a credible preview is accessible, preserve
-  // the ENTIRE embed. A fabricated 9:16 crop would cut horizontal videos.
-  const effectiveLayout = framing.layout === "auto"
-    ? (autoCrop ? "auto-cropped" : "full")
-    : framing.layout;
-
-  function updateInstagramFraming(patch: Partial<InstagramFraming>) {
-    const updated = normalizeInstagramFraming({ ...framing, ...patch });
-    setFraming(updated);
-    if (updated.layout === "full") setShowFramingSettings(false);
-  }
-
+  const autoCrop = getInstagramAutoCrop(stageSize.width, stageSize.height, autoSize);
+  const useNativeInstagram = source === "instagram" && Boolean(publicVideoUrl) && !nativeFailed;
   const instagramFrameStyle = {
-    "--instagram-user-zoom": String(framing.zoom / 100),
-    "--instagram-shift-y": `${framing.verticalOffset}px`,
     "--ig-auto-width": `${autoCrop?.width ?? 0}px`,
     "--ig-auto-height": `${autoCrop?.height ?? 0}px`,
     "--ig-auto-scale": String(autoCrop?.scale ?? 1),
     "--ig-auto-left": `${autoCrop?.iframeLeft ?? 0}px`,
     "--ig-auto-top": `${autoCrop?.iframeTop ?? 0}px`,
   } as CSSProperties;
+
+  useEffect(() => {
+    if (source !== "instagram" || !useNativeInstagram) return;
+    const player = nativeVideoRef.current;
+    if (!player) return;
+    player.muted = muted;
+    player.volume = Math.min(1, Math.max(0, volume / 100));
+    if (paused) {
+      player.pause();
+      return;
+    }
+    const result = player.play();
+    if (result) {
+      void result.then(() => setNativeNeedsGesture(false)).catch(() => {
+        // Autoplay with audio requires a user gesture in some browsers.
+        setNativeNeedsGesture(true);
+      });
+    }
+  }, [source, useNativeInstagram, paused, muted, volume, publicVideoUrl]);
 
   pausedRef.current = paused;
   mutedRef.current = muted;
@@ -165,10 +153,19 @@ export function SocialStage({
 
   useEffect(() => {
     if (!controlsRef) return;
-    if (source !== "tiktok") {
-      // Instagram embeds cannot be controlled from the parent page.
-      controlsRef.current = null;
-      return;
+    if (source === "instagram") {
+      // Native HTML5 Instagram video exposes exact time/seek to the shared
+      // room. The fallback cross-origin iframe remains uncontrollable.
+      controlsRef.current = useNativeInstagram ? {
+        getCurrentTime: () => nativeVideoRef.current?.currentTime ?? 0,
+        seekTo: (seconds) => {
+          const player = nativeVideoRef.current;
+          if (!player || !Number.isFinite(seconds)) return;
+          player.currentTime = Math.max(0, Number.isFinite(player.duration)
+            ? Math.min(seconds, player.duration) : seconds);
+        },
+      } : null;
+      return () => { controlsRef.current = null; };
     }
     controlsRef.current = {
       getCurrentTime: () => elapsedRef.current,
@@ -181,7 +178,7 @@ export function SocialStage({
     };
     return () => { controlsRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controlsRef, source]);
+  }, [controlsRef, source, useNativeInstagram]);
 
   useEffect(() => {
     if (source !== "tiktok") return;
@@ -276,10 +273,66 @@ export function SocialStage({
   return (
     <div ref={stageRef} className={`social-stage social-stage--${source} relative flex aspect-video w-full items-center justify-center overflow-hidden bg-media-background`}>
       {source === "instagram" ? (
-        <div className={`instagram-reel-window is-${effectiveLayout}`} style={instagramFrameStyle}>
-          {embedFrame}
-        </div>
+        instagramLoading ? (
+          <div className="relative z-[1] flex h-full w-full items-center justify-center text-xs text-white/60">
+            Preparando o vídeo…
+          </div>
+        ) : useNativeInstagram ? (
+          <video
+            ref={nativeVideoRef}
+            className="instagram-native-video relative z-[1] block h-full w-full object-contain"
+            src={publicVideoUrl ?? undefined}
+            playsInline
+            preload="auto"
+            autoPlay={!paused}
+            controls={false}
+            onLoadedMetadata={(event) => {
+              const video = event.currentTarget;
+              if (video.videoWidth > 0 && video.videoHeight > 0) {
+                setAutoSize({ width: video.videoWidth, height: video.videoHeight });
+              }
+            }}
+            onTimeUpdate={(event) => {
+              const video = event.currentTarget;
+              onProgressRef.current(video.currentTime, Number.isFinite(video.duration) ? video.duration : 0);
+            }}
+            onEnded={() => finish()}
+            onPlay={() => onPlayingChange?.(true)}
+            onPause={(event) => {
+              if (!event.currentTarget.ended && !event.currentTarget.error) onPlayingChange?.(false);
+            }}
+            onError={() => {
+              setNativeFailed(true);
+              setNativeNeedsGesture(false);
+            }}
+            onClick={() => {
+              const video = nativeVideoRef.current;
+              if (!video) return;
+              if (video.paused) void video.play().catch(() => setNativeNeedsGesture(true));
+              else video.pause();
+            }}
+            aria-label="Vídeo do Instagram"
+          />
+        ) : (
+          <div className={`instagram-reel-window ${autoCrop ? "is-auto-cropped" : "is-streamer-fallback"}`} style={instagramFrameStyle}>
+            {embedFrame}
+          </div>
+        )
       ) : embedFrame}
+      {useNativeInstagram && nativeNeedsGesture && (
+        <button
+          type="button"
+          className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 text-sm font-semibold text-white"
+          onClick={() => {
+            const video = nativeVideoRef.current;
+            if (!video) return;
+            void video.play().then(() => setNativeNeedsGesture(false)).catch(() => setNativeNeedsGesture(true));
+          }}
+          aria-label="Reproduzir vídeo do Instagram com áudio"
+        >
+          <span className="rounded-lg bg-black/80 px-5 py-3 shadow-lg">▶ Reproduzir vídeo</span>
+        </button>
+      )}
       {source === "tiktok" && (muted || tiktokActuallyMuted !== false) && (
         <button
           type="button"
@@ -296,98 +349,6 @@ export function SocialStage({
           <Volume2 className="size-4" aria-hidden />
           Ativar som
         </button>
-      )}
-      {source === "instagram" && (
-        <div
-          className="instagram-layout-picker absolute bottom-2 right-2 z-20 flex max-w-[95%] items-center gap-1 rounded-md border border-white/20 bg-black/85 p-1 shadow-lg"
-          role="group"
-          aria-label="Enquadramento do vídeo do Instagram"
-        >
-          {instagramLayouts.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              className={`instagram-layout-option rounded-sm px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${framing.layout === value ? "bg-primary text-primary-foreground" : "text-white hover:bg-white/20"}`}
-              onClick={() => updateInstagramFraming({ layout: value, zoom: 100, verticalOffset: 0 })}
-              aria-pressed={framing.layout === value}
-              title={value === "auto"
-                ? "Detectar a proporção pela prévia pública quando disponível"
-                : value === "landscape"
-                  ? "Enquadrar o vídeo horizontal em 16:9"
-                  : value === "standard"
-                  ? "Enquadrar o vídeo em 4:3"
-                  : value === "portrait"
-                    ? "Mostrar o Reel vertical"
-                    : "Exibir a publicação original sem recorte"}
-            >
-              {label}
-            </button>
-          ))}
-          <button
-            type="button"
-            className={`instagram-layout-option inline-flex items-center gap-1 rounded-sm border-l border-white/20 px-2 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${showFramingSettings ? "bg-white/20 text-white" : "text-white hover:bg-white/20"}`}
-            onClick={() => setShowFramingSettings((open) => !open)}
-            aria-expanded={showFramingSettings}
-            aria-controls="instagram-framing-settings"
-            aria-label="Ajustar zoom e posição do Instagram"
-            disabled={effectiveLayout === "full"}
-            title="Ajustar zoom e posição do vídeo"
-          >
-            <SlidersHorizontal className="size-3.5" aria-hidden />
-            <span className="hidden sm:inline">Ajustar</span>
-          </button>
-        </div>
-      )}
-      {source === "instagram" && showFramingSettings && effectiveLayout !== "full" && (
-        <div
-          id="instagram-framing-settings"
-          className="instagram-framing-settings absolute bottom-14 right-2 z-20 w-[min(290px,calc(100%-16px))] rounded-md border border-white/20 bg-[#17171b]/95 p-3 text-white shadow-xl"
-          role="group"
-          aria-label="Ajuste fino do vídeo do Instagram"
-        >
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <strong className="text-xs font-semibold">Enquadramento</strong>
-            <button
-              type="button"
-              onClick={() => updateInstagramFraming({ zoom: 100, verticalOffset: 0 })}
-              className="inline-flex items-center gap-1 text-[11px] text-white/75 hover:text-white"
-              title="Restaurar zoom e posição padrão"
-            >
-              <RotateCcw className="size-3" aria-hidden /> Redefinir
-            </button>
-          </div>
-          <label className="mb-1 flex items-center justify-between text-[11px]" htmlFor="instagram-zoom-slider">
-            <span>Zoom</span>
-            <span className="tabular-nums">{framing.zoom}%</span>
-          </label>
-          <input
-            id="instagram-zoom-slider"
-            type="range"
-            min={75}
-            max={160}
-            step={5}
-            value={framing.zoom}
-            onChange={(event) => updateInstagramFraming({ zoom: Number(event.target.value) })}
-            className="instagram-framing-slider mb-3 w-full accent-[#b59af8]"
-          />
-          <label className="mb-1 flex items-center justify-between text-[11px]" htmlFor="instagram-position-slider">
-            <span>Posição vertical</span>
-            <span className="tabular-nums">{framing.verticalOffset > 0 ? "+" : ""}{framing.verticalOffset}px</span>
-          </label>
-          <input
-            id="instagram-position-slider"
-            type="range"
-            min={-240}
-            max={240}
-            step={10}
-            value={framing.verticalOffset}
-            onChange={(event) => updateInstagramFraming({ verticalOffset: Number(event.target.value) })}
-            className="instagram-framing-slider w-full accent-[#b59af8]"
-          />
-          <p className="mt-2 text-[10px] leading-4 text-white/65">
-            Ajuste o vídeo sem reiniciar. A configuração deste Reel fica salva nesta sessão.
-          </p>
-        </div>
       )}
       {playerError && source === "tiktok" && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-media-background/95 px-6 text-center" role="alert">

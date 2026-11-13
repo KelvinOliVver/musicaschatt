@@ -320,10 +320,16 @@ export function PlayerPanel({
                     trackId={current.trackId}
                     originalUrl={current.url}
                     muted={muted}
+                    volume={volume}
                     onMuteChange={setMuted}
                     paused={paused}
                     onEnded={() => { if (isHost) onNext(); }}
                     onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+                    onPlayingChange={(playing) => {
+                      const newPaused = !playing;
+                      setPaused(newPaused);
+                      if (isHost) onTogglePlayChange?.(newPaused);
+                    }}
                     controlsRef={controlsRef}
                   />
                 ) : (

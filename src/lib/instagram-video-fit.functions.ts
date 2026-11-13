@@ -1,30 +1,31 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
-  getInstagramVideoSizeFromHtml,
-  type InstagramVideoSize,
+  getInstagramPublicMediaFromHtml,
+  type InstagramPublicMedia,
 } from "./instagram-video-fit";
 
 type MediaKind = "reel" | "p" | "tv";
 interface VideoFitRequest { trackId: string; kind: MediaKind }
 
-const cache = new Map<string, { expires: number; size: InstagramVideoSize | null }>();
-const CACHE_MS = 20 * 60 * 1000;
+const cache = new Map<string, { expires: number; media: InstagramPublicMedia }>();
+// Signed CDN URLs may expire. Cache briefly and let the iframe recover from errors.
+const CACHE_MS = 2 * 60 * 1000;
 const HTML_LIMIT = 1_500_000;
 const MAX_CACHE_ENTRIES = 100;
 
-export const getInstagramVideoDimensions = createServerFn({ method: "GET" })
+export const getInstagramPublicMedia = createServerFn({ method: "GET" })
   .inputValidator((input: VideoFitRequest) => {
     if (!/^[A-Za-z0-9_-]{5,40}$/.test(input.trackId)) throw new Error("Reel inválido");
     if (input.kind !== "reel" && input.kind !== "p" && input.kind !== "tv") throw new Error("Link inválido");
     return input;
   })
-  .handler(async ({ data }): Promise<InstagramVideoSize | null> => {
+  .handler(async ({ data }): Promise<InstagramPublicMedia> => {
     const key = `${data.kind}:${data.trackId}`;
     const now = Date.now();
     const cached = cache.get(key);
-    if (cached && cached.expires > now) return cached.size;
+    if (cached && cached.expires > now) return cached.media;
 
-    let size: InstagramVideoSize | null = null;
+    let media: InstagramPublicMedia = { videoUrl: null, size: null };
     try {
       // Fixed trusted host + validated shortcode; no arbitrary proxy URLs,
       // cookie forwarding or Instagram authentication bypass.
@@ -44,7 +45,7 @@ export const getInstagramVideoDimensions = createServerFn({ method: "GET" })
       const declaredLength = Number(response.headers.get("content-length") || 0);
       if (response.ok && contentType.includes("text/html") && declaredLength <= HTML_LIMIT) {
         const html = (await response.text()).slice(0, HTML_LIMIT);
-        size = getInstagramVideoSizeFromHtml(html);
+        media = getInstagramPublicMediaFromHtml(html);
       }
     } catch {
       // Instagram often blocks server-side requests. Return null, NEVER
@@ -52,6 +53,6 @@ export const getInstagramVideoDimensions = createServerFn({ method: "GET" })
     }
 
     if (cache.size >= MAX_CACHE_ENTRIES) cache.delete(cache.keys().next().value!);
-    cache.set(key, { expires: now + CACHE_MS, size });
-    return size;
+    cache.set(key, { expires: now + CACHE_MS, media });
+    return media;
   });
