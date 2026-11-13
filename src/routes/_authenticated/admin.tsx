@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppSettings } from "@/hooks/use-app-settings";
+import { supabase } from "@/integrations/supabase/client";
 
 import { MusicSidebar } from "@/components/MusicSidebar";
 
@@ -27,6 +28,17 @@ function AdminPage() {
   const { settings, loading, updateCooldown } = useAppSettings();
   const [cooldown, setCooldown] = useState(settings.chatCooldownSeconds);
   const [saving, setSaving] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return;
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", auth.user.id).eq("role", "admin").maybeSingle();
+      if (active) setCanEdit(data?.role === "admin");
+    })();
+    return () => { active = false; };
+  }, []);
 
   // Sincroniza o campo com o valor real assim que ele carrega (ou muda,
   // caso outra pessoa logada tenha alterado nesse meio tempo).
@@ -36,6 +48,7 @@ function AdminPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!canEdit) { toast.error("Somente administradores podem alterar as configurações globais."); return; }
     setSaving(true);
     const ok = await updateCooldown(cooldown);
     setSaving(false);
@@ -63,8 +76,7 @@ function AdminPage() {
           Administração
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Essas configurações valem pra todo mundo que usa o site — qualquer pessoa
-          logada pode ajustar aqui.
+          Essas configurações valem para todo o site. Apenas administradores autorizados podem alterá-las.
         </p>
       </div>
 
@@ -78,7 +90,7 @@ function AdminPage() {
             max={600}
             value={cooldown}
             onChange={(event) => setCooldown(Number(event.target.value))}
-            disabled={loading}
+            disabled={loading || !canEdit}
           />
           <p className="text-xs text-muted-foreground">
             Cada pessoa no chat só consegue pedir uma música nova depois de esperar esse
@@ -86,7 +98,7 @@ function AdminPage() {
           </p>
         </div>
 
-        <Button type="submit" disabled={saving || loading} className="w-fit">
+        <Button type="submit" disabled={saving || loading || !canEdit} className="w-fit">
           {saving && <Loader2 className="size-4 animate-spin" aria-hidden />}
           Salvar alterações
         </Button>
