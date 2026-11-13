@@ -44,6 +44,7 @@ function toItem(row: QueueRow): QueueItem {
     playedAt: row.played_at ? new Date(row.played_at).getTime() : null,
     position: row.position ?? new Date(row.added_at).getTime(),
     playbackPosition: Number(row.playback_position ?? 0),
+    durationSeconds: row.duration_seconds ?? null,
     isPaused: row.is_paused ?? false,
     stateUpdatedAt: row.state_updated_at
       ? new Date(row.state_updated_at).getTime()
