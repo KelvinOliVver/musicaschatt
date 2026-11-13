@@ -90,6 +90,7 @@ interface YouTubeStageProps {
   muted: boolean;
   paused: boolean;
   remoteSeek?: number | null;
+  initialSeek?: number | null;
   onEnded: () => void;
   onPlayingChange: (playing: boolean) => void;
   onProgress: (currentTime: number, duration: number) => void;
@@ -102,6 +103,7 @@ export function YouTubeStage({
   muted,
   paused,
   remoteSeek,
+  initialSeek,
   onEnded,
   onPlayingChange,
   onProgress,
@@ -119,6 +121,7 @@ export function YouTubeStage({
   const onPlayingChangeRef = useRef(onPlayingChange);
   const onProgressRef = useRef(onProgress);
   const remoteSeekRef = useRef(remoteSeek);
+  const initialSeekRef = useRef(initialSeek);
   const pausedRef = useRef(paused);
   const volumeRef = useRef(volume);
   const mutedRef = useRef(muted);
@@ -127,6 +130,7 @@ export function YouTubeStage({
   onPlayingChangeRef.current = onPlayingChange;
   onProgressRef.current = onProgress;
   remoteSeekRef.current = remoteSeek;
+  initialSeekRef.current = initialSeek;
   pausedRef.current = paused;
   volumeRef.current = volume;
   mutedRef.current = muted;
@@ -245,7 +249,7 @@ export function YouTubeStage({
             if (mutedRef.current) event.target.mute();
             else event.target.unMute();
 
-            const initialSeek = remoteSeekRef.current;
+            const initialSeek = remoteSeekRef.current ?? initialSeekRef.current;
             if (initialSeek !== null && initialSeek !== undefined) {
               event.target.seekTo(initialSeek, true);
             }
