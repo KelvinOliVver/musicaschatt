@@ -34,8 +34,7 @@ function AdminPage() {
     void (async () => {
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) return;
-      const { data } = await supabase.from("user_roles").select("role").eq("user_id", auth.user.id).eq("role", "admin").maybeSingle();
-      if (active) setCanEdit(data?.role === "admin");
+      if (active) setCanEdit(Boolean(auth.user));
     })();
     return () => { active = false; };
   }, []);
@@ -48,7 +47,7 @@ function AdminPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!canEdit) { toast.error("Somente administradores podem alterar as configurações globais."); return; }
+    if (!canEdit) { toast.error("Entre na sua conta para alterar as configurações."); return; }
     setSaving(true);
     const ok = await updateCooldown(cooldown);
     setSaving(false);
@@ -76,7 +75,7 @@ function AdminPage() {
           Administração
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Essas configurações valem para todo o site. Apenas administradores autorizados podem alterá-las.
+          Essas configurações valem para todo o site e podem ser alteradas por contas logadas no painel.
         </p>
       </div>
 
