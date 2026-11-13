@@ -290,7 +290,8 @@ function PlayerPage() {
     (command: string, username: string) => {
       if (!isHostRef.current) return;
       const nick = normalizeKickUsername(username);
-      if (!nick || !preferencesRef.current.moderatorNicks.includes(nick)) return;
+      // Streamer account always has command access; additional moderators are explicitly allowlisted.
+      if (!nick || (nick !== slug.trim().toLowerCase() && !preferencesRef.current.moderatorNicks.includes(nick))) return;
 
       if (command === "!skip" || command === "!proxima") {
         const head = queue.queue[0];
@@ -317,7 +318,7 @@ function PlayerPage() {
         toast.info("Fila limpa pelo comando do chat!");
       }
     },
-    [queue, broadcast],
+    [queue, broadcast, slug],
   );
 
   const chat = useKickChat(slug, handleMessage, handleCommand, () => isHostRef.current);
