@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, Crown, ListMusic, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Users } from "lucide-react";
+import { AlertTriangle, Ban, Crown, ListMusic, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, ShieldBan, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { ChannelBar } from "@/components/ChannelBar";
 import { ChatFeed } from "@/components/ChatFeed";
@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useKickChat } from "@/lib/kick-chat";
 import { extractTracks, parseTrackInput } from "@/lib/link-parser";
 import { usePlayerQueue } from "@/lib/use-player-queue";
+import { normalizeKickUsername } from "@/lib/kick-avatars";
 import { useProfile } from "@/hooks/use-profile";
 import { useAppSettings } from "@/hooks/use-app-settings";
 import { useDominantColor } from "@/hooks/use-dominant-color";
@@ -82,6 +83,7 @@ function PlayerPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [slug, setSlug] = useState(DEFAULT_CHANNEL);
   const [manual, setManual] = useState("");
+  const [blockedNickInput, setBlockedNickInput] = useState("");
   const queue = usePlayerQueue();
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -148,7 +150,9 @@ function PlayerPage() {
     queue.playNow(queuedHeadId);
   }, [isHost, queue.current?.id, queuedHeadId, queue.playNow]);
 
-  const { settings } = useAppSettings();
+  const { settings, loading: settingsLoading, updateBlockedUsernames } = useAppSettings();
+  const blockedUsernamesRef = useRef<string[]>([]);
+  blockedUsernamesRef.current = settings.blockedUsernames;
   const lastRequestByUserRef = useRef<Map<string, number>>(new Map());
 
   const totalPlayed = queue.history.length;
@@ -239,6 +243,8 @@ function PlayerPage() {
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
       if (!isHostRef.current) return;
+      const sender = normalizeKickUsername(message.username);
+      if (!sender || blockedUsernamesRef.current.includes(sender)) return;
       const tracks = extractTracks(message.content);
       if (tracks.length === 0) return;
 
@@ -284,6 +290,38 @@ function PlayerPage() {
   );
 
   const chat = useKickChat(slug, handleMessage, handleCommand, () => isHostRef.current);
+
+  const blockUsername = useCallback(async (rawNick: string) => {
+    const nick = normalizeKickUsername(rawNick.replace(/^@/, ""));
+    if (!nick) {
+      toast.error("Nick inválido", { description: "Use um nome de usuário da Kick." });
+      return;
+    }
+    if (blockedUsernamesRef.current.includes(nick)) {
+      toast.info(`@${nick} já está bloqueado para pedidos.`);
+      return;
+    }
+    const updated = [...blockedUsernamesRef.current, nick];
+    blockedUsernamesRef.current = updated; // Stop accepting links immediately, before the save completes.
+    if (await updateBlockedUsernames(updated)) {
+      toast.success(`Pedidos de @${nick} bloqueados.`);
+      setBlockedNickInput("");
+    } else {
+      blockedUsernamesRef.current = settings.blockedUsernames;
+      toast.error("Não foi possível salvar o bloqueio.");
+    }
+  }, [settings.blockedUsernames, updateBlockedUsernames]);
+
+  const unblockUsername = useCallback(async (nick: string) => {
+    const updated = blockedUsernamesRef.current.filter((user) => user !== nick);
+    blockedUsernamesRef.current = updated;
+    if (await updateBlockedUsernames(updated)) {
+      toast.success(`@${nick} pode enviar pedidos novamente.`);
+    } else {
+      blockedUsernamesRef.current = settings.blockedUsernames;
+      toast.error("Não foi possível desbloquear este nick.");
+    }
+  }, [settings.blockedUsernames, updateBlockedUsernames]);
 
   function handleManualAdd(event: FormEvent) {
     event.preventDefault();
@@ -366,6 +404,55 @@ function PlayerPage() {
                 🎵 {totalPlayed} tocada{totalPlayed === 1 ? "" : "s"} · {totalRequesters} pedindo
               </span>
             )}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 bg-card/50 text-xs"
+                  aria-label="Gerenciar nicks bloqueados para pedidos"
+                >
+                  <ShieldBan className="size-4" aria-hidden />
+                  <span className="hidden sm:inline">Bloquear pedidos</span>
+                  {settings.blockedUsernames.length > 0 && (
+                    <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">{settings.blockedUsernames.length}</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[min(340px,calc(100vw-24px))] space-y-3 p-4">
+                <div className="space-y-1">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold"><ShieldBan className="size-4 text-primary" /> Bloquear pedidos por nick</h3>
+                  <p className="text-xs text-muted-foreground">Links enviados por estes usuários serão ignorados pela fila. Não bane ninguém do chat da Kick.</p>
+                </div>
+                <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); void blockUsername(blockedNickInput); }}>
+                  <Input
+                    value={blockedNickInput}
+                    onChange={(event) => setBlockedNickInput(event.target.value)}
+                    placeholder="Nick da Kick"
+                    aria-label="Nick para bloquear pedidos"
+                    autoComplete="off"
+                    maxLength={41}
+                    className="h-9 min-w-0 flex-1"
+                  />
+                  <Button type="submit" size="sm" disabled={settingsLoading || !blockedNickInput.trim()} className="h-9 gap-1">
+                    <Ban className="size-3.5" aria-hidden /> Bloquear
+                  </Button>
+                </form>
+                <div className="max-h-52 space-y-1 overflow-y-auto">
+                  {settings.blockedUsernames.length === 0 ? (
+                    <p className="rounded-md border border-dashed border-border p-3 text-center text-xs text-muted-foreground">Nenhum nick bloqueado.</p>
+                  ) : settings.blockedUsernames.map((nick) => (
+                    <div key={nick} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-3 py-2">
+                      <span className="min-w-0 truncate text-xs font-medium">@{nick}</span>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => void unblockUsername(nick)} aria-label={`Desbloquear ${nick}`}>
+                        <X className="size-3.5" aria-hidden /> Desbloquear
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
             {isHost && (
               <span
                 className="inline-flex items-center gap-1 rounded-full border border-vip/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-vip"
@@ -486,7 +573,7 @@ function PlayerPage() {
           </div>
 
           <div className="music-chat-column hidden md:block">
-            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} />
+            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} onBlockUser={blockUsername} blockedUsernames={settings.blockedUsernames} />
           </div>
 
           <Tabs defaultValue="fila" className="music-player-tabs flex min-h-[420px] flex-col md:hidden">
@@ -513,7 +600,7 @@ function PlayerPage() {
               />
             </TabsContent>
             <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
-              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} />
+              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} onBlockUser={blockUsername} blockedUsernames={settings.blockedUsernames} />
             </TabsContent>
           </Tabs>
         </div>
