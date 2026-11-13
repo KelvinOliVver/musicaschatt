@@ -148,20 +148,26 @@ export function SocialStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [muted, source]);
 
+  const embedFrame = (
+    <iframe
+      ref={iframeRef}
+      src={socialEmbedUrl(source, trackId, originalUrl)}
+      title={`Reproduzir vídeo do ${sourceLabel(source)}`}
+      className="social-stage-frame relative z-[1] border-0"
+      allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+      allowFullScreen
+      scrolling="no"
+      referrerPolicy="strict-origin-when-cross-origin"
+    />
+  );
+
   return (
     <div className={`social-stage social-stage--${source} relative flex aspect-video w-full items-center justify-center overflow-hidden bg-media-background`}>
-      <div className={source === "instagram" ? `instagram-reel-window${showFullInstagramPost ? " is-full-post" : " is-video-only"}` : "social-embed-window"}>
-        <iframe
-          ref={iframeRef}
-          src={socialEmbedUrl(source, trackId, originalUrl)}
-          title={`Reproduzir vídeo do ${sourceLabel(source)}`}
-          className="social-stage-frame relative z-[1] border-0"
-          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-          allowFullScreen
-          scrolling="no"
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
-      </div>
+      {source === "instagram" ? (
+        <div className={`instagram-reel-window${showFullInstagramPost ? " is-full-post" : " is-video-only"}`}>
+          {embedFrame}
+        </div>
+      ) : embedFrame}
       {source === "instagram" && (
         <button
           type="button"
