@@ -12,7 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useKickChat } from "@/lib/kick-chat";
-import { extractTracks, parseTrackInput } from "@/lib/link-parser";
+import { extractTracks, hasTrackLink, parseTrackInput } from "@/lib/link-parser";
+import { useQueueVotes } from "@/hooks/use-queue-votes";
+import { LiveStatsPanel } from "@/components/LiveStatsPanel";
 import { usePlayerQueue } from "@/lib/use-player-queue";
 import { useStreamerPreferences } from "@/hooks/use-streamer-preferences";
 import { StreamerSettingsPanel } from "@/components/StreamerSettingsPanel";
@@ -94,6 +96,10 @@ function PlayerPage() {
   preferencesRef.current = preferences;
   const obsMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("obs") === "1";
   const queue = usePlayerQueue();
+  const voteIds = useMemo(() => queue.queue.map((item) => item.id), [queue.queue]);
+  const { counts: voteCounts, mine: myVotes, vote: voteFor } = useQueueVotes(voteIds);
+  const [requestOutcomes, setRequestOutcomes] = useState<Record<string, { status: "accepted" | "rejected"; reason: string }>>({});
+  const [rejectedCount, setRejectedCount] = useState(0);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const playerControlsRef = useRef<StageControls | null>(null);
@@ -175,7 +181,10 @@ function PlayerPage() {
   // Only the elected host auto-starts the first queued request. Previously
   // every listener could call the queue RPC and skip songs during a reconnect.
   const lastAutoStartedRef = useRef<string | null>(null);
-  const queuedHeadId = queue.queue[0]?.id ?? null;
+  const highestVoted = preferences.voteMode ? [...queue.queue].sort((a, b) =>
+    Number(b.priority) - Number(a.priority) || (voteCounts[b.id] ?? 0) - (voteCounts[a.id] ?? 0) ||
+    a.position - b.position)[0] : queue.queue[0];
+  const queuedHeadId = highestVoted?.id ?? null;
   useEffect(() => {
     if (!isHost || queue.current || !queuedHeadId) {
       if (queue.current || !queuedHeadId) lastAutoStartedRef.current = null;
@@ -313,44 +322,52 @@ function PlayerPage() {
     });
   }, [profileName, profileAvatarUrl, isAdministrator, roleLoaded, obsMode]);
 
-  const handleMessage = useCallback(
-    (message: KickChatMessage) => {
-      // Wait for shared moderation settings before accepting chat requests.
-      if (!isHostRef.current || settingsLoading) return;
-      const sender = normalizeKickUsername(message.username);
-      if (!sender || blockedUsernamesRef.current.includes(sender)) return;
-      const prefs = preferencesRef.current;
-      // Kick reconnects can replay a message; never process it twice.
-      if (seenRequestIdsRef.current.has(message.id)) return;
-      seenRequestIdsRef.current.add(message.id);
-      if (seenRequestIdsRef.current.size > 1500) seenRequestIdsRef.current.clear();
+  const recordOutcome = useCallback((id: string, status: "accepted" | "rejected", reason: string) => {
+    setRequestOutcomes((old) => ({ ...Object.fromEntries(Object.entries(old).slice(-100)), [id]: { status, reason } }));
+    if (status === "rejected") setRejectedCount((n) => n + 1);
+  }, []);
 
-      const tracks = extractTracks(message.content).filter((track) => prefs.allowedPlatforms.includes(track.source));
-      if (tracks.length === 0 || queue.queue.length >= prefs.maxQueue) return;
-      const pending = pendingRequestsRef.current;
-      const alreadyPending = pending.get(sender) ?? 0;
-      const activeByUser = queue.queue.filter((item) => item.requestedBy.trim().toLowerCase() === sender).length + alreadyPending;
-      const pendingTotal = [...pending.values()].reduce((sum, count) => sum + count, 0);
-      if (activeByUser >= prefs.maxPerUser || queue.queue.length + pendingTotal >= prefs.maxQueue) return;
+  const handleMessage = useCallback((message: KickChatMessage) => {
+    if (!isHostRef.current || settingsLoading || !hasTrackLink(message.content)) return;
+    const sender = normalizeKickUsername(message.username);
+    if (!sender) return;
+    const reject = (reason: string) => recordOutcome(message.id, "rejected", reason);
+    if (blockedUsernamesRef.current.includes(sender)) { reject("Nick bloqueado para pedidos"); return; }
+    const prefs = preferencesRef.current;
+    if (!prefs.acceptingRequests) { reject("Pedidos pausados pelo streamer"); return; }
+    if (seenRequestIdsRef.current.has(message.id)) return;
+    seenRequestIdsRef.current.add(message.id);
+    if (seenRequestIdsRef.current.size > 1500) seenRequestIdsRef.current.clear();
 
-      // Database trigger enforces its own cooldown; never promise a shorter one.
-      const cooldownMs = Math.max(prefs.cooldownSeconds, settings.chatCooldownSeconds) * 1000;
-      const lastRequestAt = lastRequestByUserRef.current.get(sender) ?? 0;
-      if (cooldownMs > 0 && Date.now() - lastRequestAt < cooldownMs) return;
-      lastRequestByUserRef.current.set(sender, Date.now());
+    const tracks = extractTracks(message.content).filter((track) => prefs.allowedPlatforms.includes(track.source));
+    if (!tracks.length) { reject("Plataforma desativada ou link inválido"); return; }
+    if (queue.queue.length >= prefs.maxQueue) { reject("Fila cheia"); return; }
+    const pending = pendingRequestsRef.current;
+    const alreadyPending = pending.get(sender) ?? 0;
+    const activeByUser = queue.queue.filter((item) => item.requestedBy.trim().toLowerCase() === sender).length + alreadyPending;
+    const pendingTotal = [...pending.values()].reduce((sum, value) => sum + value, 0);
+    if (activeByUser >= prefs.maxPerUser || queue.queue.length + pendingTotal >= prefs.maxQueue) {
+      reject(activeByUser >= prefs.maxPerUser ? "Limite por pessoa atingido" : "Fila cheia");
+      return;
+    }
+    const cooldownMs = Math.max(prefs.cooldownSeconds, settings.chatCooldownSeconds) * 1000;
+    const last = lastRequestByUserRef.current.get(sender) ?? 0;
+    if (cooldownMs > 0 && Date.now() - last < cooldownMs) { reject("Aguarde o cooldown"); return; }
+    lastRequestByUserRef.current.set(sender, Date.now());
 
-      const slots = Math.max(0, Math.min(prefs.maxLinksPerMessage, prefs.maxPerUser - activeByUser, prefs.maxQueue - queue.queue.length - pendingTotal));
-      if (slots === 0) return;
-      pending.set(sender, alreadyPending + slots);
-      void Promise.all(tracks.slice(0, slots).map((track) => queue.addTrack(track, message.username, message.color)))
-        .finally(() => {
-          const remaining = (pendingRequestsRef.current.get(sender) ?? 0) - slots;
-          if (remaining > 0) pendingRequestsRef.current.set(sender, remaining);
-          else pendingRequestsRef.current.delete(sender);
-        });
-    },
-    [queue, settingsLoading, settings.chatCooldownSeconds],
-  );
+    const slots = Math.max(0, Math.min(prefs.maxLinksPerMessage, prefs.maxPerUser - activeByUser, prefs.maxQueue - queue.queue.length - pendingTotal));
+    if (!slots) { reject("Limite de pedidos atingido"); return; }
+    pending.set(sender, alreadyPending + slots);
+    void Promise.all(tracks.slice(0, slots).map((track) => queue.addTrack(track, message.username, message.color)))
+      .then((results) => recordOutcome(message.id, results.some(Boolean) ? "accepted" : "rejected",
+        results.some(Boolean) ? "Pedido adicionado à fila" : "Link duplicado ou recusado pelo banco"))
+      .catch(() => reject("Não foi possível adicionar o pedido"))
+      .finally(() => {
+        const remaining = (pendingRequestsRef.current.get(sender) ?? 0) - slots;
+        if (remaining > 0) pendingRequestsRef.current.set(sender, remaining);
+        else pendingRequestsRef.current.delete(sender);
+      });
+  }, [queue, settingsLoading, settings.chatCooldownSeconds, recordOutcome]);
 
   const handleCommand = useCallback(
     (command: string, username: string) => {
@@ -447,17 +464,18 @@ function PlayerPage() {
   const handlePlayNext = useCallback(() => {
     if (!isHostRef.current) return;
     const first = queue.queue[0];
-    if (!first || !preferences.fairQueue || !queue.current) {
-      queue.playNext();
-      return;
-    }
-    // Rotate only within the same VIP priority group.
-    const candidate = queue.queue.find((item) =>
-      item.priority === first.priority &&
-      item.requestedBy.trim().toLowerCase() !== queue.current!.requestedBy.trim().toLowerCase());
-    if (candidate) queue.playNow(candidate.id);
+    if (!first) { queue.playNext(); return; }
+    const ordered = [...queue.queue].sort((a, b) =>
+      Number(b.priority) - Number(a.priority) ||
+      (preferences.voteMode ? (voteCounts[b.id] ?? 0) - (voteCounts[a.id] ?? 0) : 0) ||
+      a.position - b.position);
+    const eligible = ordered.filter((item) => item.priority === ordered[0]?.priority);
+    const candidate = preferences.fairQueue && queue.current
+      ? eligible.find((item) => item.requestedBy.toLowerCase() !== queue.current!.requestedBy.toLowerCase())
+        ?? eligible[0] : eligible[0];
+    if (candidate && (preferences.voteMode || candidate.id !== first.id)) queue.playNow(candidate.id);
     else queue.playNext();
-  }, [queue, preferences.fairQueue]);
+  }, [queue, preferences.fairQueue, preferences.voteMode, voteCounts]);
   const finishedTrackRef = useRef<string | null>(null);
   useEffect(() => {
     finishedTrackRef.current = null;
@@ -525,6 +543,7 @@ function PlayerPage() {
   const handlePlaybackHeartbeat = useCallback(
     (position: number, paused: boolean, duration?: number, volume?: number, muted?: boolean) => {
       if (!queue.current || !isHostRef.current) return;
+      if (preferencesRef.current.maxDurationSeconds > 0 && position >= preferencesRef.current.maxDurationSeconds) { handleAutomaticNext(); return; }
       queue.updatePlaybackHeartbeat(queue.current.id, position, paused, duration);
       sendPlaybackSync({
         time: position, paused,
@@ -532,7 +551,7 @@ function PlayerPage() {
         ...(typeof muted === "boolean" ? { muted } : {}),
       });
     },
-    [queue, sendPlaybackSync],
+    [queue, sendPlaybackSync, handleAutomaticNext],
   );
 
   return (
@@ -576,6 +595,7 @@ function PlayerPage() {
               </span>
             )}
             {!obsMode && <StreamerSettingsPanel preferences={preferences} onUpdate={updatePreferences} canManage={isAdministrator} globalCooldown={settings.chatCooldownSeconds} obsToken={settings.obsToken} />}
+            {!obsMode && <LiveStatsPanel history={queue.history} queue={queue.queue} rejectedCount={rejectedCount} />}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -744,6 +764,10 @@ function PlayerPage() {
           <div className="music-queue-column hidden md:flex">
             <QueueList
               canManage={isHost}
+              voteMode={preferences.voteMode}
+              voteCounts={voteCounts}
+              myVotes={myVotes}
+              onVote={(id) => { void voteFor(id); }}
               items={queue.queue}
               history={queue.history}
               onPlayNow={handlePlayNow}
@@ -756,7 +780,7 @@ function PlayerPage() {
           </div>
 
           <div className="music-chat-column hidden md:block">
-            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} />
+            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} requestOutcomes={requestOutcomes} />
           </div>
 
           <Tabs defaultValue="fila" className="music-player-tabs flex min-h-[420px] flex-col md:hidden">
@@ -773,6 +797,10 @@ function PlayerPage() {
             <TabsContent value="fila" className="mt-3 flex min-h-0 flex-1 flex-col">
               <QueueList
                 canManage={isHost}
+                voteMode={preferences.voteMode}
+                voteCounts={voteCounts}
+                myVotes={myVotes}
+                onVote={(id) => { void voteFor(id); }}
                 items={queue.queue}
                 history={queue.history}
                 onPlayNow={handlePlayNow}
@@ -784,7 +812,7 @@ function PlayerPage() {
               />
             </TabsContent>
             <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
-              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} />
+              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} {...(isHost ? { onBlockUser: blockUsername } : {})} blockedUsernames={settings.blockedUsernames} requestOutcomes={requestOutcomes} />
             </TabsContent>
           </Tabs>
         </div>
