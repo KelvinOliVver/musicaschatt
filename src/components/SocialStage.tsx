@@ -5,11 +5,6 @@ import { socialEmbedUrl, sourceLabel } from "@/lib/social-video";
 import { getInstagramVideoDimensions } from "@/lib/instagram-video-fit.functions";
 import { getInstagramAutoCrop, type InstagramVideoSize } from "@/lib/instagram-video-fit";
 import {
-  inferInstagramLayoutFromImage,
-  instagramPublicPreviewUrls,
-  type InferredInstagramLayout,
-} from "@/lib/instagram-auto-fit";
-import {
   DEFAULT_INSTAGRAM_FRAMING,
   normalizeInstagramFraming,
   type InstagramFraming,
@@ -104,58 +99,22 @@ export function SocialStage({
     if (source !== "instagram" || framing.layout !== "auto") return;
 
     let disposed = false;
-    let photo: HTMLImageElement | null = null;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const previews = instagramPublicPreviewUrls(trackId);
     setAutoSize(null);
 
-    const previewFallback = (index: number) => {
-      if (disposed || index >= previews.length) return;
-      if (timer) clearTimeout(timer);
-      if (photo) {
-        photo.onload = null;
-        photo.onerror = null;
-      }
-      const img = new Image();
-      photo = img;
-      let settled = false;
-      const complete = (size: InstagramVideoSize | null) => {
-        if (settled || disposed) return;
-        settled = true;
-        if (timer) clearTimeout(timer);
-        if (size) setAutoSize(size);
-        else previewFallback(index + 1);
-      };
-      img.onload = () => {
-        const layout = inferInstagramLayoutFromImage(img.naturalWidth, img.naturalHeight);
-        complete(layout === "full" ? null : { width: img.naturalWidth, height: img.naturalHeight });
-      };
-      img.onerror = () => complete(null);
-      timer = setTimeout(() => complete(null), 2200);
-      img.src = previews[index];
-    };
-
-    // Most trustworthy: og:video dimensions, which describe the VIDEO rather
-    // than a cropped feed thumbnail. The fixed-host server request is bounded.
-    // Public Instagram may block metadata; in that case try its preview.
+    // IMPORTANT: never derive video geometry from a cover image. Instagram
+    // often publishes portrait/square covers for LANDSCAPE Reels. This was
+    // the cause of clips being cropped off-screen in previous versions.
     const kind = originalUrl?.includes("/tv/") ? "tv"
       : originalUrl?.includes("/p/") ? "p" : "reel";
     void getInstagramVideoDimensions({ data: { trackId, kind } })
       .then((size) => {
-        if (disposed) return;
-        if (size) setAutoSize(size);
-        else previewFallback(0);
+        if (!disposed) setAutoSize(size);
       })
-      .catch(() => { if (!disposed) previewFallback(0); });
+      .catch(() => {
+        if (!disposed) setAutoSize(null);
+      });
 
-    return () => {
-      disposed = true;
-      if (timer) clearTimeout(timer);
-      if (photo) {
-        photo.onload = null;
-        photo.onerror = null;
-      }
-    };
+    return () => { disposed = true; };
   }, [source, trackId, originalUrl, framing.layout]);
 
   const autoCrop = framing.layout === "auto"
