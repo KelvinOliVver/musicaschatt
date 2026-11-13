@@ -546,3 +546,16 @@
   .music-stage-label > span:last-child { display: none; }
   .music-player-stage .player-content { gap: 15px; }
 }
+
+/* Super update: identity-first chat rows with a compact reading mode. */
+.music-chat .chat-user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-raised); }
+.music-chat .chat-user-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.music-chat .chat-message-row.is-compact { padding-top: 5px; padding-bottom: 5px; }
+.music-chat .chat-message-row.is-compact .chat-user-avatar { width: 27px; height: 27px; }
+.music-chat .chat-message-row.is-compact p { margin-top: 1px; }
+.music-player-shortcuts { border-top: 1px solid var(--border); margin-top: -5px; padding: 10px 2px 2px; }
+.music-player-shortcuts kbd { display: inline-block; padding: 1px 4px; border: 1px solid var(--border); border-radius: 3px; color: var(--foreground); font: inherit; }
+@media (max-width: 767px) {
+  .music-player-shortcuts { gap: 8px; }
+  .music-chat .chat-user-avatar { width: 30px; height: 30px; }
+}
