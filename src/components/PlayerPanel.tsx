@@ -238,6 +238,10 @@ export function PlayerPanel({
   return (
     <div className="music-player-stage relative z-0">
       <section className="panel relative z-0 overflow-hidden" style={accentColor ? ({ ["--track-accent" as any]: accentColor }) : undefined}>
+        <div className="music-stage-label" aria-hidden>
+          <span><span className="music-stage-live-dot" /> REPRODUÇÃO / 01</span>
+          <span>SESSÃO COMPARTILHADA</span>
+        </div>
         <div className="player-content relative z-10 flex flex-col">
           <div ref={fullscreenContainerRef} onMouseMove={showControlsTemporarily} className="player-video group relative overflow-hidden transition-opacity duration-300" style={{ opacity: videoOpacity }}>
             {current ? (
