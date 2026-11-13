@@ -17,6 +17,7 @@ interface SocialStageProps {
   paused: boolean;
   onEnded: () => void;
   onProgress: (currentTime: number, duration: number) => void;
+  onPlayingChange?: (playing: boolean) => void;
   controlsRef?: React.MutableRefObject<StageControls | null>;
 }
 
@@ -29,7 +30,7 @@ interface SocialStageProps {
  * the streamer can interact with the embed and skip manually.
  */
 export function SocialStage({
-  source, trackId, originalUrl, muted, volume = 70, onMuteChange, paused, onEnded, onProgress, controlsRef,
+  source, trackId, originalUrl, muted, volume = 70, onMuteChange, paused, onEnded, onProgress, onPlayingChange, controlsRef,
 }: SocialStageProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -152,10 +153,19 @@ export function SocialStage({
 
   useEffect(() => {
     if (!controlsRef) return;
-    if (source !== "tiktok") {
-      // Instagram embeds cannot be controlled from the parent page.
-      controlsRef.current = null;
-      return;
+    if (source === "instagram") {
+      // Native HTML5 Instagram video exposes exact time/seek to the shared
+      // room. The fallback cross-origin iframe remains uncontrollable.
+      controlsRef.current = useNativeInstagram ? {
+        getCurrentTime: () => nativeVideoRef.current?.currentTime ?? 0,
+        seekTo: (seconds) => {
+          const player = nativeVideoRef.current;
+          if (!player || !Number.isFinite(seconds)) return;
+          player.currentTime = Math.max(0, Number.isFinite(player.duration)
+            ? Math.min(seconds, player.duration) : seconds);
+        },
+      } : null;
+      return () => { controlsRef.current = null; };
     }
     controlsRef.current = {
       getCurrentTime: () => elapsedRef.current,
@@ -168,7 +178,7 @@ export function SocialStage({
     };
     return () => { controlsRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controlsRef, source]);
+  }, [controlsRef, source, useNativeInstagram]);
 
   useEffect(() => {
     if (source !== "tiktok") return;
@@ -287,6 +297,10 @@ export function SocialStage({
               onProgressRef.current(video.currentTime, Number.isFinite(video.duration) ? video.duration : 0);
             }}
             onEnded={() => finish()}
+            onPlay={() => onPlayingChange?.(true)}
+            onPause={(event) => {
+              if (!event.currentTarget.ended && !event.currentTarget.error) onPlayingChange?.(false);
+            }}
             onError={() => {
               setNativeFailed(true);
               setNativeNeedsGesture(false);
