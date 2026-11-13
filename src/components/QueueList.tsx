@@ -12,6 +12,7 @@ import {
   Music2,
   Play,
   Trash2,
+  ThumbsUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,10 @@ interface QueueListProps {
   accentColor?: string | null;
   isPlaying?: boolean;
   canManage?: boolean;
+  voteMode?: boolean;
+  voteCounts?: Record<string, number>;
+  myVotes?: string[];
+  onVote?: (id: string) => void;
 }
 
 function formatRelativeTime(timestampMs: number, now: number): string {
@@ -56,6 +61,10 @@ export function QueueList({
   accentColor,
   isPlaying = false,
   canManage = true,
+  voteMode = false,
+  voteCounts = {},
+  myVotes = [],
+  onVote,
 }: QueueListProps) {
   const vipCount = items.filter((item) => item.priority).length;
   const [showHistory, setShowHistory] = useState(false);
@@ -273,6 +282,16 @@ export function QueueList({
                       </div>
                     </div>
 
+                    {voteMode && onVote && (
+                      <button type="button" onClick={() => onVote(item.id)}
+                        aria-label={myVotes.includes(item.id) ? "Remover voto" : "Votar neste vídeo"}
+                        aria-pressed={myVotes.includes(item.id)}
+                        title={myVotes.includes(item.id) ? "Remover meu voto" : "Votar para tocar primeiro"}
+                        className={`inline-flex h-8 shrink-0 items-center gap-1 rounded-md border px-1.5 text-[11px] transition-colors ${myVotes.includes(item.id) ? "border-primary/35 bg-primary/15 text-primary" : "border-border/50 text-muted-foreground hover:text-foreground"}`}>
+                        <ThumbsUp className="size-3.5" aria-hidden />
+                        <span className="min-w-2 tabular-nums">{voteCounts[item.id] ?? 0}</span>
+                      </button>
+                    )}
                     {canManage && <div className="queue-actions flex shrink-0 items-center gap-0.5">
                       {onMove && (
                         <div className="flex flex-col">
