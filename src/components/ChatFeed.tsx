@@ -32,6 +32,7 @@ interface ChatFeedProps {
   onReconnect?: () => void;
   onBlockUser?: (username: string) => void;
   blockedUsernames?: string[];
+  requestOutcomes?: Record<string, { status: "accepted" | "rejected"; reason: string }>;
 }
 
 type ChatFilter = "all" | "music" | "commands";
@@ -158,6 +159,7 @@ export function ChatFeed({
   onReconnect,
   onBlockUser,
   blockedUsernames = [],
+  requestOutcomes = {},
 }: ChatFeedProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -482,6 +484,17 @@ export function ChatFeed({
                                 Pedido
                               </span>
                             )}
+                            {message.badges?.map((badge, i) => (
+                              <span key={badge + i} className="rounded border border-primary/20 bg-primary/10 px-1 py-0.5 text-[9px] font-medium uppercase text-primary"
+                                title={"Insígnia da Kick: " + badge}>
+                                {/broadcaster|streamer/.test(badge) ? "Streamer" : /mod/.test(badge) ? "MOD" : /vip/.test(badge) ? "VIP" : /sub/.test(badge) ? "SUB" : badge.toUpperCase()}
+                              </span>
+                            ))}
+                            {requestOutcomes[message.id] && (
+                              <span title={requestOutcomes[message.id].reason} className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${requestOutcomes[message.id].status === "accepted" ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"}`}>
+                                {requestOutcomes[message.id].status === "accepted" ? "Aceito" : "Recusado"}
+                              </span>
+                            )}
                             {onBlockUser && withLink && normalizeKickUsername(name) && !blockedUsernames.includes(normalizeKickUsername(name)!) && (
                               <button
                                 type="button"
@@ -512,6 +525,7 @@ export function ChatFeed({
                           >
                             {isCommand ? message.content : renderMessageContent(message.content)}
                           </p>
+                          {requestOutcomes[message.id]?.status === "rejected" && <p className="mt-1 text-[11px] text-amber-400/80">{requestOutcomes[message.id].reason}</p>}
                         </div>
                         <button
                           type="button"
