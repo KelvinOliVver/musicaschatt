@@ -153,11 +153,12 @@ async function tunnel(req, res) {
   if (u.pathname !== "/tunnel" || !u.search) return json(res, 404, { error: "not_found" });
 
   const aborter = new AbortController();
-  req.on("close", () => { if (!res.writableEnded) aborter.abort(); });
+  res.on("close", () => { if (!res.writableEnded) aborter.abort(); });
   try {
     const headers = {};
     if (req.headers.range) headers.Range = String(req.headers.range).slice(0, 150);
     const upstreamResponse = await fetch(upstream + u.pathname + u.search, {
+      method: req.method,
       headers,
       redirect: "manual",
       signal: aborter.signal,
@@ -176,7 +177,7 @@ async function tunnel(req, res) {
       if (value) safeHeaders[key] = value;
     }
     res.writeHead(upstreamResponse.status, safeHeaders);
-    if (!upstreamResponse.body) return res.end();
+    if (!upstreamResponse.body || req.method === "HEAD") return res.end();
     Readable.fromWeb(upstreamResponse.body).on("error", () => res.destroy()).pipe(res);
   } catch {
     if (!res.headersSent) json(res, 502, { error: "tunnel_unavailable" });
