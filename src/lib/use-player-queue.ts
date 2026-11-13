@@ -174,6 +174,28 @@ export function usePlayerQueue(): PlayerQueue {
             oldRow &&
             isHeartbeatOnlyChange(oldRow, newRow)
           ) {
+            // Playback state originates in the database, where RLS verifies
+            // the streamer. Viewers update only this item without re-fetching
+            // the whole queue on each heartbeat.
+            setCurrent((previous) => {
+              if (!previous || previous.id !== newRow.id) return previous;
+              const nextPosition = Number(newRow.playback_position ?? 0);
+              const nextPaused = newRow.is_paused ?? false;
+              const updatedAt = newRow.state_updated_at
+                ? Date.parse(newRow.state_updated_at)
+                : Date.now();
+              if (
+                previous.playbackPosition === nextPosition &&
+                previous.isPaused === nextPaused &&
+                previous.stateUpdatedAt === updatedAt
+              ) return previous;
+              return {
+                ...previous,
+                playbackPosition: nextPosition,
+                isPaused: nextPaused,
+                stateUpdatedAt: updatedAt,
+              };
+            });
             return;
           }
           scheduleRefresh();
