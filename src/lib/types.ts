@@ -23,6 +23,7 @@ export interface QueueItem {
   position: number;
   /** Última posição de playback gravada pelo host (segundos). */
   playbackPosition: number;
+  durationSeconds?: number | null;
   /** Se o host marcou a música como pausada. */
   isPaused: boolean;
   /** Timestamp (ms) do último heartbeat de playback. */
