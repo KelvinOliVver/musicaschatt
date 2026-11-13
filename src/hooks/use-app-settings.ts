@@ -3,9 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface AppSettings {
   chatCooldownSeconds: number;
+  blockedUsernames: string[];
 }
 
-const DEFAULT_SETTINGS: AppSettings = { chatCooldownSeconds: 20 };
+const DEFAULT_SETTINGS: AppSettings = { chatCooldownSeconds: 20, blockedUsernames: [] };
 
 /**
  * Configurações do site (ex: cooldown de pedidos no chat), guardadas numa
@@ -21,12 +22,12 @@ export function useAppSettings() {
   const refresh = useCallback(async () => {
     const { data, error } = await supabase
       .from("app_settings")
-      .select("chat_cooldown_seconds")
+      .select("chat_cooldown_seconds, blocked_usernames")
       .eq("id", 1)
       .maybeSingle();
 
     if (!error && data) {
-      setSettings({ chatCooldownSeconds: data.chat_cooldown_seconds });
+      setSettings({ chatCooldownSeconds: data.chat_cooldown_seconds, blockedUsernames: data.blocked_usernames ?? [] });
     }
     setLoading(false);
   }, []);
@@ -57,5 +58,21 @@ export function useAppSettings() {
     return true;
   }, []);
 
-  return { settings, loading, updateCooldown };
+  const updateBlockedUsernames = useCallback(async (usernames: string[]) => {
+    const cleaned = [...new Set(usernames.map((nick) => nick.trim().toLowerCase()).filter((nick) => /^[a-z0-9_-]{1,40}$/.test(nick)))];
+    const { data, error } = await supabase
+      .from("app_settings")
+      .update({ blocked_usernames: cleaned, updated_at: new Date().toISOString() })
+      .eq("id", 1)
+      .select("blocked_usernames")
+      .single();
+    if (error || !data) {
+      console.error("[BLOCKED USERNAMES ERROR]", error?.message);
+      return false;
+    }
+    setSettings((current) => ({ ...current, blockedUsernames: data.blocked_usernames }));
+    return true;
+  }, []);
+
+  return { settings, loading, updateCooldown, updateBlockedUsernames };
 }
