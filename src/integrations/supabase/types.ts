@@ -17,11 +17,14 @@ export type Database = {
       app_settings: {
         Row: {
           chat_cooldown_seconds: number
+          blocked_usernames: string[]
           id: number
           updated_at: string
         }
         Insert: {
           chat_cooldown_seconds?: number
+          blocked_usernames?: string[]
+          blocked_usernames?: string[]
           id?: number
           updated_at?: string
         }
