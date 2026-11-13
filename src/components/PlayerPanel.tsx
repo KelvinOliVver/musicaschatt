@@ -24,6 +24,7 @@ import { SourceIcon } from "@/components/SourceIcon";
 import { isSocialSource, sourceLabel } from "@/lib/social-video";
 import { useDominantColor } from "@/hooks/use-dominant-color";
 import type { QueueItem } from "@/lib/types";
+import { projectedPlaybackTime, type PlaybackSyncState } from "@/lib/player-sync";
 
 const VOLUME_KEY = "musicas-chat-volume";
 const DRIFT_THRESHOLD_SECONDS = 1.5;
@@ -37,13 +38,12 @@ interface PlayerPanelProps {
   onNext: () => void;
   onAutomaticNext?: () => void;
   onPrevious: () => void;
-  remoteSeek?: number | null;
-  remotePaused?: boolean | null;
-  remoteVolume?: number | null;
+  remoteSync?: PlaybackSyncState | null;
   onSeekChange?: (time: number) => void;
   onTogglePlayChange?: (paused: boolean) => void;
   onVolumeChange?: (volume: number) => void;
-  onPlaybackHeartbeat?: (position: number, paused: boolean, duration?: number) => void;
+  onMuteChange?: (muted: boolean) => void;
+  onPlaybackHeartbeat?: (position: number, paused: boolean, duration?: number, volume?: number, muted?: boolean) => void;
   controlsRef?: React.MutableRefObject<StageControls | null>;
   onPlayingStateChange?: (isPlaying: boolean) => void;
   /** Enlarge the embedded video while leaving the queue and chat below it. */
@@ -85,12 +85,11 @@ export function PlayerPanel({
   onNext,
   onAutomaticNext,
   onPrevious,
-  remoteSeek,
-  remotePaused,
-  remoteVolume,
+  remoteSync,
   onSeekChange,
   onTogglePlayChange,
   onVolumeChange,
+  onMuteChange,
   onPlaybackHeartbeat,
   onPlayingStateChange,
   controlsRef: externalControlsRef,
@@ -121,20 +120,19 @@ export function PlayerPanel({
   const progressRef = useRef(progress);
   progressRef.current = progress;
 
+  // Apply a single host snapshot atomically. Ignore packets from an older
+  // queue item and never let a viewer overwrite the shared host timeline.
   useEffect(() => {
-    if (remotePaused !== null && remotePaused !== undefined && remotePaused !== paused) setPaused(remotePaused);
-  }, [remotePaused]);
-
-  useEffect(() => {
-    if (remoteVolume !== null && remoteVolume !== undefined) setVolume(remoteVolume);
-  }, [remoteVolume]);
-
-  useEffect(() => {
-    if (remoteSeek === null || remoteSeek === undefined) return;
-    const localTime = controlsRef.current?.getCurrentTime() ?? 0;
-    const drift = Math.abs(localTime - remoteSeek);
-    if (drift > DRIFT_THRESHOLD_SECONDS) controlsRef.current?.seekTo(remoteSeek);
-  }, [remoteSeek, controlsRef]);
+    if (isHost || !current || !remoteSync || remoteSync.trackId !== current.id) return;
+    setPaused(remoteSync.paused);
+    setVolume(remoteSync.volume);
+    setMuted(remoteSync.muted);
+    const expectedTime = projectedPlaybackTime(remoteSync);
+    const localTime = controlsRef.current?.getCurrentTime();
+    if (Number.isFinite(localTime) && Math.abs((localTime as number) - expectedTime) > DRIFT_THRESHOLD_SECONDS) {
+      controlsRef.current?.seekTo(expectedTime);
+    }
+  }, [remoteSync, current?.id, isHost, controlsRef]);
 
   useEffect(() => {
     try { window.localStorage.setItem(VOLUME_KEY, String(volume)); } catch { /* storage indisponível */ }
@@ -156,11 +154,11 @@ export function PlayerPanel({
       const time = controlsRef.current?.getCurrentTime();
       if (typeof time === "number" && time > 0) {
         const duration = progressRef.current.duration;
-        onPlaybackHeartbeat?.(time, paused, duration > 0 ? duration : undefined);
+        onPlaybackHeartbeat?.(time, paused, duration > 0 ? duration : undefined, volume, muted);
       }
     }, 4000);
     return () => clearInterval(interval);
-  }, [isHost, current?.id, paused, onPlaybackHeartbeat, controlsRef]);
+  }, [isHost, current?.id, paused, volume, muted, onPlaybackHeartbeat, controlsRef]);
 
   useEffect(() => {
     function handleVisibilityChange() {
@@ -223,12 +221,14 @@ export function PlayerPanel({
         setProgress((value) => ({ ...value, current: nextPosition }));
         onSeekChange?.(nextPosition);
       } else if (event.code === "KeyM" && current?.source !== "instagram") {
-        setMuted((value) => !value);
+        const nextMuted = !muted;
+        setMuted(nextMuted);
+        if (isHost) onMuteChange?.(nextMuted);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [current?.id, controlsRef, onNext, onPrevious, onSeekChange, onTogglePlayChange]);
+  }, [current?.id, controlsRef, onNext, onPrevious, onSeekChange, onTogglePlayChange, isHost, muted, onMuteChange]);
 
   const shown = scrubbing ?? progress.current;
   const isInstagramVideo = current?.source === "instagram";
@@ -343,7 +343,7 @@ export function PlayerPanel({
                     originalUrl={current.url}
                     muted={muted}
                     volume={volume}
-                    onMuteChange={setMuted}
+                    onMuteChange={(next) => { setMuted(next); if (isHost) onMuteChange?.(next); }}
                     paused={paused}
                     onEnded={() => { if (isHost) (onAutomaticNext ?? onNext)(); }}
                     onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
@@ -358,6 +358,9 @@ export function PlayerPanel({
                 <YouTubeStage
                   key={current.id}
                   videoId={current.trackId}
+                  remoteSeek={!isHost && remoteSync?.trackId === current.id
+                    ? projectedPlaybackTime(remoteSync)
+                    : current.playbackPosition + (current.isPaused ? 0 : Math.max(0, (Date.now() - current.stateUpdatedAt) / 1000))}
                   volume={volume}
                   muted={muted}
                   paused={paused}
@@ -437,8 +440,8 @@ export function PlayerPanel({
               </div>
   
               <div className="player-volume flex flex-1 items-center gap-2">
-                <Button size="icon" variant="ghost" className="size-8 shrink-0 rounded-full transition-colors duration-200 hover:bg-secondary" onClick={() => setMuted((value) => !value)} aria-label={muted ? "Tirar do mudo" : "Deixar mudo"}>{muted ? <VolumeX className="size-4 text-muted-foreground" aria-hidden /> : <Volume2 className="size-4 text-muted-foreground" aria-hidden />}</Button>
-                <Slider className="volume-slider text-primary" value={[muted ? 0 : volume]} onValueChange={([value]) => { const newVol = value ?? 0; setVolume(newVol); if (newVol > 0) setMuted(false); onVolumeChange?.(newVol); }} max={100} step={1} aria-label="Volume" />
+                <Button size="icon" variant="ghost" className="size-8 shrink-0 rounded-full transition-colors duration-200 hover:bg-secondary" onClick={() => { const nextMuted = !muted; setMuted(nextMuted); if (isHost) onMuteChange?.(nextMuted); }} aria-label={muted ? "Tirar do mudo" : "Deixar mudo"}>{muted ? <VolumeX className="size-4 text-muted-foreground" aria-hidden /> : <Volume2 className="size-4 text-muted-foreground" aria-hidden />}</Button>
+                <Slider className="volume-slider text-primary" value={[muted ? 0 : volume]} onValueChange={([value]) => { const newVol = value ?? 0; setVolume(newVol); if (newVol > 0) { setMuted(false); if (isHost) onMuteChange?.(false); } if (isHost) onVolumeChange?.(newVol); }} max={100} step={1} aria-label="Volume" />
                 <span className="volume-readout w-8 shrink-0 text-right text-xs tabular-nums">{muted ? 0 : volume}</span>
               </div>
             </div>
