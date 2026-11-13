@@ -346,7 +346,8 @@ export function useKickChat(
 
           setMessages((current) => mergeMessages(current, [commandMessage]));
           if (shouldPersistRef.current?.() ?? true) persistMessage(commandMessage, normalized);
-          onCommandRef.current?.(canonicalCommand, username || "Pitee4");
+          // Never invent a privileged identity for messages without a Kick sender.
+          if (username) onCommandRef.current?.(canonicalCommand, username);
           return;
         }
       }
