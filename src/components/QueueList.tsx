@@ -1,9 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
   Crown,
   History,
+  Search,
+  RotateCcw,
+  ExternalLink,
+  X,
   ListMusic,
   Music2,
   Play,
@@ -11,6 +15,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Equalizer } from "@/components/Equalizer";
 import { SourceIcon } from "@/components/SourceIcon";
@@ -54,6 +59,18 @@ export function QueueList({
 }: QueueListProps) {
   const vipCount = items.filter((item) => item.priority).length;
   const [showHistory, setShowHistory] = useState(false);
+  const [historySearch, setHistorySearch] = useState("");
+  const [historySource, setHistorySource] = useState<"all" | "youtube" | "instagram" | "tiktok">("all");
+  const [historyLimit, setHistoryLimit] = useState(15);
+  const filteredHistory = useMemo(() => {
+    const needle = historySearch.trim().toLocaleLowerCase("pt-BR");
+    return history.filter((item) => {
+      if (historySource !== "all" && item.source !== historySource) return false;
+      if (!needle) return true;
+      return [item.title, item.author, item.requestedBy, item.trackId, sourceLabel(item.source)]
+        .some((value) => value?.toLocaleLowerCase("pt-BR").includes(needle));
+    });
+  }, [history, historySearch, historySource]);
   const [now, setNow] = useState(() => Date.now());
   const [exitingIds, setExitingIds] = useState<Set<string>>(() => new Set());
   const [mountedIds, setMountedIds] = useState<Set<string>>(() => new Set());
@@ -308,65 +325,121 @@ export function QueueList({
         )}
 
         {history.length > 0 && (
-          <div className="shrink-0 border-t border-border">
+          <div className="music-history shrink-0 border-t border-border/80">
             <Button
-              variant="ghost"
               type="button"
+              variant="ghost"
+              aria-controls="music-queue-history-panel"
               aria-expanded={showHistory}
               onClick={() => setShowHistory((v) => !v)}
-              className="flex h-auto w-full items-center justify-between rounded-none px-5 py-3 text-xs font-semibold text-muted-foreground transition-all duration-200 hover:bg-accent/30 hover:text-foreground active:scale-[0.995]"
+              className={`flex h-11 w-full items-center justify-between rounded-none px-4 text-xs font-semibold transition-colors hover:bg-accent/40 ${showHistory ? "bg-accent/20 text-foreground" : "text-muted-foreground"}`}
             >
               <span className="flex items-center gap-2">
-                <History className="size-3.5" aria-hidden />
+                <History className="size-4 text-primary" aria-hidden />
                 Histórico
-                <Badge variant="secondary" className="tabular-nums">
-                  {history.length}
-                </Badge>
+                <Badge variant="secondary" className="tabular-nums">{history.length}</Badge>
               </span>
-              {showHistory ? (
-                <ChevronUp className="size-3.5" aria-hidden />
-              ) : (
-                <ChevronDown className="size-3.5" aria-hidden />
-              )}
+              <span className="flex items-center gap-2 text-[11px] font-normal text-muted-foreground">
+                {showHistory ? "Ocultar" : "Ver reproduções"}
+                {showHistory ? <ChevronDown className="size-4 rotate-180" aria-hidden /> : <ChevronDown className="size-4" aria-hidden />}
+              </span>
             </Button>
             {showHistory && (
-              <ScrollArea className="max-h-48">
-                <ol className="divide-y divide-border">
-                  {history.slice(0, 15).map((item) => (
-                    <li key={item.id} className="flex items-center gap-3 px-4 py-2.5 opacity-70 transition-all duration-200 hover:bg-accent/20 hover:opacity-100">
-                      <div className="relative size-8 shrink-0 overflow-hidden rounded-md bg-muted transition-transform duration-200 hover:scale-105">
-                        {item.thumbnail ? (
-                          <img
-                            src={item.thumbnail}
-                            alt=""
-                            loading="lazy"
-                            className="size-full object-cover"
-                          />
-                        ) : (
-                          <div className={`flex size-full items-center justify-center ${
-                            item.source === "instagram" ? "bg-fuchsia-950/40" : item.source === "tiktok" ? "bg-cyan-950/30" : "bg-muted/40"
-                          }`}>
-                            <SourceIcon source={item.source} className="size-4" />
-                          </div>
-                        )}
-                        {item.thumbnail && (
-                          <span className="absolute bottom-0 right-0 flex size-3.5 items-center justify-center rounded-tl bg-black/85">
-                            <SourceIcon source={item.source} className="size-2.5" />
-                          </span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium">
-                          {item.title ?? (isSocialSource(item.source) ? `Vídeo do ${sourceLabel(item.source)}` : `Vídeo ${item.trackId}`)}
-                        </p>
-                        <p className="truncate text-[11px] text-muted-foreground">
-                          {item.requestedBy}
-                        </p>
-                      </div>
-                    </li>
+              <div id="music-queue-history-panel" className="flex min-h-0 flex-col gap-2 border-t border-border/60 bg-background/20 p-3">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                  <Input
+                    aria-label="Buscar no histórico"
+                    placeholder="Buscar vídeo ou usuário..."
+                    value={historySearch}
+                    onChange={(event) => { setHistorySearch(event.target.value); setHistoryLimit(15); }}
+                    className="h-9 rounded-md bg-background/60 pl-8 pr-8 text-xs"
+                  />
+                  {historySearch && (
+                    <button type="button" aria-label="Limpar busca" onClick={() => setHistorySearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground">
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filtrar histórico por plataforma">
+                  {(["all", "youtube", "tiktok", "instagram"] as const).map((source) => (
+                    <button
+                      key={source}
+                      type="button"
+                      aria-pressed={historySource === source}
+                      onClick={() => { setHistorySource(source); setHistoryLimit(15); }}
+                      className={`inline-flex min-h-7 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${historySource === source ? "border-primary/35 bg-primary/15 text-foreground" : "border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground"}`}
+                    >
+                      {source === "all" ? "Todos" : <><SourceIcon source={source} className="size-3" /> {sourceLabel(source)}</>}
+                    </button>
                   ))}
-                </ol>
-              </ScrollArea>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>{filteredHistory.length} {filteredHistory.length === 1 ? "reprodução encontrada" : "reproduções encontradas"}</span>
+                  <span>Mais recentes primeiro</span>
+                </div>
+                <ScrollArea className="h-[min(42vh,380px)] min-h-0 rounded-md">
+                  {filteredHistory.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 px-3 py-8 text-center text-muted-foreground">
+                      <Search className="size-5 opacity-50" aria-hidden />
+                      <span className="text-xs">Nenhum vídeo encontrado.</span>
+                      <button type="button" onClick={() => { setHistorySearch(""); setHistorySource("all"); }} className="text-xs font-medium text-primary hover:underline">Limpar filtros</button>
+                    </div>
+                  ) : (
+                    <ol className="space-y-1">
+                      {filteredHistory.slice(0, historyLimit).map((item) => {
+                        const title = item.title ?? (isSocialSource(item.source) ? `Vídeo do ${sourceLabel(item.source)}` : `Vídeo ${item.trackId}`);
+                        const playedTime = item.playedAt ?? item.addedAt;
+                        return (
+                          <li key={item.id} className="group flex items-center gap-2.5 rounded-lg border border-transparent p-2 transition-colors hover:border-border/70 hover:bg-accent/30">
+                            <div className="relative size-11 shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted/40">
+                              {item.thumbnail ? (
+                                <img src={item.thumbnail} alt="" loading="lazy" className="size-full object-cover" />
+                              ) : (
+                                <div className="flex size-full items-center justify-center bg-background/60">
+                                  <SourceIcon source={item.source} className="size-5" />
+                                </div>
+                              )}
+                              {item.thumbnail && <span className="absolute bottom-0 right-0 rounded-tl bg-black/85 p-0.5"><SourceIcon source={item.source} className="size-3" /></span>}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-semibold text-foreground" title={title}>{title}</p>
+                              <p className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[11px] text-muted-foreground">
+                                <span className="max-w-[55%] truncate" style={item.requesterColor ? { color: item.requesterColor } : undefined}>{item.requestedBy}</span>
+                                <span aria-hidden>·</span>
+                                <time dateTime={new Date(playedTime).toISOString()} title={new Date(playedTime).toLocaleString("pt-BR")}>{formatRelativeTime(playedTime, now)}</time>
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-0.5">
+                              {canManage && (
+                                <Button size="icon" type="button" variant="ghost"
+                                  className="size-8 text-muted-foreground hover:bg-primary/15 hover:text-primary"
+                                  onClick={() => onPlayNow(item.id)}
+                                  aria-label={`Tocar novamente: ${title}`}
+                                  title="Tocar novamente">
+                                  <RotateCcw className="size-3.5" aria-hidden />
+                                </Button>
+                              )}
+                              <a href={item.url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir vídeo original: ${title}`}
+                                title="Abrir original" className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                                <ExternalLink className="size-3.5" aria-hidden />
+                              </a>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
+                </ScrollArea>
+                {filteredHistory.length > historyLimit && (
+                  <Button type="button" size="sm" variant="ghost" className="h-8 w-full text-xs text-muted-foreground"
+                    onClick={() => setHistoryLimit((count) => count + 15)}>
+                    Ver mais {Math.min(15, filteredHistory.length - historyLimit)} reproduções
+                    <ChevronDown className="ml-1 size-3.5" aria-hidden />
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         )}
