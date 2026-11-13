@@ -102,7 +102,7 @@ function PlayerPage() {
   const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
-  const [theaterMode, setTheaterMode] = useState(false);
+  const [theaterMode, setTheaterMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("obs") === "1");
 
   useEffect(() => {
     if (!theaterMode) return;
@@ -580,6 +580,7 @@ function PlayerPage() {
         <div className={`music-player-grid${theaterMode ? " is-theater-mode" : ""}`}>
           <PlayerPanel
             theaterMode={theaterMode}
+            automaticRecovery={preferences.automaticRecovery}
             onToggleTheaterMode={() => setTheaterMode((value) => !value)}
             current={queue.current}
             next={queue.queue[0] ?? null}
