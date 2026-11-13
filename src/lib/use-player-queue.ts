@@ -191,10 +191,16 @@ export function usePlayerQueue(): PlayerQueue {
       if (document.visibilityState === "visible") scheduleRefresh();
     };
 
+    // Realtime notifications are best-effort; a missed event must never leave
+    // an OBS/browser tab on yesterday's video until somebody reloads it.
+    const catchUpTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") scheduleRefresh();
+    }, 12_000);
     window.addEventListener("online", handleOnline);
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
+      window.clearInterval(catchUpTimer);
       window.removeEventListener("online", handleOnline);
       document.removeEventListener("visibilitychange", handleVisibility);
       if (refreshTimer) clearTimeout(refreshTimer);
