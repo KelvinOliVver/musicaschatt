@@ -37,7 +37,7 @@ export function getPlayableCobaltUrl(raw: CobaltResponse, baseUrl: URL): string 
   try {
     const url = new URL(raw.url);
     if (url.protocol !== "https:" || url.username || url.password) return null;
-    const allowedCobaltHost = url.hostname.toLowerCase() === baseUrl.hostname.toLowerCase();
+    const allowedCobaltHost = url.origin === baseUrl.origin;
     const allowedMetaCdn = Boolean(safeInstagramVideoUrl(url.toString()));
     // A third-party URL must never be executable JavaScript, a local
     // resource, or an attacker-controlled server chosen by a response.
