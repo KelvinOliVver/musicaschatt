@@ -460,6 +460,7 @@ function PlayerPage() {
               onMove={handleMoveItem}
               accentColor={accentColor}
               isPlaying={isCurrentlyPlaying}
+              canControl={isHost}
             />
           </div>
 
@@ -488,6 +489,7 @@ function PlayerPage() {
                 onMove={handleMoveItem}
                 accentColor={accentColor}
                 isPlaying={isCurrentlyPlaying}
+                canControl={isHost}
               />
             </TabsContent>
             <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
