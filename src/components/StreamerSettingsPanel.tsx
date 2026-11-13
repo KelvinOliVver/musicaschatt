@@ -22,7 +22,7 @@ export function StreamerSettingsPanel({ preferences, onUpdate, canManage }: Prop
       <span className="text-muted-foreground">{label}</span>
       <Input aria-label={label} type="number" min={min} max={max} disabled={!canManage}
         value={preferences[field]}
-        onChange={(e) => { if (e.target.value !== "") update({ [field]: Math.max(min, Math.min(max, Number(e.target.value) || min)) }); }}
+        onChange={(e) => { if (e.target.value !== "") update({ [field]: Math.max(min, Math.min(max, Number(e.target.value) || min)) } as Partial<StreamerPreferences>); }}
         className="h-8 w-20 text-right tabular-nums" />
     </label>
   );
