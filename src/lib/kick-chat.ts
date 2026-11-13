@@ -53,7 +53,7 @@ interface KickChatPayload {
     username?: string;
     profile_picture?: string | null;
     profile_pic?: string | null;
-    identity?: { color?: string };
+    identity?: { color?: string; badges?: Array<string | { type?: string; name?: string }> };
   };
   profile_picture?: string | null;
 }
