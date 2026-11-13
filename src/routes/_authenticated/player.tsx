@@ -340,7 +340,8 @@ function PlayerPage() {
           aria-expanded={sidebarOpen}
           title={sidebarOpen ? "Ocultar menu" : "Abrir menu"}
         >
-          {sidebarOpen ? <PanelLeftClose className="size-5" aria-hidden /> : <PanelLeftOpen className="size-5" aria-hidden />}
+          {sidebarOpen ? <PanelLeftClose className="size-4 shrink-0" aria-hidden /> : <PanelLeftOpen className="size-4 shrink-0" aria-hidden />}
+          <span className="text-xs font-semibold">{sidebarOpen ? "Fechar menu" : "Menu"}</span>
         </Button>
       )}
       <main className="music-page music-player-page">
