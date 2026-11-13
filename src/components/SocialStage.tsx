@@ -314,7 +314,7 @@ export function SocialStage({
             <button
               key={value}
               type="button"
-              className={`instagram-layout-option rounded-sm px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${instagramLayout === value ? "bg-primary text-primary-foreground" : "text-white hover:bg-white/20"}`}
+              className={`instagram-layout-option rounded-sm px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${framing.layout === value ? "bg-primary text-primary-foreground" : "text-white hover:bg-white/20"}`}
               onClick={() => updateInstagramFraming({ layout: value, zoom: 100, verticalOffset: 0 })}
               aria-pressed={framing.layout === value}
               title={value === "auto"
