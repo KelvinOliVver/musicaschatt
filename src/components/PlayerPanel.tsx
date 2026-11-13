@@ -359,8 +359,9 @@ export function PlayerPanel({
                   key={current.id}
                   videoId={current.trackId}
                   remoteSeek={!isHost && remoteSync?.trackId === current.id
-                    ? projectedPlaybackTime(remoteSync)
-                    : current.playbackPosition + (current.isPaused ? 0 : Math.max(0, (Date.now() - current.stateUpdatedAt) / 1000))}
+                    ? projectedPlaybackTime(remoteSync) : undefined}
+                  initialSeek={current.playbackPosition + (current.isPaused ? 0
+                    : Math.max(0, (Date.now() - current.stateUpdatedAt) / 1000))}
                   volume={volume}
                   muted={muted}
                   paused={paused}
