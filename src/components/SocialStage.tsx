@@ -14,7 +14,7 @@ interface SocialStageProps {
   muted: boolean;
   /** Native Instagram video can respect the main player's volume. */
   volume?: number;
-  /** Reflect mute state reported by TikTok, including autoplay muting. */
+  /** Notify the host only after an explicit user request to unmute. */
   onMuteChange?: (muted: boolean) => void;
   paused: boolean;
   onEnded: () => void;
@@ -268,8 +268,9 @@ export function SocialStage({
       if (type === "onPlayerReady") {
         // TikTok may start muted despite autoplay. Ask for audio when the app
         // wants sound, but keep the explicit unmute button below as fallback.
-        postToTikTok(mutedRef.current ? "mute" : "unMute");
         postToTikTok(pausedRef.current ? "pause" : "play");
+        if (mutedRef.current) postToTikTok("mute");
+        else postToTikTok("unMute");
       } else if (type === "onCurrentTime" && value && typeof value === "object") {
         const position = value as { currentTime?: unknown; duration?: unknown };
         const duration = Number(position.duration);
@@ -278,8 +279,10 @@ export function SocialStage({
         if (Number.isFinite(current) && current >= 0) elapsedRef.current = current;
         onProgressRef.current(elapsedRef.current, durationRef.current);
       } else if (type === "onMute" && typeof value === "boolean") {
+        // TikTok can silently mute autoplay to satisfy browser policies.
+        // That is NOT a user mute choice: never copy it to the host's
+        // persisted mute state or the next video will inherit silence.
         setTiktokActuallyMuted(value);
-        onMuteChangeRef.current?.(value);
       } else if (type === "onStateChange") {
         const state = Number(value);
         if (state === 0) finish();
@@ -397,7 +400,11 @@ export function SocialStage({
             // browsers can require a user gesture to enable audible playback.
             mutedRef.current = false;
             onMuteChangeRef.current?.(false);
+            setTiktokActuallyMuted(false);
             postToTikTok("unMute");
+            // A play command within the click also helps browsers unlock audio
+            // after an automatically muted autoplay.
+            if (!pausedRef.current) postToTikTok("play");
           }}
           aria-label="Ativar som do vídeo do TikTok"
         >
