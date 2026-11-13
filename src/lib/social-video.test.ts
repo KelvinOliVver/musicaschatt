@@ -4,25 +4,31 @@ import { isSocialSource, socialEmbedUrl, sourceLabel } from "./social-video";
 describe("social player embeds", () => {
   it("uses the Instagram Reel endpoint for Reel links", () => {
     expect(socialEmbedUrl("instagram", "DLe9qQwTsAb", "https://www.instagram.com/reel/DLe9qQwTsAb/"))
-      .toBe("https://www.instagram.com/reel/DLe9qQwTsAb/embed/");
+      .toBe("https://www.instagram.com/reel/DLe9qQwTsAb/embed/?autoplay=1&muted=1");
     expect(socialEmbedUrl("instagram", "DLe9qQwTsAb", "https://www.instagram.com/reels/DLe9qQwTsAb/"))
-      .toBe("https://www.instagram.com/reel/DLe9qQwTsAb/embed/");
+      .toBe("https://www.instagram.com/reel/DLe9qQwTsAb/embed/?autoplay=1&muted=1");
   });
 
   it("keeps regular Instagram posts and IGTV in their own embed type", () => {
     expect(socialEmbedUrl("instagram", "abc_123", "https://www.instagram.com/p/abc_123/"))
-      .toBe("https://www.instagram.com/p/abc_123/embed/");
+      .toBe("https://www.instagram.com/p/abc_123/embed/?autoplay=1&muted=1");
     expect(socialEmbedUrl("instagram", "abc_123", "https://www.instagram.com/tv/abc_123/"))
-      .toBe("https://www.instagram.com/tv/abc_123/embed/");
+      .toBe("https://www.instagram.com/tv/abc_123/embed/?autoplay=1&muted=1");
   });
 
   it("ignores mismatched or untrusted Instagram permalink hints", () => {
     expect(socialEmbedUrl("instagram", "safe123", "https://instagram.evil.example/reel/safe123/"))
-      .toBe("https://www.instagram.com/p/safe123/embed/");
+      .toBe("https://www.instagram.com/p/safe123/embed/?autoplay=1&muted=1");
     expect(socialEmbedUrl("instagram", "safe123", "https://www.instagram.com/reel/other/"))
-      .toBe("https://www.instagram.com/p/safe123/embed/");
+      .toBe("https://www.instagram.com/p/safe123/embed/?autoplay=1&muted=1");
     expect(socialEmbedUrl("instagram", "safe123"))
-      .toBe("https://www.instagram.com/p/safe123/embed/");
+      .toBe("https://www.instagram.com/p/safe123/embed/?autoplay=1&muted=1");
+  });
+
+  it("requests best-effort muted autoplay on Instagram without affecting TikTok", () => {
+    const url = new URL(socialEmbedUrl("instagram", "abc_123", "https://www.instagram.com/reel/abc_123/"));
+    expect(url.searchParams.get("autoplay")).toBe("1");
+    expect(url.searchParams.get("muted")).toBe("1");
   });
 
   it("turns off extra TikTok post information and native controls", () => {
