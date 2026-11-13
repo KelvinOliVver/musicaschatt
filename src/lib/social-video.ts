@@ -36,8 +36,11 @@ export function socialEmbedUrl(
 ): string {
   if (source === "instagram") {
     const kind = instagramMediaKind(trackId, originalUrl);
-    // /embed/ is the captionless variant of Instagram's embed.
-    return `https://www.instagram.com/${kind}/${encodeURIComponent(trackId)}/embed/`;
+    // Instagram does not document an autoplay API for its cross-origin embed.
+    // Try these hints; the platform/browser may ignore them. Muted starts
+    // are more likely to pass browser autoplay policies than audible starts.
+    const options = new URLSearchParams({ autoplay: "1", muted: "1" });
+    return `https://www.instagram.com/${kind}/${encodeURIComponent(trackId)}/embed/?${options.toString()}`;
   }
 
   // TikTok's official Embed Player supports these URL parameters. Hide
