@@ -846,7 +846,8 @@
   transform: none;
 }
 .music-player-stage .social-stage--instagram .instagram-reel-window.is-portrait::after,
-.music-player-stage .social-stage--instagram .instagram-reel-window.is-landscape::after {
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-landscape::after,
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-standard::after {
   content: "";
   position: absolute;
   z-index: 2;
@@ -871,7 +872,10 @@
   width: min(100%, 540px, calc((100svh - var(--cinema-reserved-height)) * 9 / 16));
 }
 .music-shell.is-theater-shell .music-player-stage .social-stage--instagram .instagram-reel-window.is-landscape {
-  width: min(100%, 900px, calc((100svh - var(--cinema-reserved-height)) * 4 / 3));
+  width: min(100%, 940px, calc((100svh - var(--cinema-reserved-height)) * 16 / 9));
+}
+.music-shell.is-theater-shell .music-player-stage .social-stage--instagram .instagram-reel-window.is-standard {
+  width: min(100%, 800px, calc((100svh - var(--cinema-reserved-height)) * 4 / 3));
 }
 @media (max-width: 767px) {
   .music-player-stage .social-stage--instagram {
