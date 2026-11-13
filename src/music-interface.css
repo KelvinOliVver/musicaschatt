@@ -560,8 +560,9 @@
   .music-chat .chat-user-avatar { width: 30px; height: 30px; }
 }
 
-/* Modo cinema: o player cresce no mesmo DOM, mantendo o iframe e o áudio vivos.
-   A fila e o chat continuam disponíveis abaixo do vídeo. */
+/* Modo cinema: uma área de exibição que cabe na altura útil do viewport.
+   O iframe, a fila e o chat permanecem montados (sem reiniciar reprodução).
+   No modo cinema, a fila e o chat ficam fora da tela até sair desse modo. */
 .music-stage-actions {
   display: inline-flex;
   align-items: center;
@@ -581,61 +582,133 @@
   background: var(--secondary);
   border-color: var(--primary);
 }
-.music-player-grid.is-theater-mode {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+
+/* The fixed shell avoids any document scroll while watching a video. */
+.music-shell.is-theater-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--background);
 }
-.music-player-grid.is-theater-mode > .music-player-stage {
-  grid-column: 1 / -1;
-  grid-row: 1;
+.music-shell.is-theater-shell .music-sidebar { display: none; }
+.music-shell.is-theater-shell .music-page.music-player-page {
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  padding: clamp(6px, 1svh, 12px) clamp(10px, 2.3vw, 36px);
+  overflow: hidden;
+  gap: 0;
+}
+.music-shell.is-theater-shell .music-player-page > .music-topbar,
+.music-shell.is-theater-shell .music-player-page > .music-player-header,
+.music-shell.is-theater-shell .music-player-page > .music-add-track,
+.music-shell.is-theater-shell .music-player-grid > .music-queue-column,
+.music-shell.is-theater-shell .music-player-grid > .music-chat-column,
+.music-shell.is-theater-shell .music-player-grid > .music-player-tabs {
+  display: none !important;
+}
+.music-shell.is-theater-shell .music-player-grid.is-theater-mode {
+  --cinema-reserved-height: 260px;
+  flex: 1 1 auto;
+  display: flex;
+  grid-template-columns: none;
+  align-items: stretch;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  gap: 0;
+}
+.music-shell.is-theater-shell .music-player-grid > .music-player-stage {
+  grid-area: auto;
+  flex: 1 1 auto;
+  display: flex;
   width: 100%;
   min-width: 0;
+  min-height: 0;
 }
-.music-player-grid.is-theater-mode .music-player-stage .panel {
-  max-width: 1650px;
-  margin-inline: auto;
-}
-.music-player-grid.is-theater-mode .music-player-stage .player-video {
+.music-shell.is-theater-shell .music-player-stage .panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   width: 100%;
-  max-width: min(100%, 148svh);
+  height: 100%;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: clamp(7px, 1svh, 14px);
+}
+.music-shell.is-theater-shell .music-stage-label {
+  flex: 0 0 auto;
+  margin: 0 0 clamp(4px, 0.8svh, 10px);
+}
+.music-shell.is-theater-shell .music-player-stage .player-content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  gap: clamp(4px, 0.9svh, 10px);
+  padding: 0;
+}
+/* 16:9 video sized by both the viewport width AND its remaining height.
+   Reserving space below the image keeps the title and transport controls visible. */
+.music-shell.is-theater-shell .music-player-stage .player-video {
+  align-self: center;
+  flex: 0 1 auto;
+  width: min(100%, max(80px, calc((100svh - var(--cinema-reserved-height)) * 16 / 9)));
+  max-width: 100%;
+  max-height: calc(100svh - var(--cinema-reserved-height));
+  min-height: 0;
   margin-inline: auto;
+  aspect-ratio: 16 / 9;
 }
-.music-player-grid.is-theater-mode .music-player-stage .player-content {
-  max-width: 1650px;
+.music-shell.is-theater-shell .music-player-stage .player-video > .aspect-video {
+  width: 100%;
+  max-height: 100%;
 }
-@media (min-width: 768px) {
-  /* Esconde a navegação lateral para liberar espaço para filmes e vídeos. */
-  .music-shell.is-theater-shell .music-sidebar {
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateX(-100%);
-  }
-  .music-shell.is-theater-shell .music-page {
-    margin-left: 0;
-    max-width: none;
-    padding-inline: clamp(22px, 3vw, 64px);
-  }
-  .music-player-grid.is-theater-mode {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
-  .music-player-grid.is-theater-mode > .music-queue-column {
-    grid-column: 1;
-    grid-row: 2;
-    min-height: 340px;
-    height: 430px;
-  }
-  .music-player-grid.is-theater-mode > .music-chat-column {
-    grid-column: 2;
-    grid-row: 2;
-    min-height: 340px;
-    height: 430px;
-  }
+.music-shell.is-theater-shell .music-player-stage .player-empty { min-height: 0; }
+.music-shell.is-theater-shell .music-player-stage .player-title { font-size: clamp(15px, 1.7vw, 21px); }
+.music-shell.is-theater-shell .music-player-stage .player-up-next,
+.music-shell.is-theater-shell .music-player-stage .music-player-shortcuts { display: none; }
+.music-shell.is-theater-shell .music-player-stage .player-controls { gap: 8px 20px; }
+.music-shell.is-theater-shell .music-player-stage .player-controls button { flex-shrink: 0; }
+/* Real fullscreen overrides the viewport cap. */
+.music-shell.is-theater-shell .music-player-stage .player-video:fullscreen {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  aspect-ratio: auto;
+}
+.music-shell.is-theater-shell .music-player-stage .player-video:fullscreen > .aspect-video {
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
 }
 @media (max-width: 767px) {
-  .music-stage-actions { gap: 4px; }
-  .music-stage-actions .music-session-caption { display: none; }
-  .music-player-grid.is-theater-mode .music-player-stage .panel { padding: 8px; }
-  .music-player-grid.is-theater-mode .music-player-stage .player-content { padding-inline: 0; }
-  .music-theater-toggle { font-size: 11px; }
+  .music-shell.is-theater-shell .music-player-grid.is-theater-mode { --cinema-reserved-height: 315px; }
+  .music-shell.is-theater-shell .music-stage-actions { gap: 4px; }
+  .music-shell.is-theater-shell .music-session-caption { display: none; }
+  .music-shell.is-theater-shell .music-player-stage .panel { padding: 8px; }
+  .music-shell.is-theater-shell .music-player-stage .player-content { gap: 6px; }
+  .music-shell.is-theater-shell .music-player-stage .player-title { font-size: 15px; }
+  .music-shell.is-theater-shell .music-player-stage .player-controls { gap: 6px 12px; }
+  .music-shell.is-theater-shell .music-player-stage .player-controls .player-volume { max-width: 140px; }
+}
+@media (max-height: 560px) and (min-width: 768px) {
+  .music-shell.is-theater-shell .music-player-grid.is-theater-mode { --cinema-reserved-height: 275px; }
+  .music-shell.is-theater-shell .music-player-stage .panel { padding: 6px; }
+  .music-shell.is-theater-shell .music-stage-label { margin-bottom: 3px; }
+  .music-shell.is-theater-shell .music-player-stage .player-content { gap: 4px; }
 }
