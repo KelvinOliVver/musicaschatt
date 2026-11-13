@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, ArrowUpRight, Headphones, Play, Radio, Volume2 } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Play, Volume2 } from "lucide-react";
 import { MusicSidebar } from "@/components/MusicSidebar";
 import { supabase } from "@/integrations/supabase/client";
 import heroImage from "@/assets/hero-bg.jpg";
