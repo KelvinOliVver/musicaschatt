@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getKickChannelInfo, getKickUserAvatar } from "./kick.functions";
 import { fetchKickChatAvatars, normalizeKickAvatar, normalizeKickUsername } from "./kick-avatars";
+import { parseKickPlayerCommand } from "./kick-commands";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatStatus, KickChannelInfo, KickChatMessage } from "./types";
 
@@ -209,7 +210,7 @@ function normalizeChatPayload(payload: KickChatPayload): {
 export function useKickChat(
   slug: string,
   onMessage?: (message: KickChatMessage) => void,
-  onCommand?: (command: string, username: string) => void,
+  onCommand?: (command: string, username: string, badges: string[], messageId: string) => void,
   shouldPersist?: () => boolean,
 ): UseKickChatResult {
   const [status, setStatus] = useState<ChatStatus>("idle");
@@ -353,53 +354,25 @@ export function useKickChat(
         lookupAvatarForUser(normalizedUsername);
       }
       const resolvedAvatar = avatarUrl ?? avatarByUser.get(normalizedUsername ?? "") ?? null;
-      const commandText = content.trim().toLowerCase();
-
-      { // Parse supported commands for every sender; authorization happens in the player.
-        const commandAliases: Record<string, string> = {
-          "!next": "!proxima",
-          "!pular": "!proxima",
-          "!prev": "!anterior",
-          "!previous": "!anterior",
-          "!voltar": "!anterior",
-          "!pause": "!pausar",
-          "!parar": "!pausar",
-          "!resume": "!continuar",
-          "!play": "!continuar",
-          "!retomar": "!continuar",
-          "!clear": "!limpar",
-          "!limparfila": "!limpar",
+      const canonicalCommand = parseKickPlayerCommand(content);
+      if (canonicalCommand) {
+        const commandMessage: KickChatMessage = {
+          id: messageId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          username: username || "desconhecido",
+          color,
+          avatarUrl: resolvedAvatar,
+          badges,
+          content: canonicalCommand,
+          createdAt: payload.created_at ?? new Date().toISOString(),
+          kind: "command",
         };
-
-        const canonicalCommand = commandAliases[commandText] ?? commandText;
-        const supportedCommands = new Set([
-          "!skip",
-          "!proxima",
-          "!back",
-          "!anterior",
-          "!pausar",
-          "!continuar",
-          "!limpar",
-        ]);
-
-        if (supportedCommands.has(canonicalCommand)) {
-          const commandMessage: KickChatMessage = {
-            id: messageId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            username: username || "Pitee4",
-            color,
-            avatarUrl: resolvedAvatar,
-            badges,
-            content: canonicalCommand,
-            createdAt: payload.created_at ?? new Date().toISOString(),
-            kind: "command",
-          };
-
-          setMessages((current) => mergeMessages(current, [commandMessage]));
-          if (shouldPersistRef.current?.() ?? true) persistMessage(commandMessage, normalized);
-          // Never invent a privileged identity for messages without a Kick sender.
-          if (username) onCommandRef.current?.(canonicalCommand, username);
-          return;
+        setMessages((current) => mergeMessages(current, [commandMessage]));
+        if (shouldPersistRef.current?.() ?? true) persistMessage(commandMessage, normalized);
+        // Never use a guessed username for playback privileges.
+        if (normalizedUsername) {
+          onCommandRef.current?.(canonicalCommand, normalizedUsername, badges, commandMessage.id);
         }
+        return;
       }
 
       const message: KickChatMessage = {
