@@ -242,7 +242,8 @@ function PlayerPage() {
 
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
-      if (!isHostRef.current) return;
+      // Wait for shared moderation settings before accepting chat requests.
+      if (!isHostRef.current || settingsLoading) return;
       const sender = normalizeKickUsername(message.username);
       if (!sender || blockedUsernamesRef.current.includes(sender)) return;
       const tracks = extractTracks(message.content);
@@ -260,7 +261,7 @@ function PlayerPage() {
         queue.addTrack(track, message.username, message.color);
       }
     },
-    [queue, settings.chatCooldownSeconds],
+    [queue, settings.chatCooldownSeconds, settingsLoading],
   );
 
   const handleCommand = useCallback(
