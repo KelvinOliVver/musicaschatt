@@ -1327,3 +1327,43 @@
   border-radius: 0 !important;
   background: #000 !important;
 }
+
+
+/* Streamer layout presets: reuse the existing player/queue/chat grid. */
+.music-shell.music-accent-cyan { --primary: oklch(0.79 0.14 205); }
+.music-shell.music-accent-green { --primary: oklch(0.75 0.19 149); }
+.music-shell.music-accent-violet { --primary: oklch(0.78 0.13 304); }
+@media (min-width: 1251px) {
+  .music-shell.music-layout-player:not(.is-obs-shell):not(.is-theater-shell) .music-player-page .music-player-grid {
+    grid-template-columns: minmax(0, 2.35fr) minmax(240px, .78fr) minmax(260px, .84fr);
+  }
+  .music-shell.music-layout-compact:not(.is-obs-shell):not(.is-theater-shell) .music-player-page .music-player-grid {
+    grid-template-columns: minmax(0, 1.32fr) minmax(260px, .92fr) minmax(270px, .94fr);
+  }
+}
+.music-shell.music-layout-compact .music-queue-column,
+.music-shell.music-layout-compact .music-chat-column {
+  min-height: 420px;
+  height: min(570px, 67vh);
+}
+.music-shell.music-chat-hidden:not(.is-obs-shell) .music-chat-column {
+  display: none !important;
+}
+@media (min-width: 1251px) {
+  .music-shell.music-chat-hidden:not(.is-theater-shell) .music-player-page .music-player-grid {
+    grid-template-columns: minmax(0, 1.85fr) minmax(260px, 1fr);
+  }
+}
+@media (min-width: 768px) and (max-width: 1250px) {
+  .music-shell.music-chat-hidden:not(.is-theater-shell) .music-player-grid {
+    grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+  }
+  .music-shell.music-chat-hidden .music-queue-column {
+    grid-row: 1;
+    height: min(690px, 78vh);
+  }
+}
+.music-shell.music-chat-hidden .music-player-tabs [data-state="inactive"][value="chat"],
+.music-shell.music-chat-hidden .music-player-tabs [value="chat"] { display: none !important; }
+.music-shell.music-layout-compact .music-queue header,
+.music-shell.music-layout-compact .music-chat header { padding-block: 9px; }
