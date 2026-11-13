@@ -133,8 +133,8 @@ export function QueueList({
   }
 
   return (
-    <div className="music-queue relative z-0 flex min-h-0 flex-1 flex-col">
-      <section className="panel relative z-0 flex min-h-0 flex-1 flex-col">
+    <div className="music-queue relative z-0 flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden">
+      <section className="panel relative z-0 flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
           <div className="flex min-w-0 items-center gap-2">
             <ListMusic className="size-4 shrink-0 text-primary transition-transform duration-200 hover:scale-110" aria-hidden />
