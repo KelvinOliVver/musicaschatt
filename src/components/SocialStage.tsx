@@ -17,6 +17,7 @@ interface SocialStageProps {
   /** Notify the host only after an explicit user request to unmute. */
   onMuteChange?: (muted: boolean) => void;
   paused: boolean;
+  autoRecover?: boolean;
   onEnded: () => void;
   onProgress: (currentTime: number, duration: number) => void;
   onPlayingChange?: (playing: boolean) => void;
@@ -32,7 +33,7 @@ interface SocialStageProps {
  * the streamer can interact with the embed and skip manually.
  */
 export function SocialStage({
-  source, trackId, originalUrl, muted, volume = 70, onMuteChange, paused, onEnded, onProgress, onPlayingChange, controlsRef,
+  source, trackId, originalUrl, muted, volume = 70, onMuteChange, paused, autoRecover = true, onEnded, onProgress, onPlayingChange, controlsRef,
 }: SocialStageProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -50,6 +51,9 @@ export function SocialStage({
   const [tiktokActuallyMuted, setTiktokActuallyMuted] = useState<boolean | null>(null);
   const [playerError, setPlayerError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const automaticRetriesRef = useRef(0);
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current); }, []);
   const [autoSize, setAutoSize] = useState<InstagramVideoSize | null>(null);
   const [publicVideoUrl, setPublicVideoUrl] = useState<string | null>(null);
   const [instagramLoading, setInstagramLoading] = useState(source === "instagram");
@@ -295,14 +299,29 @@ export function SocialStage({
         }
       } else if (type === "onPlayerError") {
         playingRef.current = false;
-        setPlayerError(true);
+        // Retry the iframe once on an actual player error. Do not advance
+        // the queue or blindly retry if TikTok blocks the video.
+        if (autoRecover && automaticRetriesRef.current < 1) {
+          automaticRetriesRef.current++;
+          if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+          recoveryTimerRef.current = setTimeout(() => {
+            elapsedRef.current = 0;
+            durationRef.current = 0;
+            endedRef.current = false;
+            setTiktokActuallyMuted(null);
+            setPlayerError(false);
+            setRetryKey((key) => key + 1);
+          }, 1200);
+        } else {
+          setPlayerError(true);
+        }
       }
     }
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source]);
+  }, [source, autoRecover]);
 
   useEffect(() => {
     postToTikTok(paused ? "pause" : "play");
@@ -429,6 +448,8 @@ export function SocialStage({
                 endedRef.current = false;
                 playingRef.current = false;
                 lastTickRef.current = Date.now();
+                automaticRetriesRef.current = 0;
+                if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
                 setTiktokActuallyMuted(null);
                 setPlayerError(false);
                 setRetryKey((key) => key + 1);
