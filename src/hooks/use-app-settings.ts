@@ -26,7 +26,7 @@ function readLocalBlocklist(): string[] | null {
 
 /**
  * Shared settings with a persistent local moderation fallback. The database
- * restricts UPDATE to admins; non-admin hosts must still be able to ignore
+ * normally allows signed-in users to update; local-only fallback can still ignore
  * requesters in their own browser, without escalating database permissions.
  */
 export function useAppSettings() {
