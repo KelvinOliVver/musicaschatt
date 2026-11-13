@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   ArrowDown,
   CheckCircle2,
+  AlignJustify,
   Copy,
   ExternalLink,
   LoaderCircle,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { hasTrackLink } from "@/lib/link-parser";
+import { normalizeKickUsername } from "@/lib/kick-avatars";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ChatStatus, KickChatMessage } from "@/lib/types";
@@ -116,6 +118,34 @@ const statusConfig: Record<ChatStatus, { label: string; className: string; icon:
   error: { label: "Sem conexão", className: "text-destructive", icon: Radio },
 };
 
+function ChatUserAvatar({ message, name }: { message: KickChatMessage; name: string }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => { setFailed(false); }, [message.avatarUrl]);
+
+  return (
+    <span
+      className="chat-user-avatar mt-0.5 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-muted text-[11px] font-bold text-foreground"
+      style={message.color ? { color: message.color } : undefined}
+      aria-hidden
+    >
+      {message.avatarUrl && !failed ? (
+        <img
+          src={message.avatarUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+          className="size-full object-cover"
+        />
+      ) : (
+        name.charAt(0).toLocaleUpperCase("pt-BR")
+      )}
+    </span>
+  );
+}
+
 export function ChatFeed({
   messages,
   accentColor,
@@ -135,6 +165,7 @@ export function ChatFeed({
   const [search, setSearch] = useState("");
   const [pinned, setPinned] = useState(true);
   const [unread, setUnread] = useState(0);
+  const [compact, setCompact] = useState(false);
 
   const musicCount = useMemo(
     () => messages.filter((message) => hasTrackLink(message.content)).length,
@@ -281,6 +312,18 @@ export function ChatFeed({
               {channel && <span className="max-w-24 truncate text-muted-foreground">· @{channel}</span>}
             </div>
           </div>
+          <Button
+            type="button"
+            variant={compact ? "secondary" : "ghost"}
+            size="icon"
+            className="size-8 shrink-0"
+            aria-label={compact ? "Exibir mensagens espaçosas" : "Ativar chat compacto"}
+            aria-pressed={compact}
+            title={compact ? "Mensagens espaçosas" : "Chat compacto"}
+            onClick={() => setCompact((value) => !value)}
+          >
+            <AlignJustify className="size-4" aria-hidden />
+          </Button>
           {status === "error" && onReconnect && (
             <Button
               type="button"
@@ -399,6 +442,7 @@ export function ChatFeed({
                       key={message.id}
                       className={cn(
                         "chat-message-row group relative rounded-lg border border-transparent transition-colors",
+                        compact && "is-compact",
                         isCommand
                           ? "bg-primary/[0.07] hover:bg-primary/[0.11]"
                           : withLink
@@ -407,26 +451,21 @@ export function ChatFeed({
                       )}
                     >
                       <div className="flex items-start gap-2.5">
-                        <span
-                          className={cn(
-                            "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border text-[11px] font-bold",
-                            isCommand
-                              ? "border-primary/25 bg-primary/10 text-primary"
-                              : "border-border/60 bg-muted/70 text-foreground",
-                          )}
-                          style={!isCommand && message.color ? { color: message.color } : undefined}
-                          aria-hidden
-                        >
-                          {isCommand ? <Zap className="size-3.5" /> : name.charAt(0).toLocaleUpperCase("pt-BR")}
-                        </span>
+                        <ChatUserAvatar message={message} name={name} />
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                            <span
-                              className="max-w-full truncate text-xs font-semibold"
-                              style={message.color ? { color: message.color } : undefined}
-                            >
-                              {name}
-                            </span>
+                            {normalizeKickUsername(name) ? (
+                              <a
+                                href={`https://kick.com/${encodeURIComponent(normalizeKickUsername(name)!)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="max-w-full truncate text-xs font-semibold hover:underline hover:underline-offset-2"
+                                style={message.color ? { color: message.color } : undefined}
+                                title={`Abrir perfil de ${name} na Kick`}
+                              >{name}</a>
+                            ) : (
+                              <span className="max-w-full truncate text-xs font-semibold">{name}</span>
+                            )}
                             {isCommand && (
                               <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
                                 Comando

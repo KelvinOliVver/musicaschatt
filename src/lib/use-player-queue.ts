@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getTrackMetadata } from "./kick.functions";
 import type { DetectedTrack } from "./link-parser";
@@ -144,6 +145,14 @@ export function usePlayerQueue(): PlayerQueue {
   }, []);
 
   useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        void refresh();
+      }, 180);
+    };
     void refresh();
 
     const channel = supabase
@@ -163,20 +172,18 @@ export function usePlayerQueue(): PlayerQueue {
           ) {
             return;
           }
-          void refresh();
+          scheduleRefresh();
         },
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          void refresh();
+          scheduleRefresh();
         }
       });
 
-    const handleOnline = () => {
-      void refresh();
-    };
+    const handleOnline = () => scheduleRefresh();
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible") scheduleRefresh();
     };
 
     window.addEventListener("online", handleOnline);
@@ -185,6 +192,7 @@ export function usePlayerQueue(): PlayerQueue {
     return () => {
       window.removeEventListener("online", handleOnline);
       document.removeEventListener("visibilitychange", handleVisibility);
+      if (refreshTimer) clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
   }, [refresh]);
@@ -448,11 +456,11 @@ export function usePlayerQueue(): PlayerQueue {
 
   const removeItem = useCallback(
     (id: string) => {
-      void supabase
-        .from("player_queue")
-        .delete()
-        .eq("id", id)
-        .then(() => refresh());
+      void (async () => {
+        const { error } = await supabase.from("player_queue").delete().eq("id", id);
+        if (error) toast.error("Não foi possível remover a música", { description: error.message });
+        await refresh();
+      })();
     },
     [refresh],
   );
@@ -475,7 +483,9 @@ export function usePlayerQueue(): PlayerQueue {
 
   const clearQueue = useCallback(() => {
     void (async () => {
-      await supabase.from("player_queue").delete().eq("status", "queued");
+      const { error } = await supabase.from("player_queue").delete().eq("status", "queued");
+      if (error) toast.error("Erro ao limpar a fila", { description: error.message });
+      else toast.success("Fila limpa");
       await refresh();
     })();
   }, [refresh]);
@@ -508,11 +518,14 @@ export function usePlayerQueue(): PlayerQueue {
               ? next.position - 1000
               : Date.now();
 
-      void supabase
-        .from("player_queue")
-        .update({ position: newPosition })
-        .eq("id", id)
-        .then(() => refresh());
+      void (async () => {
+        const { error } = await supabase
+          .from("player_queue")
+          .update({ position: newPosition })
+          .eq("id", id);
+        if (error) toast.error("Não foi possível reorganizar a fila", { description: error.message });
+        await refresh();
+      })();
     },
     [refresh],
   );

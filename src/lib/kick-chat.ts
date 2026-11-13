@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getKickChannelInfo } from "./kick.functions";
+import { fetchKickChatAvatars, normalizeKickAvatar, normalizeKickUsername } from "./kick-avatars";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatStatus, KickChannelInfo, KickChatMessage } from "./types";
 
@@ -10,7 +11,8 @@ const KICK_VIEWER_TOKEN_URL = "https://websockets.kick.com/viewer/v1/token";
 const KICK_VIEWER_SOCKET_URL = "wss://websockets.kick.com/viewer/v1/connect?token=";
 const KICK_CLIENT_TOKEN = "e1393935a959b4020a4491574f6490129f678acdaa92760471263db43487f823";
 const CHAT_EVENT = "App\\Events\\ChatMessageEvent";
-const MAX_MESSAGES = 120;
+const MAX_MESSAGES = 150;
+const AVATAR_REFRESH_MS = 5 * 60 * 1000;
 
 interface PusherEnvelope {
   event?: string;
@@ -26,12 +28,18 @@ interface KickChatPayload {
   created_at?: string;
   sender?: {
     username?: string;
+    profile_picture?: string | null;
+    profile_pic?: string | null;
+    avatar?: string | null;
     identity?: { color?: string };
   };
   user?: {
     username?: string;
+    profile_picture?: string | null;
+    profile_pic?: string | null;
     identity?: { color?: string };
   };
+  profile_picture?: string | null;
 }
 
 export interface UseKickChatResult {
@@ -151,6 +159,7 @@ function normalizeChatPayload(payload: KickChatPayload): {
   content: string;
   username: string;
   color: string | null;
+  avatarUrl: string | null;
 } | null {
   const content = (payload.content ?? payload.message ?? "").trim();
   const username = (payload.sender?.username ?? payload.user?.username ?? "").trim();
@@ -160,6 +169,14 @@ function normalizeChatPayload(payload: KickChatPayload): {
     content,
     username,
     color: payload.sender?.identity?.color ?? payload.user?.identity?.color ?? null,
+    avatarUrl: normalizeKickAvatar(
+      payload.sender?.profile_picture ??
+      payload.sender?.profile_pic ??
+      payload.sender?.avatar ??
+      payload.user?.profile_picture ??
+      payload.user?.profile_pic ??
+      payload.profile_picture,
+    ),
   };
 }
 
@@ -204,6 +221,36 @@ export function useKickChat(
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let pingTimer: ReturnType<typeof setInterval> | undefined;
     let retries = 0;
+    let avatarTimer: ReturnType<typeof setInterval> | undefined;
+    let avatarRequest: AbortController | null = null;
+    const avatarByUser = new Map<string, string>();
+
+    // Kick's active chatters endpoint can expose photos for many people in
+    // one request. It is optional and can be blocked; initials remain a fallback.
+    const updateChatAvatars = async (channelId: number) => {
+      if (disposed || avatarRequest) return;
+      const controller = new AbortController();
+      avatarRequest = controller;
+      try {
+        const avatars = await fetchKickChatAvatars(channelId, controller.signal);
+        if (disposed || controller.signal.aborted || avatars.size === 0) return;
+        for (const [username, url] of avatars) avatarByUser.set(username, url);
+        setMessages((current) => {
+          let changed = false;
+          const updated = current.map((message) => {
+            const avatar = avatarByUser.get(normalizeKickUsername(message.username) ?? "");
+            if (!avatar || message.avatarUrl === avatar) return message;
+            changed = true;
+            return { ...message, avatarUrl: avatar };
+          });
+          return changed ? updated : current;
+        });
+      } catch {
+        // CORS/Cloudflare restrictions are expected in some environments.
+      } finally {
+        if (avatarRequest === controller) avatarRequest = null;
+      }
+    };
 
     setMessages([]);
     setChannel(null);
@@ -213,7 +260,10 @@ export function useKickChat(
     void loadChatHistory(normalized).then((history) => {
       if (disposed) return;
       for (const message of history) seenMessageIds.add(message.id);
-      setMessages((current) => mergeMessages(current, history));
+      setMessages((current) => mergeMessages(current, history.map((message) => ({
+        ...message,
+        avatarUrl: avatarByUser.get(normalizeKickUsername(message.username) ?? "") ?? null,
+      }))));
     });
 
     const handleChatPayload = (payload: KickChatPayload) => {
@@ -230,7 +280,10 @@ export function useKickChat(
         }
       }
 
-      const { content, username, color } = normalizedPayload;
+      const { content, username, color, avatarUrl } = normalizedPayload;
+      const normalizedUsername = normalizeKickUsername(username);
+      if (normalizedUsername && avatarUrl) avatarByUser.set(normalizedUsername, avatarUrl);
+      const resolvedAvatar = avatarUrl ?? avatarByUser.get(normalizedUsername ?? "") ?? null;
       const cleanUsername = username.toLowerCase();
       const commandText = content.trim().toLowerCase();
 
@@ -266,6 +319,7 @@ export function useKickChat(
             id: messageId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             username: username || "Pitee4",
             color,
+            avatarUrl: resolvedAvatar,
             content: canonicalCommand,
             createdAt: payload.created_at ?? new Date().toISOString(),
             kind: "command",
@@ -282,6 +336,7 @@ export function useKickChat(
         id: messageId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         username: username || "desconhecido",
         color,
+        avatarUrl: resolvedAvatar,
         content,
         createdAt: payload.created_at ?? new Date().toISOString(),
         kind: "message",
@@ -405,6 +460,12 @@ export function useKickChat(
       .then((info) => {
         if (disposed) return;
         setChannel(info);
+        if (info.channelId > 0) {
+          void updateChatAvatars(info.channelId);
+          avatarTimer = setInterval(() => {
+            if (document.visibilityState === "visible") void updateChatAvatars(info.channelId);
+          }, AVATAR_REFRESH_MS);
+        }
         openSocket(info, false);
       })
       .catch((cause: unknown) => {
@@ -417,6 +478,8 @@ export function useKickChat(
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
       if (pingTimer) clearInterval(pingTimer);
+      if (avatarTimer) clearInterval(avatarTimer);
+      avatarRequest?.abort();
       if (socket) {
         socket.onclose = null;
         socket.onerror = null;

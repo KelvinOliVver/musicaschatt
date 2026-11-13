@@ -26,5 +26,8 @@ jobs:
       - name: Install locked dependencies
         run: bun install --frozen-lockfile
 
+      - name: Test Kick avatar parsing and URL safety
+        run: bun test src/lib/kick-avatars.test.ts
+
       - name: Build production app
         run: bun run build

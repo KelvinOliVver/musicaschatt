@@ -9,7 +9,6 @@ import {
   Play,
   Trash2,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -103,7 +102,6 @@ export function QueueList({
   function handleClear() {
     if (!window.confirm(`Limpar as ${items.length} músicas da fila?`)) return;
     onClear();
-    toast.success("Fila limpa");
   }
 
   return (
