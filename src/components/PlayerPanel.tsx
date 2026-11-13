@@ -13,6 +13,8 @@ import {
   SkipForward,
   Volume2,
   VolumeX,
+  RefreshCw,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -43,6 +45,7 @@ interface PlayerPanelProps {
   onTogglePlayChange?: (paused: boolean) => void;
   onVolumeChange?: (volume: number) => void;
   onMuteChange?: (muted: boolean) => void;
+  externalCommand?: { seq: number; action: "pause" | "resume" | "volume" | "mute"; value?: number } | null;
   onPlaybackHeartbeat?: (position: number, paused: boolean, duration?: number, volume?: number, muted?: boolean) => void;
   controlsRef?: React.MutableRefObject<StageControls | null>;
   onPlayingStateChange?: (isPlaying: boolean) => void;
@@ -90,6 +93,7 @@ export function PlayerPanel({
   onTogglePlayChange,
   onVolumeChange,
   onMuteChange,
+  externalCommand,
   onPlaybackHeartbeat,
   onPlayingStateChange,
   controlsRef: externalControlsRef,
@@ -113,6 +117,45 @@ export function PlayerPanel({
   const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState({ current: 0, duration: 0 });
+  const [health, setHealth] = useState<"loading" | "playing" | "recovering" | "stalled">("loading");
+  const [recoveryKey, setRecoveryKey] = useState(0);
+  const recoveryAttemptRef = useRef(0);
+  const lastProgressRef = useRef({ time: 0, seenAt: Date.now() });
+  const handleProgress = (currentTime: number, duration: number) => {
+    setProgress({ current: currentTime, duration });
+    if (currentTime > lastProgressRef.current.time + 0.45) {
+      lastProgressRef.current = { time: currentTime, seenAt: Date.now() };
+      setHealth("playing");
+    }
+  };
+  useEffect(() => {
+    recoveryAttemptRef.current = 0;
+    lastProgressRef.current = { time: 0, seenAt: Date.now() };
+    setHealth("loading");
+    setRecoveryKey(0);
+  }, [current?.id]);
+  useEffect(() => {
+    if (!current || paused || !isHost) return;
+    const timer = window.setInterval(() => {
+      if (Date.now() - lastProgressRef.current.seenAt < 22000) return;
+      if (automaticRecovery && recoveryAttemptRef.current < 1 && current.source !== "instagram") {
+        recoveryAttemptRef.current++;
+        lastProgressRef.current.seenAt = Date.now();
+        setHealth("recovering");
+        setRecoveryKey((key) => key + 1);
+      } else setHealth("stalled");
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [current?.id, paused, automaticRecovery, isHost]);
+  useEffect(() => {
+    if (!isHost || !externalCommand) return;
+    if (externalCommand.action === "pause") setPaused(true);
+    else if (externalCommand.action === "resume") setPaused(false);
+    else if (externalCommand.action === "volume" && typeof externalCommand.value === "number") {
+      setVolume(externalCommand.value);
+      if (externalCommand.value > 0) setMuted(false);
+    } else if (externalCommand.action === "mute") setMuted(externalCommand.value === 1);
+  }, [externalCommand?.seq, isHost]);
   const [scrubbing, setScrubbing] = useState<number | null>(null);
 
   const internalControlsRef = useRef<StageControls | null>(null);
@@ -295,6 +338,16 @@ export function PlayerPanel({
         <div className="music-stage-label">
           <span><span className="music-stage-live-dot" aria-hidden /> REPRODUÇÃO / 01</span>
           <div className="music-stage-actions">
+            {current && (
+              <span role="status" className={`hidden items-center gap-1.5 text-[10px] normal-case tracking-normal sm:inline-flex ${health === "stalled" ? "text-amber-400" : "text-muted-foreground"}`}>
+                <Activity className="size-3.5" aria-hidden />
+                {health === "recovering" ? "Recuperando vídeo..." : health === "stalled" ? "Vídeo sem progresso" : health === "loading" ? "Carregando..." : "Reproduzindo"}
+                {isHost && health === "stalled" && <button type="button" className="ml-1 inline-flex items-center gap-1 text-primary hover:underline"
+                  onClick={() => { lastProgressRef.current.seenAt = Date.now(); setRecoveryKey((v)=>v+1); setHealth("recovering"); }}>
+                  <RefreshCw className="size-3" /> Recarregar
+                </button>}
+              </span>
+            )}
             <span className="music-session-caption">SESSÃO COMPARTILHADA</span>
             {onToggleTheaterMode && (
               <Button
@@ -319,14 +372,14 @@ export function PlayerPanel({
               <>
                 {current.source === "instagram" ? (
                   <InstagramCleanStage
-                    key={current.id}
+                    key={`${current.id}-${recoveryKey}`}
                     trackId={current.trackId}
                     originalUrl={current.url}
                     muted={muted}
                     volume={volume}
                     paused={paused}
                     onEnded={() => { if (isHost) (onAutomaticNext ?? onNext)(); }}
-                    onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+                    onProgress={handleProgress}
                     onPlayingChange={(playing) => {
                       const newPaused = !playing;
                       setPaused(newPaused);
@@ -336,7 +389,7 @@ export function PlayerPanel({
                   />
                 ) : isSocialSource(current.source) ? (
                   <SocialStage
-                    key={current.id}
+                    key={`${current.id}-${recoveryKey}`}
                     source={current.source}
                     autoRecover={automaticRecovery}
                     trackId={current.trackId}
@@ -346,7 +399,7 @@ export function PlayerPanel({
                     onMuteChange={(next) => { setMuted(next); if (isHost) onMuteChange?.(next); }}
                     paused={paused}
                     onEnded={() => { if (isHost) (onAutomaticNext ?? onNext)(); }}
-                    onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+                    onProgress={handleProgress}
                     onPlayingChange={(playing) => {
                       const newPaused = !playing;
                       setPaused(newPaused);
@@ -356,7 +409,7 @@ export function PlayerPanel({
                   />
                 ) : (
                 <YouTubeStage
-                  key={current.id}
+                  key={`${current.id}-${recoveryKey}`}
                   videoId={current.trackId}
                   remoteSeek={!isHost && remoteSync?.trackId === current.id
                     ? projectedPlaybackTime(remoteSync) : undefined}
@@ -367,7 +420,7 @@ export function PlayerPanel({
                   paused={paused}
                   onEnded={() => { if (isHost) (onAutomaticNext ?? onNext)(); }}
                   onPlayingChange={(playing) => { const newPaused = !playing; setPaused(newPaused); onTogglePlayChange?.(newPaused); }}
-                  onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+                  onProgress={handleProgress}
                   controlsRef={controlsRef}
                 />
                 )}
