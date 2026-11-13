@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDown,
+  Ban,
   CheckCircle2,
   AlignJustify,
   Copy,
@@ -29,6 +30,8 @@ interface ChatFeedProps {
   status?: ChatStatus;
   channel?: string;
   onReconnect?: () => void;
+  onBlockUser?: (username: string) => void;
+  blockedUsernames?: string[];
 }
 
 type ChatFilter = "all" | "music" | "commands";
@@ -153,6 +156,8 @@ export function ChatFeed({
   status = "idle",
   channel,
   onReconnect,
+  onBlockUser,
+  blockedUsernames = [],
 }: ChatFeedProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -476,6 +481,20 @@ export function ChatFeed({
                                 <Music2 className="size-2.5" aria-hidden />
                                 Pedido
                               </span>
+                            )}
+                            {onBlockUser && withLink && normalizeKickUsername(name) && !blockedUsernames.includes(normalizeKickUsername(name)!) && (
+                              <button
+                                type="button"
+                                onClick={() => onBlockUser(name)}
+                                title={`Ignorar futuros links de ${name}`}
+                                aria-label={`Bloquear pedidos de ${name}`}
+                                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-destructive/15 hover:text-destructive focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                              >
+                                <Ban className="size-3.5" aria-hidden />
+                              </button>
+                            )}
+                            {blockedUsernames.includes(normalizeKickUsername(name) ?? "") && (
+                              <span className="rounded-md bg-destructive/10 px-1.5 py-0.5 text-[9px] text-destructive" title="Os links deste nick são ignorados">Bloqueado</span>
                             )}
                             <time
                               dateTime={message.createdAt}
