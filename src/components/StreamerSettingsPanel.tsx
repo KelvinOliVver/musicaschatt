@@ -10,8 +10,9 @@ interface Props {
   preferences: StreamerPreferences;
   onUpdate: (value: StreamerPreferences) => boolean;
   canManage: boolean;
+  globalCooldown: number;
 }
-export function StreamerSettingsPanel({ preferences, onUpdate, canManage }: Props) {
+export function StreamerSettingsPanel({ preferences, onUpdate, canManage, globalCooldown }: Props) {
   const [nick, setNick] = useState("");
   const update = (patch: Partial<StreamerPreferences>) => {
     if (!canManage) return;
@@ -52,6 +53,7 @@ export function StreamerSettingsPanel({ preferences, onUpdate, canManage }: Prop
         </div>
         <div className="space-y-2.5">
           {numberField("Cooldown por nick (segundos)", "cooldownSeconds", 0, 600)}
+          <p className="text-[11px] text-muted-foreground">O banco aplica no mínimo {globalCooldown}s. Vale o maior cooldown entre o painel e o banco.</p>
           {numberField("Máximo de pedidos por pessoa", "maxPerUser", 1, 25)}
           {numberField("Tamanho máximo da fila", "maxQueue", 1, 200)}
           {numberField("Links aceitos por mensagem", "maxLinksPerMessage", 1, 5)}
