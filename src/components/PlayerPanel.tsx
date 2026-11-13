@@ -459,4 +459,3 @@ export function PlayerPanel({
 function ExternalLinkButton({ url, label }: { url: string; label: string }) {
   return <a href={url} target="_blank" rel="noreferrer" className="text-muted-foreground transition-colors hover:text-primary" aria-label={label}><ExternalLink className="size-4" aria-hidden /></a>;
 }
-function HeadphonesIcon() { return <span className="relative text-primary"><Music2 className="size-12" strokeWidth={1.3} /></span>; }
