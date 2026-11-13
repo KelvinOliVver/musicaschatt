@@ -70,7 +70,8 @@ export function SocialStage({
   const [playerError, setPlayerError] = useState(false);
   // Instagram doesn't expose dimensions of cross-origin embeds. A streamer can
   // tune the crop for this Reel; changing CSS does not recreate the iframe.
-  const [framing, setFraming] = useState<InstagramFraming>(() => getSavedInstagramFraming(trackId));
+  // Use the same initial markup on SSR and client; restore saved crop in an effect.
+  const [framing, setFraming] = useState<InstagramFraming>({ ...DEFAULT_INSTAGRAM_FRAMING });
   const [showFramingSettings, setShowFramingSettings] = useState(false);
 
   useEffect(() => {
@@ -256,7 +257,7 @@ export function SocialStage({
               key={value}
               type="button"
               className={`instagram-layout-option rounded-sm px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${instagramLayout === value ? "bg-primary text-primary-foreground" : "text-white hover:bg-white/20"}`}
-              onClick={() => updateInstagramFraming({ layout: value })}
+              onClick={() => updateInstagramFraming({ layout: value, zoom: 100, verticalOffset: 0 })}
               aria-pressed={framing.layout === value}
               title={value === "landscape"
                 ? "Enquadrar o vídeo horizontal em 16:9"
