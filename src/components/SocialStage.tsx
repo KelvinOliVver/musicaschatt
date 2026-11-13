@@ -223,7 +223,7 @@ export function SocialStage({
       )}
       {source === "instagram" && (
         <div
-          className="instagram-layout-picker absolute bottom-2 right-2 z-20 flex max-w-[calc(100%-16px)] items-center gap-1 rounded-md border border-white/20 bg-black/85 p-1 shadow-lg"
+          className="instagram-layout-picker absolute bottom-2 right-2 z-20 flex max-w-[95%] items-center gap-1 rounded-md border border-white/20 bg-black/85 p-1 shadow-lg"
           role="group"
           aria-label="Enquadramento do vídeo do Instagram"
         >
