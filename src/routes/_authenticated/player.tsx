@@ -240,26 +240,31 @@ function PlayerPage() {
       } else if (command === "!back" || command === "!anterior") {
         queue.playPrevious();
         toast.info("Voltando para a música anterior pelo chat!");
-      } else if (command === "!pausar") {
-        setRemotePaused(true);
-        broadcast("TOGGLE_PLAY", { paused: true });
-        toast.info("Pausado pelo comando do chat!");
-      } else if (command === "!continuar") {
-        setRemotePaused(false);
-        broadcast("TOGGLE_PLAY", { paused: false });
-        toast.info("Retomado pelo comando do chat!");
+      } else if (command === "!pausar" || command === "!continuar") {
+        const paused = command === "!pausar";
+        hostPausedRef.current = paused;
+        const item = queue.current;
+        if (item) {
+          const seconds = playerControlsRef.current?.getCurrentTime() ?? item.playbackPosition;
+          queue.updatePlaybackHeartbeat(item.id, seconds, paused);
+        }
+        toast.info(paused ? "Pausado pelo comando do chat!" : "Retomado pelo comando do chat!");
       } else if (command === "!limpar") {
         queue.clearQueue();
         toast.info("Fila limpa pelo comando do chat!");
       }
     },
-    [queue, broadcast],
+    [queue],
   );
 
   const chat = useKickChat(slug, handleMessage, handleCommand, () => isHostRef.current);
 
   function handleManualAdd(event: FormEvent) {
     event.preventDefault();
+    if (!isRoomAdmin) {
+      toast.error("Somente o streamer pode adicionar vídeos manualmente.");
+      return;
+    }
     const track = parseTrackInput(manual);
     if (!track) {
       toast.error("Link inválido", { description: "Cole um link do YouTube, Instagram (Reels) ou TikTok." });
@@ -274,29 +279,33 @@ function PlayerPage() {
     setManual("");
   }
 
-  const handlePlayNext = useCallback(() => queue.playNext(), [queue]);
-  const handlePlayPrevious = useCallback(() => queue.playPrevious(), [queue]);
-  const handlePlayNow = useCallback((id: string) => queue.playNow(id), [queue]);
-  const handleRemoveItem = useCallback((id: string) => queue.removeItem(id), [queue]);
-  const handleClearQueue = useCallback(() => queue.clearQueue(), [queue]);
+  const handlePlayNext = useCallback(() => { if (isHostRef.current) queue.playNext(); }, [queue]);
+  const handlePlayPrevious = useCallback(() => { if (isHostRef.current) queue.playPrevious(); }, [queue]);
+  const handlePlayNow = useCallback((id: string) => { if (isHostRef.current) queue.playNow(id); }, [queue]);
+  const handleRemoveItem = useCallback((id: string) => { if (isHostRef.current) queue.removeItem(id); }, [queue]);
+  const handleClearQueue = useCallback(() => { if (isHostRef.current) queue.clearQueue(); }, [queue]);
   const handleMoveItem = useCallback(
-    (id: string, toIndex: number) => queue.moveItem(id, toIndex),
+    (id: string, toIndex: number) => { if (isHostRef.current) queue.moveItem(id, toIndex); },
     [queue],
   );
 
-  const handleSeekBroadcast = useCallback((time: number) => broadcast("SEEK", { time }), [broadcast]);
-  const handleTogglePlayBroadcast = useCallback(
-    (paused: boolean) => broadcast("TOGGLE_PLAY", { paused }),
-    [broadcast],
-  );
+  const handleSeekBroadcast = useCallback((time: number) => {
+    if (!isHostRef.current || !queue.current) return;
+    queue.updatePlaybackHeartbeat(queue.current.id, time, hostPausedRef.current);
+  }, [queue]);
+  const handleTogglePlayBroadcast = useCallback((paused: boolean) => {
+    if (!isHostRef.current || !queue.current) return;
+    hostPausedRef.current = paused;
+    const currentTime = playerControlsRef.current?.getCurrentTime() ?? queue.current.playbackPosition;
+    queue.updatePlaybackHeartbeat(queue.current.id, currentTime, paused);
+  }, [queue]);
 
   const handlePlaybackHeartbeat = useCallback(
     (position: number, paused: boolean, duration?: number) => {
-      if (!queue.current) return;
+      if (!isHostRef.current || !queue.current) return;
       queue.updatePlaybackHeartbeat(queue.current.id, position, paused, duration);
-      broadcast("HEARTBEAT", { time: position });
     },
-    [queue, broadcast],
+    [queue],
   );
 
   return (
@@ -366,7 +375,7 @@ function PlayerPage() {
                           </span>
                         )}
                         <span className="truncate font-medium">{user.username}</span>
-                        {user.clientId === hostClientId && <Crown className="size-3 shrink-0 text-vip" aria-hidden />}
+                        {isHost && user.clientId === clientIdRef.current && <Crown className="size-3 shrink-0 text-vip" aria-hidden />}
                       </div>
                     ))}
                   </div>
@@ -375,6 +384,13 @@ function PlayerPage() {
             </Popover>
           </div>
         </div>
+
+        {hostError && !hostChecking && (
+          <div className="panel flex items-center gap-3 border-destructive/40 px-4 py-3 text-sm" role="alert">
+            <AlertTriangle className="size-4 shrink-0 text-destructive" aria-hidden />
+            <span className="text-muted-foreground">{hostError}</span>
+          </div>
+        )}
 
         {chat.error && (
           <div className="panel flex items-center gap-3 border-destructive/40 px-4 py-3 text-sm">
@@ -404,7 +420,7 @@ function PlayerPage() {
             aria-label="Adicionar música manualmente"
             className="h-8 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
           />
-          <Button type="submit" size="sm" className="bg-gradient-primary h-8 px-3 text-primary-foreground">
+          <Button type="submit" size="sm" disabled={!isRoomAdmin || hostChecking} className="bg-gradient-primary h-8 px-3 text-primary-foreground">
             <Plus className="size-3.5" /> Adicionar
           </Button>
         </form>
@@ -420,8 +436,8 @@ function PlayerPage() {
             isHost={isHost}
             onNext={handlePlayNext}
             onPrevious={handlePlayPrevious}
-            remoteSeek={remoteSeek}
-            remotePaused={remotePaused}
+            remoteSeek={isHost ? null : (queue.current?.playbackPosition ?? null)}
+            remotePaused={isHost ? null : (queue.current?.isPaused ?? null)}
             onSeekChange={handleSeekBroadcast}
             onTogglePlayChange={handleTogglePlayBroadcast}
             onPlaybackHeartbeat={handlePlaybackHeartbeat}
