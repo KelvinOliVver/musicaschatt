@@ -323,6 +323,29 @@ export function SocialStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, autoRecover]);
 
+  // Some TikTok embeds never emit an error when stuck on loading.
+  // Retry just once if playback never starts; never treat loading as ended.
+  useEffect(() => {
+    if (source !== "tiktok") return;
+    automaticRetriesRef.current = 0;
+    playingRef.current = false;
+    if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+    setPlayerError(false);
+    setTiktokActuallyMuted(null);
+  }, [source, trackId]);
+
+  useEffect(() => {
+    if (source !== "tiktok" || !autoRecover || paused) return;
+    const timer = window.setTimeout(() => {
+      if (playingRef.current || pausedRef.current || endedRef.current ||
+          automaticRetriesRef.current >= 1) return;
+      automaticRetriesRef.current++;
+      setPlayerError(false);
+      setRetryKey((value) => value + 1);
+    }, 18000);
+    return () => window.clearTimeout(timer);
+  }, [source, trackId, retryKey, paused, autoRecover]);
+
   useEffect(() => {
     postToTikTok(paused ? "pause" : "play");
     // eslint-disable-next-line react-hooks/exhaustive-deps
