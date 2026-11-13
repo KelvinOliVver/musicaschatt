@@ -245,7 +245,7 @@ function PlayerPage() {
       })
       .on("broadcast", { event: "sync-request" }, () => {
         if (isHostRef.current) sendPlaybackSync({
-          time: playerControlsRef.current?.getCurrentTime() ?? playbackStateRef.current.time,
+          time: Math.max(0, playerControlsRef.current?.getCurrentTime() || playbackStateRef.current.time),
         });
       })
       .on("presence", { event: "sync" }, () => {
@@ -478,7 +478,7 @@ function PlayerPage() {
   const handleTogglePlayBroadcast = useCallback((paused: boolean) => {
     if (isHostRef.current) sendPlaybackSync({
       paused,
-      time: playerControlsRef.current?.getCurrentTime() ?? playbackStateRef.current.time,
+      time: Math.max(0, playerControlsRef.current?.getCurrentTime() || playbackStateRef.current.time),
     });
   }, [sendPlaybackSync]);
   const handleVolumeBroadcast = useCallback((volume: number) => {
