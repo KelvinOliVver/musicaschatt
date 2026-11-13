@@ -47,5 +47,11 @@ jobs:
       - name: Validate Cobalt authenticated gateway
         run: node --check infra/cobalt/gateway.mjs
 
+      - name: Test independent Instagram extraction
+        run: node --test infra/cobalt/yt-dlp.test.mjs
+
+      - name: Build Cobalt + yt-dlp container
+        run: docker build --file infra/cobalt/Dockerfile --tag music-chat-media:ci .
+
       - name: Build production app
         run: bun run build
