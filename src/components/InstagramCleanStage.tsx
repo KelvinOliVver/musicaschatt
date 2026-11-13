@@ -70,7 +70,7 @@ export function InstagramCleanStage({
 
   useEffect(() => {
     let disposed = false;
-    let stopped = false;
+    let resolveExpired = false;
     let activeUrl: string | null = null;
     let backendDone = false;
     let gatewayDone = false;
@@ -84,7 +84,7 @@ export function InstagramCleanStage({
     };
 
     const nextSource = () => {
-      if (disposed || stopped || activeUrl) return;
+      if (disposed || activeUrl) return;
       const next = candidates.find((url) => !tried.has(url));
       if (next) {
         tried.add(next);
@@ -108,13 +108,13 @@ export function InstagramCleanStage({
     };
 
     const offer = (url: string | null) => {
-      if (disposed || stopped || !url || candidates.includes(url)) return;
+      if (disposed || resolveExpired || !url || candidates.includes(url)) return;
       candidates.push(url);
       nextSource();
     };
 
     failCurrentRef.current = () => {
-      if (disposed || stopped) return;
+      if (disposed) return;
       cancelMediaTimer();
       activeUrl = null;
       setVideoUrl(null);
@@ -122,14 +122,14 @@ export function InstagramCleanStage({
     };
 
     const resolveDeadline = setTimeout(() => {
-      if (disposed || stopped) return;
-      // Don't interrupt an already loading / playing video.
-      stopped = true;
+      if (disposed || resolveExpired) return;
+      resolveExpired = true;
+      // Timebox discovery, but keep an already found video playing. If the
+      // active source later fails, allow fallback to an already found URL.
       controller.abort();
-      if (!activeUrl) {
-        setVideoUrl(null);
-        setStatus("unavailable");
-      }
+      backendDone = true;
+      gatewayDone = true;
+      nextSource();
     }, RESOLVE_TIMEOUT_MS);
 
     setStatus("resolving");
