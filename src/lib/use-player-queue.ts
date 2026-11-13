@@ -103,17 +103,31 @@ export function usePlayerQueue(): PlayerQueue {
 
   const refresh = useCallback(async () => {
     const version = ++refreshVersionRef.current;
-    const { data, error } = await supabase
-      .from("player_queue")
-      .select("*")
-      .order("priority", { ascending: false })
-      .order("position", { ascending: true })
-      .order("id", { ascending: true });
+    // Fetch active requests and only the last 40 played items. The previous
+    // select("*") downloaded the entire history on every realtime event.
+    const [activeResult, historyResult] = await Promise.all([
+      supabase
+        .from("player_queue")
+        .select("id,source,track_id,url,title,author,thumbnail,requested_by,requester_color,priority,status,added_at,played_at,position,playback_position,is_paused,state_updated_at,duration_seconds")
+        .in("status", ["queued", "playing"])
+        .order("priority", { ascending: false })
+        .order("position", { ascending: true })
+        .order("id", { ascending: true }),
+      supabase
+        .from("player_queue")
+        .select("id,source,track_id,url,title,author,thumbnail,requested_by,requester_color,priority,status,added_at,played_at,position,playback_position,is_paused,state_updated_at,duration_seconds")
+        .eq("status", "played")
+        .order("played_at", { ascending: false, nullsFirst: false })
+        .limit(MAX_HISTORY),
+    ]);
+    if (version !== refreshVersionRef.current) return;
+    if (activeResult.error || historyResult.error || !activeResult.data || !historyResult.data) {
+      console.error("[QUEUE REFRESH]", activeResult.error?.message ?? historyResult.error?.message);
+      return;
+    }
 
-    if (error || !data || version !== refreshVersionRef.current) return;
-
-    const rows = data as unknown as QueueRow[];
-    const playingRows = rows.filter((row) => row.status === "playing");
+    const activeRows = activeResult.data as unknown as QueueRow[];
+    const playingRows = activeRows.filter((row) => row.status === "playing");
     const playing = playingRows.length
       ? playingRows.reduce((a, b) =>
           new Date(b.state_updated_at ?? b.added_at).getTime() >
@@ -123,25 +137,15 @@ export function usePlayerQueue(): PlayerQueue {
         )
       : undefined;
 
-    if (playingRows.length > 1 && playing) {
-      const stale = playingRows
-        .filter((row) => row.id !== playing.id)
-        .map((row) => row.id);
-      void supabase
-        .from("player_queue")
-        .update({ status: "played", played_at: new Date().toISOString() })
-        .in("id", stale);
+    // Never mutate database state during a read/refresh. The database unique
+    // index and atomic RPCs own playback transitions, not the viewers.
+    if (playingRows.length > 1) {
+      console.error("[QUEUE] Inconsistent playing rows; check database constraints");
     }
 
     setCurrent(playing ? toItem(playing) : null);
-    setQueue(rows.filter((row) => row.status === "queued").map(toItem));
-    setHistory(
-      rows
-        .filter((row) => row.status === "played")
-        .sort((a, b) => (b.played_at ?? "").localeCompare(a.played_at ?? ""))
-        .slice(0, MAX_HISTORY)
-        .map(toItem),
-    );
+    setQueue(activeRows.filter((row) => row.status === "queued").map(toItem));
+    setHistory((historyResult.data as unknown as QueueRow[]).map(toItem));
   }, []);
 
   useEffect(() => {
@@ -197,86 +201,30 @@ export function usePlayerQueue(): PlayerQueue {
     };
   }, [refresh]);
 
+  // Navigation is one transaction in Postgres. Never fall back to a sequence
+  // of browser-side UPDATEs: concurrent stream tabs could leave playback broken.
   const startPlaying = useCallback(async (id: string): Promise<boolean> => {
     const { data, error } = await supabase.rpc("play_queue_item", { p_id: id });
-    if (!error && data === true) return true;
-
-    console.error(
-      "[PLAY QUEUE RPC ERROR]",
-      error?.message ?? "item was not started",
-    );
-
-    const { data: target, error: targetError } = await supabase
-      .from("player_queue")
-      .select("id,status")
-      .eq("id", id)
-      .maybeSingle();
-    if (
-      targetError ||
-      !target ||
-      !["queued", "played"].includes(target.status)
-    ) {
+    if (error) {
+      console.error("[PLAY QUEUE RPC]", error.message);
+      toast.error("Falha ao reproduzir o pedido. Tente novamente.");
       return false;
     }
-
-    const { error: stopError } = await supabase
-      .from("player_queue")
-      .update({ status: "played", played_at: new Date().toISOString() })
-      .eq("status", "playing")
-      .neq("id", id);
-    if (stopError) return false;
-
-    const { error: startError } = await supabase
-      .from("player_queue")
-      .update({
-        status: "playing",
-        played_at: null,
-        playback_position: 0,
-        is_paused: false,
-        state_updated_at: new Date().toISOString(),
-        duration_seconds: null,
-      })
-      .eq("id", id)
-      .in("status", ["queued", "played"]);
-
-    return !startError;
+    return data === true;
   }, []);
 
   const advanceNext = useCallback(async () => {
-    // If the queue is genuinely empty, stop the current item first. This
-    // makes the frontend enter the explicit "Nenhuma música tocando" state
-    // even when the database function in a deployment is still stale.
-    const { data: queuedRows, error: queuedError } = await supabase
-      .from("player_queue")
-      .select("id")
-      .eq("status", "queued")
-      .order("priority", { ascending: false })
-      .order("position", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(1);
-
-    if (!queuedError && (!queuedRows || queuedRows.length === 0)) {
-      await supabase
-        .from("player_queue")
-        .update({ status: "played", played_at: new Date().toISOString() })
-        .eq("status", "playing");
+    const { data, error } = await supabase.rpc("advance_player_queue");
+    if (error) {
+      console.error("[NEXT QUEUE RPC]", error.message);
+      toast.error("Não foi possível avançar a fila.");
       return null;
     }
+    return data ?? null;
+  }, []);
 
-    const { data, error } = await supabase.rpc("advance_player_queue");
-    if (!error) return data ?? null;
-
-    console.error("[NEXT RPC ERROR]", error.message);
-    if (queuedError || !queuedRows?.[0]) return null;
-
-    const nextId = (queuedRows[0] as { id: string }).id;
-    return (await startPlaying(nextId)) ? nextId : null;
-  }, [startPlaying]);
-
-  useEffect(() => {
-    if (current || queue.length === 0) return;
-    void advanceNext().then(() => refresh());
-  }, [current, queue, advanceNext, refresh]);
+  // Auto-start is deliberately owned by the elected host in the player route.
+  // Otherwise every viewer tab could call advance_player_queue at once.
 
   const applyMetadata = useCallback(
     (id: string, track: DetectedTrack) => {
@@ -333,7 +281,15 @@ export function usePlayerQueue(): PlayerQueue {
           .select("id")
           .maybeSingle();
         if (error) {
-          console.error("[ADD TRACK ERROR]", error.message, error);
+          // A duplicate or an active cooldown is an expected rejection, not a
+          // database outage. Avoid spamming the streamer with error toasts.
+          if (error.code === "23505" || error.message.includes("chat_request_cooldown:")) {
+            return false;
+          }
+          console.error("[ADD TRACK ERROR]", error.message);
+          if (options?.priority) {
+            toast.error("Não foi possível adicionar o vídeo. Tente novamente.");
+          }
           return false;
         }
         if (!data) return false;
@@ -366,87 +322,11 @@ export function usePlayerQueue(): PlayerQueue {
 
     void (async () => {
       try {
-        const { data, error } = await supabase.rpc("play_previous_queue_item");
-        if (!error && data) {
-          await refresh();
-          return;
-        }
-
+        const { error } = await supabase.rpc("play_previous_queue_item");
         if (error) {
-          console.error("[PREVIOUS RPC ERROR]", error.message);
-        } else {
-          console.error("[PREVIOUS RPC ERROR] function returned no track");
+          console.error("[PREVIOUS QUEUE RPC]", error.message);
+          toast.error("Não foi possível voltar à música anterior.");
         }
-
-        const { data: playingRows, error: playingError } = await supabase
-          .from("player_queue")
-          .select("id,priority")
-          .eq("status", "playing")
-          .order("state_updated_at", { ascending: false })
-          .limit(1);
-        if (playingError) return;
-
-        const playing = playingRows?.[0] as
-          | { id: string; priority: boolean }
-          | undefined;
-        const currentId = playing?.id ?? currentRef.current?.id ?? null;
-
-        const { data: previousRows, error: previousError } = await supabase
-          .from("player_queue")
-          .select("id")
-          .eq("status", "played")
-          .neq("id", currentId ?? "00000000-0000-0000-0000-000000000000")
-          .order("played_at", { ascending: false, nullsFirst: false })
-          .order("state_updated_at", { ascending: false, nullsFirst: false })
-          .order("added_at", { ascending: false })
-          .order("id", { ascending: false })
-          .limit(1);
-        if (previousError || !previousRows?.[0]) return;
-
-        const previousId = (previousRows[0] as { id: string }).id;
-
-        if (playing) {
-          const { data: queuedRows, error: queuedError } = await supabase
-            .from("player_queue")
-            .select("position")
-            .eq("status", "queued")
-            .eq("priority", playing.priority)
-            .order("position", { ascending: true })
-            .limit(1);
-          if (queuedError) return;
-
-          const minPosition =
-            queuedRows?.[0] && typeof queuedRows[0].position === "number"
-              ? queuedRows[0].position
-              : 0;
-
-          const { error: queueError } = await supabase
-            .from("player_queue")
-            .update({
-              status: "queued",
-              played_at: null,
-              position: minPosition - 1000,
-              state_updated_at: new Date().toISOString(),
-            })
-            .eq("id", playing.id)
-            .eq("status", "playing");
-          if (queueError) return;
-        }
-
-        const { error: startError } = await supabase
-          .from("player_queue")
-          .update({
-            status: "playing",
-            played_at: null,
-            playback_position: 0,
-            is_paused: false,
-            state_updated_at: new Date().toISOString(),
-            duration_seconds: null,
-          })
-          .eq("id", previousId)
-          .eq("status", "played");
-
-        if (startError) return;
         await refresh();
       } finally {
         navigationBusyRef.current = false;

@@ -132,6 +132,20 @@ function PlayerPage() {
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
 
+  // Only the elected host auto-starts the first queued request. Previously
+  // every listener could call the queue RPC and skip songs during a reconnect.
+  const lastAutoStartedRef = useRef<string | null>(null);
+  const queuedHeadId = queue.queue[0]?.id ?? null;
+  useEffect(() => {
+    if (!isHost || queue.current || !queuedHeadId) {
+      if (queue.current || !queuedHeadId) lastAutoStartedRef.current = null;
+      return;
+    }
+    if (lastAutoStartedRef.current === queuedHeadId) return;
+    lastAutoStartedRef.current = queuedHeadId;
+    queue.playNow(queuedHeadId);
+  }, [isHost, queue.current?.id, queuedHeadId, queue.playNow]);
+
   const { settings } = useAppSettings();
   const lastRequestByUserRef = useRef<Map<string, number>>(new Map());
 
@@ -267,7 +281,7 @@ function PlayerPage() {
     [queue, broadcast],
   );
 
-  const chat = useKickChat(slug, handleMessage, handleCommand);
+  const chat = useKickChat(slug, handleMessage, handleCommand, () => isHostRef.current);
 
   function handleManualAdd(event: FormEvent) {
     event.preventDefault();
