@@ -500,11 +500,14 @@ function PlayerPage() {
     if (isHostRef.current) sendPlaybackSync({ time });
   }, [sendPlaybackSync]);
   const handleTogglePlayBroadcast = useCallback((paused: boolean) => {
-    if (isHostRef.current) sendPlaybackSync({
+    if (isHostRef.current) {
+      if (queue.current?.id) void supabase.from("player_queue").update({ is_paused: paused, state_updated_at: new Date().toISOString() }).eq("id", queue.current.id).eq("status", "playing");
+      sendPlaybackSync({
       paused,
       time: Math.max(0, playerControlsRef.current?.getCurrentTime() || playbackStateRef.current.time),
-    });
-  }, [sendPlaybackSync]);
+      });
+    }
+  }, [sendPlaybackSync, queue.current?.id]);
   const handleVolumeBroadcast = useCallback((volume: number) => {
     if (!isHostRef.current) return;
     sendPlaybackSync({ volume });
