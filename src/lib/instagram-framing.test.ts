@@ -12,10 +12,11 @@ describe("Instagram Reel framing", () => {
     expect(normalizeInstagramFraming(undefined)).toEqual(DEFAULT_INSTAGRAM_FRAMING);
   });
 
-  it("accepts landscape and full views without needing video metadata", () => {
+  it("accepts 16:9, 4:3 and full views without needing video metadata", () => {
     expect(normalizeInstagramFraming({ layout: "landscape", zoom: 120, verticalOffset: -30 }))
       .toEqual({ layout: "landscape", zoom: 120, verticalOffset: -30 });
     expect(decodeInstagramFraming(null, "full").layout).toBe("full");
+    expect(normalizeInstagramFraming({ layout: "standard" }).layout).toBe("standard");
   });
 
   it("clamps corrupted storage to safe zoom and offset bounds", () => {
