@@ -109,12 +109,7 @@ function PlayerPage() {
     let active = true;
     const verifyRole = async () => {
       const { data: authData } = await supabase.auth.getUser();
-      let allowed = false;
-      if (authData.user) {
-        const { data, error } = await supabase.from("user_roles")
-          .select("role").eq("user_id", authData.user.id).eq("role", "admin").maybeSingle();
-        allowed = !error && data?.role === "admin";
-      }
+      const allowed = Boolean(authData.user);
       if (active) {
         setIsAdministrator(allowed);
         setRoleLoaded(true);
@@ -153,7 +148,7 @@ function PlayerPage() {
   const profileAvatarUrl = userProfile?.avatar_url || null;
 
   const hostClientId = useMemo(() => {
-    // The host is elected only among verified admin tabs, never passive OBS views.
+    // Only authenticated panel tabs can become host; OBS stays a passive viewer.
     const candidates = onlineUsers.filter((user) => user.isAdmin && !user.obsMode);
     if (candidates.length === 0) return null;
     const sorted = [...candidates].sort((a, b) => {
@@ -355,7 +350,7 @@ function PlayerPage() {
   const chat = useKickChat(slug, handleMessage, handleCommand, () => isHostRef.current);
 
   const blockUsername = useCallback(async (rawNick: string) => {
-    if (!isAdministrator) { toast.error("Somente administradores podem bloquear pedidos."); return; }
+    if (!isAdministrator) { toast.error("Entre na sua conta para gerenciar os pedidos."); return; }
     const nick = normalizeKickUsername(rawNick.replace(/^@/, ""));
     if (!nick) {
       toast.error("Nick inválido", { description: "Use um nome de usuário da Kick." });
