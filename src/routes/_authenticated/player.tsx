@@ -109,6 +109,8 @@ function PlayerPage() {
   currentTrackIdRef.current = queue.current?.id ?? null;
   const hostIdRef = useRef<string | null>(null);
   const lastSyncRequestRef = useRef(0);
+  const remoteCommandRef = useRef<(action: string, value?: number) => void>(() => {});
+  const [externalCommand, setExternalCommand] = useState<{ seq: number; action: "pause" | "resume" | "volume" | "mute"; value?: number } | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [isAdministrator, setIsAdministrator] = useState(false);
   const [roleLoaded, setRoleLoaded] = useState(false);
@@ -248,6 +250,10 @@ function PlayerPage() {
           time: Math.max(0, playerControlsRef.current?.getCurrentTime() || playbackStateRef.current.time),
         });
       })
+      .on("broadcast", { event: "remote-command" }, ({ payload }) => {
+        if (!isHostRef.current || typeof payload?.action !== "string") return;
+        remoteCommandRef.current(payload.action, typeof payload.value === "number" ? payload.value : undefined);
+      })
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
         const users: OnlineUser[] = [];
@@ -366,11 +372,11 @@ function PlayerPage() {
         queue.playPrevious();
         toast.info("Voltando para a música anterior pelo chat!");
       } else if (command === "!pausar") {
-        setRemotePaused(true);
+        setExternalCommand({ seq: Date.now(), action: "pause" });
         sendPlaybackSync({ paused: true });
         toast.info("Pausado pelo comando do chat!");
       } else if (command === "!continuar") {
-        setRemotePaused(false);
+        setExternalCommand({ seq: Date.now(), action: "resume" });
         sendPlaybackSync({ paused: false });
         toast.info("Retomado pelo comando do chat!");
       } else if (command === "!limpar") {
@@ -482,11 +488,39 @@ function PlayerPage() {
     });
   }, [sendPlaybackSync]);
   const handleVolumeBroadcast = useCallback((volume: number) => {
-    if (isHostRef.current) sendPlaybackSync({ volume });
+    if (!isHostRef.current) return;
+    sendPlaybackSync({ volume });
+    void supabase.from("app_settings").update({ obs_volume: volume }).eq("id", 1);
   }, [sendPlaybackSync]);
   const handleMuteBroadcast = useCallback((muted: boolean) => {
-    if (isHostRef.current) sendPlaybackSync({ muted });
+    if (!isHostRef.current) return;
+    sendPlaybackSync({ muted });
+    void supabase.from("app_settings").update({ obs_muted: muted }).eq("id", 1);
   }, [sendPlaybackSync]);
+
+  // All mobile remote commands are forwarded to the active host. The host
+  // controls the embedded media locally and sends the resulting snapshot.
+  useEffect(() => {
+    remoteCommandRef.current = (action, value) => {
+      if (!isHostRef.current) return;
+      if (action === "next") handlePlayNext();
+      else if (action === "previous") handlePlayPrevious();
+      else if (action === "pause" || action === "resume") {
+        const paused = action === "pause";
+        setExternalCommand({ seq: Date.now(), action });
+        handleTogglePlayBroadcast(paused);
+      } else if (action === "volume" && typeof value === "number" && Number.isFinite(value)) {
+        const volume = Math.min(100, Math.max(0, Math.round(value)));
+        setExternalCommand({ seq: Date.now(), action: "volume", value: volume });
+        handleVolumeBroadcast(volume);
+      } else if (action === "mute" || action === "unmute") {
+        const muted = action === "mute";
+        setExternalCommand({ seq: Date.now(), action: "mute", value: muted ? 1 : 0 });
+        handleMuteBroadcast(muted);
+      }
+    };
+    return () => { remoteCommandRef.current = () => {}; };
+  }, [handlePlayNext, handlePlayPrevious, handleTogglePlayBroadcast, handleVolumeBroadcast, handleMuteBroadcast]);
 
   const handlePlaybackHeartbeat = useCallback(
     (position: number, paused: boolean, duration?: number, volume?: number, muted?: boolean) => {
@@ -502,7 +536,7 @@ function PlayerPage() {
   );
 
   return (
-    <div className={`music-shell${theaterMode ? " is-theater-shell" : ""}${sidebarOpen ? "" : " is-sidebar-collapsed"}${obsMode ? " is-obs-shell" : ""}`}>
+    <div className={`music-shell${theaterMode ? " is-theater-shell" : ""}${sidebarOpen ? "" : " is-sidebar-collapsed"}${obsMode ? " is-obs-shell" : ""} music-layout-${preferences.layoutPreset} music-accent-${preferences.accentPreset}${preferences.showChat ? "" : " music-chat-hidden"}`}>
       <MusicSidebar active="player" />
       <main className="music-page music-player-page">
         <div className="music-topbar">
@@ -541,7 +575,7 @@ function PlayerPage() {
                 🎵 {totalPlayed} tocada{totalPlayed === 1 ? "" : "s"} · {totalRequesters} pedindo
               </span>
             )}
-            {!obsMode && <StreamerSettingsPanel preferences={preferences} onUpdate={updatePreferences} canManage={isHost} globalCooldown={settings.chatCooldownSeconds} />}
+            {!obsMode && <StreamerSettingsPanel preferences={preferences} onUpdate={updatePreferences} canManage={isAdministrator} globalCooldown={settings.chatCooldownSeconds} obsToken={settings.obsToken} />}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -701,6 +735,7 @@ function PlayerPage() {
             onTogglePlayChange={handleTogglePlayBroadcast}
             onVolumeChange={handleVolumeBroadcast}
             onMuteChange={handleMuteBroadcast}
+            externalCommand={externalCommand}
             onPlaybackHeartbeat={handlePlaybackHeartbeat}
             onPlayingStateChange={setIsCurrentlyPlaying}
             controlsRef={playerControlsRef}
