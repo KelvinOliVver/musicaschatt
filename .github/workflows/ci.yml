@@ -44,5 +44,8 @@ jobs:
       - name: Test Instagram video resolver and fallback
         run: bun test src/lib/instagram-cobalt.test.ts
 
+      - name: Validate Cobalt authenticated gateway
+        run: node --check infra/cobalt/gateway.mjs
+
       - name: Build production app
         run: bun run build
