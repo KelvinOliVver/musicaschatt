@@ -413,7 +413,7 @@ export function PlayerPanel({
                 O player tenta reproduzir o vídeo diretamente, sem abrir o cartão do Instagram.
               </span>
               <div className="flex items-center gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={onPrevious} disabled={!hasPrevious} className="gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={onPrevious} disabled={!isHost || !hasPrevious} className="gap-2">
                   <SkipBack className="size-4" aria-hidden /> Anterior
                 </Button>
                 <Button type="button" size="sm" onClick={onNext} className="gap-2">
@@ -425,7 +425,7 @@ export function PlayerPanel({
             <>
             <div className="flex items-center gap-3.5 py-0.5">
               <span className="player-time-readout w-10 shrink-0 text-xs tabular-nums">{formatTime(shown)}</span>
-              <Slider className="progress-slider text-primary" value={[Math.min(shown, progress.duration || 0)]} max={progress.duration || 100} step={1} disabled={!current || progress.duration <= 0} onValueChange={([value]) => setScrubbing(value ?? 0)} onValueCommit={([value]) => { const targetTime = value ?? 0; controlsRef.current?.seekTo(targetTime); setScrubbing(null); onSeekChange?.(targetTime); }} aria-label="Progresso da música" />
+              <Slider className="progress-slider text-primary" value={[Math.min(shown, progress.duration || 0)]} max={progress.duration || 100} step={1} disabled={!current || progress.duration <= 0} onValueChange={([value]) => setScrubbing(value ?? 0)} onValueCommit={([value]) => { const targetTime = value ?? 0; if (isHost) { controlsRef.current?.seekTo(targetTime); onSeekChange?.(targetTime); } setScrubbing(null); }} aria-label="Progresso da música" />
               <span className="player-time-readout w-10 shrink-0 text-right text-xs tabular-nums">{formatTime(progress.duration)}</span>
             </div>
   
@@ -433,7 +433,7 @@ export function PlayerPanel({
               <div className="flex items-center gap-2">
                 <Button size="icon" variant="secondary" className="size-10 rounded-full bg-transparent hover:bg-secondary" onClick={onPrevious} disabled={!hasPrevious} aria-label="Música anterior"><SkipBack className="size-4" aria-hidden /></Button>
                 <Button size="icon" className="size-12 rounded-full bg-primary text-primary-foreground hover:scale-105" onClick={() => setPaused((value) => { const nextVal = !value; onTogglePlayChange?.(nextVal); return nextVal; })} disabled={!current} aria-label={paused ? "Tocar" : "Pausar"}>{paused ? <Play className="size-5" aria-hidden /> : <Pause className="size-5" aria-hidden />}</Button>
-                <Button size="icon" variant="secondary" className="size-10 rounded-full bg-transparent hover:bg-secondary" onClick={onNext} disabled={!hasNext && !current} aria-label="Próxima música"><SkipForward className="size-4" aria-hidden /></Button>
+                <Button size="icon" variant="secondary" className="size-10 rounded-full bg-transparent hover:bg-secondary" onClick={onNext} disabled={!isHost || (!hasNext && !current)} aria-label="Próxima música"><SkipForward className="size-4" aria-hidden /></Button>
               </div>
   
               <div className="player-volume flex flex-1 items-center gap-2">
