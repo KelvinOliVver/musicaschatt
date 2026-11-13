@@ -311,6 +311,32 @@ server.listen(port, "0.0.0.0", () => {
           && Boolean(acceptableVideoUrl(json.url));
         console.info("instagram_smoke_test=cobalt result=" + (validMedia ? "ready" : "unavailable")
           + " api_status=" + String(json?.status || "missing").replace(/[^a-z_]/gi, "").slice(0, 30));
+        if (validMedia && json.status === "tunnel") {
+          try {
+            const external = new URL(json.url);
+            if (external.origin === publicOrigin && external.pathname === "/tunnel") {
+              // Verify that our OWN gateway forwards playable video bytes.
+              // Small range only; no actual video download and no URL in logs.
+              const probe = await fetch("http://127.0.0.1:" + port + external.pathname + external.search, {
+                method: "GET",
+                headers: { "Range": "bytes=0-1023" },
+                redirect: "manual",
+                signal: AbortSignal.timeout(6500),
+              });
+              const mediaType = String(probe.headers.get("content-type") || "unknown")
+                .split(";")[0].replace(/[^a-z0-9/.-]/gi, "").slice(0, 48);
+              const redirectAllowed = probe.status === 302
+                ? Boolean(acceptableVideoUrl(probe.headers.get("location")))
+                : false;
+              console.info("instagram_smoke_test=video_tunnel http=" + probe.status
+                + " media_type=" + mediaType
+                + " redirect_allowed=" + redirectAllowed);
+              if (probe.body) await probe.body.cancel().catch(() => {});
+            }
+          } catch {
+            console.info("instagram_smoke_test=video_tunnel result=timeout_or_error");
+          }
+        }
       } catch {
         console.info("instagram_smoke_test=cobalt result=error");
       }
