@@ -49,6 +49,7 @@ export function socialEmbedUrl(
   const options = new URLSearchParams({
     autoplay: "1",
     loop: "0",
+    force_muted: "0",
     controls: "0",
     progress_bar: "0",
     play_button: "0",
