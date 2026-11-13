@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { createWorkerTicker } from "@/components/YouTubeStage";
 
 /**
  * The only session allowed to ingest Kick requests and control the shared room
@@ -88,19 +89,16 @@ export function useRoomHost(): RoomHostState {
     }
 
     void renewLease();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void renewLease();
-    }, 8_000);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void renewLease();
-    };
+    // Streamers commonly keep the player in a background tab. A worker
+    // heartbeat is less affected by browser timer throttling.
+    const stopTicker = createWorkerTicker(() => { void renewLease(); }, 8_000);
+    const onVisible = () => { if (document.visibilityState === "visible") void renewLease(); };
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       disposed = true;
-      clearInterval(timer);
+      stopTicker();
       document.removeEventListener("visibilitychange", onVisible);
-      setIsHost(false);
       void roomDb.rpc("release_music_room_host", {
         p_client_id: clientIdRef.current,
       });
