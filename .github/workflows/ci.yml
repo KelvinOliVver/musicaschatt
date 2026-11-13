@@ -47,6 +47,9 @@ jobs:
       - name: Validate Cobalt authenticated gateway
         run: node --check infra/cobalt/gateway.mjs
 
+      - name: Test Instagram authenticated gateway
+        run: bun test src/lib/instagram-gateway.test.ts
+
       - name: Test independent Instagram extraction
         run: node --test infra/cobalt/yt-dlp.test.mjs
 
