@@ -17,6 +17,7 @@ describe("Instagram Reel framing", () => {
       .toEqual({ layout: "landscape", zoom: 120, verticalOffset: -30 });
     expect(decodeInstagramFraming(null, "full").layout).toBe("full");
     expect(normalizeInstagramFraming({ layout: "standard" }).layout).toBe("standard");
+    expect(normalizeInstagramFraming({ layout: "auto" }).layout).toBe("auto");
   });
 
   it("clamps corrupted storage to safe zoom and offset bounds", () => {
@@ -30,6 +31,6 @@ describe("Instagram Reel framing", () => {
     expect(decodeInstagramFraming("{bad", "landscape").layout).toBe("landscape");
     expect(decodeInstagramFraming(JSON.stringify({ layout: "full", zoom: 75, verticalOffset: 40 }), "portrait"))
       .toEqual({ layout: "full", zoom: 75, verticalOffset: 40 });
-    expect(instagramFramingKey("abc_123")).toBe("music-chat-reel-framing:abc_123");
+    expect(instagramFramingKey("abc_123")).toBe("music-chat-reel-auto-v2:abc_123");
   });
 });
