@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, Crown, ListMusic, MessageSquare, Plus, Users } from "lucide-react";
+import { AlertTriangle, Crown, ListMusic, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { ChannelBar } from "@/components/ChannelBar";
 import { ChatFeed } from "@/components/ChatFeed";
@@ -78,6 +78,8 @@ interface OnlineUser {
 }
 
 function PlayerPage() {
+  // Keep the navigation out of the streamer's way until explicitly requested.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [slug, setSlug] = useState(DEFAULT_CHANNEL);
   const [manual, setManual] = useState("");
   const queue = usePlayerQueue();
@@ -325,8 +327,22 @@ function PlayerPage() {
   );
 
   return (
-    <div className={`music-shell${theaterMode ? " is-theater-shell" : ""}`}>
+    <div className={`music-shell${theaterMode ? " is-theater-shell" : ""}${sidebarOpen ? "" : " is-sidebar-collapsed"}`}>
       <MusicSidebar active="player" />
+      {!theaterMode && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="music-sidebar-toggle"
+          onClick={() => setSidebarOpen((value) => !value)}
+          aria-label={sidebarOpen ? "Ocultar menu lateral" : "Abrir menu lateral"}
+          aria-expanded={sidebarOpen}
+          title={sidebarOpen ? "Ocultar menu" : "Abrir menu"}
+        >
+          {sidebarOpen ? <PanelLeftClose className="size-5" aria-hidden /> : <PanelLeftOpen className="size-5" aria-hidden />}
+        </Button>
+      )}
       <main className="music-page music-player-page">
         <div className="music-topbar">
           <div className="flex-1">
