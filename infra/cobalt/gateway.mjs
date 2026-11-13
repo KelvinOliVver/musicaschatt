@@ -1,7 +1,7 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { Readable } from "node:stream";
-import { resolveInstagramWithYtDlp } from "./music-chat-yt-dlp.mjs";
+import { resolveInstagramWithYtDlp } from "./yt-dlp.mjs";
 import { resolvePublicInstagramGraphQL } from "./music-chat-ig-graphql.mjs";
 
 // The only public listener is this gateway. Cobalt itself is bound to
