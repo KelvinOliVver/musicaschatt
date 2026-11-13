@@ -1,19 +1,37 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, CheckCircle2, LoaderCircle, MessageSquare, Music2, Radio, RotateCcw, Zap } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  ArrowDown,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  LoaderCircle,
+  MessageSquare,
+  Music2,
+  Radio,
+  RotateCcw,
+  Search,
+  X,
+  Zap,
+} from "lucide-react";
+import { toast } from "sonner";
 import { hasTrackLink } from "@/lib/link-parser";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { ChatStatus, KickChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface ChatFeedProps {
   messages: KickChatMessage[];
-  /** Cor dinâmica da música atual (mesma do halo do player) — cai no roxo do tema se omitida. */
   accentColor?: string | null;
-  /** Intensidade do halo — mais forte tocando, mais fraco parado. */
   isPlaying?: boolean;
-  /** Estado da conexão com o chat da Kick. */
   status?: ChatStatus;
+  channel?: string;
+  onReconnect?: () => void;
 }
+
+type ChatFilter = "all" | "music" | "commands";
+
+const MESSAGE_TOKEN_PATTERN = /\[emote:(\d+):([^\]]+)\]|https?:\/\/[^\s<>"']+/gi;
 
 function formatTime(value: string): string {
   const date = new Date(value);
@@ -21,261 +39,472 @@ function formatTime(value: string): string {
   return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-const EMOTE_PATTERN = /\[emote:(\d+):([^\]]+)\]/g;
+function formatFullDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("pt-BR", { dateStyle: "medium", timeStyle: "short" });
+}
 
-/** Quebra o texto da mensagem em pedaços de texto normal + emotes (como <img>). */
-function renderMessageContent(content: string) {
-  const parts: Array<{ type: "text"; value: string } | { type: "emote"; id: string; name: string }> = [];
-  const pattern = new RegExp(EMOTE_PATTERN);
+/** Renders Kick emotes and safe, clickable links without injecting HTML. */
+function renderMessageContent(content: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  const matcher = new RegExp(MESSAGE_TOKEN_PATTERN);
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = pattern.exec(content)) !== null) {
+  while ((match = matcher.exec(content)) !== null) {
     if (match.index > lastIndex) {
-      parts.push({ type: "text", value: content.slice(lastIndex, match.index) });
+      parts.push(content.slice(lastIndex, match.index));
     }
-    parts.push({ type: "emote", id: match[1] ?? "", name: match[2] ?? "" });
+
+    if (match[1]) {
+      parts.push(
+        <img
+          key={match.index}
+          src={"https://files.kick.com/emotes/" + match[1] + "/fullsize"}
+          alt={":" + (match[2] ?? "emote") + ":"}
+          title={match[2]}
+          loading="lazy"
+          className="mx-0.5 inline-block h-5 w-5 align-text-bottom"
+        />,
+      );
+    } else {
+      const raw = match[0];
+      const urlText = raw.replace(/[.,;:!?)\]}]+$/, "");
+      const trailing = raw.slice(urlText.length);
+      let valid = false;
+
+      try {
+        const url = new URL(urlText);
+        valid = url.protocol === "http:" || url.protocol === "https:";
+      } catch {
+        // Leave malformed URLs as plain text.
+      }
+
+      if (valid) {
+        parts.push(
+          <a
+            key={match.index}
+            href={urlText}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline break-all text-primary underline decoration-primary/40 underline-offset-2 transition-colors hover:decoration-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            {urlText}
+            <ExternalLink className="ml-0.5 inline size-3 align-baseline" aria-hidden />
+          </a>,
+        );
+        if (trailing) parts.push(trailing);
+      } else {
+        parts.push(raw);
+      }
+    }
+
     lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < content.length) {
-    parts.push({ type: "text", value: content.slice(lastIndex) });
-  }
 
-  return parts.map((part, i) =>
-    part.type === "text" ? (
-      <span key={i}>{part.value}</span>
-    ) : (
-      <img
-        key={i}
-        src={`https://files.kick.com/emotes/${part.id}/fullsize`}
-        alt={`:${part.name}:`}
-        title={part.name}
-        loading="lazy"
-        className="mx-0.5 inline-block h-5 w-5 align-text-bottom"
-      />
-    ),
-  );
+  if (lastIndex < content.length) parts.push(content.slice(lastIndex));
+  return parts;
 }
 
 const statusConfig: Record<ChatStatus, { label: string; className: string; icon: typeof Radio }> = {
   idle: { label: "Desconectado", className: "text-muted-foreground", icon: Radio },
   resolving: { label: "Conectando…", className: "text-vip", icon: LoaderCircle },
   connecting: { label: "Conectando…", className: "text-vip", icon: LoaderCircle },
-  connected: { label: "Online", className: "text-online", icon: CheckCircle2 },
+  connected: { label: "Ao vivo", className: "text-online", icon: CheckCircle2 },
   reconnecting: { label: "Reconectando…", className: "text-vip", icon: RotateCcw },
-  error: { label: "Erro de conexão", className: "text-destructive", icon: Radio },
+  error: { label: "Sem conexão", className: "text-destructive", icon: Radio },
 };
 
-export function ChatFeed({ messages, accentColor, isPlaying = false, status = "idle" }: ChatFeedProps) {
+export function ChatFeed({
+  messages,
+  accentColor,
+  isPlaying = false,
+  status = "idle",
+  channel,
+  onReconnect,
+}: ChatFeedProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const endRef = useRef<HTMLDivElement | null>(null);
-  const [onlyLinks, setOnlyLinks] = useState(false);
-  const [pinned, setPinned] = useState(true);
+  const scrollFrameRef = useRef<number | null>(null);
   const pinnedRef = useRef(true);
+  const previousMessageIdsRef = useRef<Set<string>>(new Set());
+
+  const [filter, setFilter] = useState<ChatFilter>("all");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [pinned, setPinned] = useState(true);
   const [unread, setUnread] = useState(0);
-  const autoScrollingRef = useRef(false);
-  const autoScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const scrollFrameRef = useRef<number | undefined>(undefined);
 
-  function setPinnedState(value: boolean) {
-    pinnedRef.current = value;
-    setPinned(value);
-  }
+  const musicCount = useMemo(
+    () => messages.filter((message) => hasTrackLink(message.content)).length,
+    [messages],
+  );
+  const commandCount = useMemo(
+    () => messages.filter((message) => message.kind === "command").length,
+    [messages],
+  );
 
-  function markAutoScrolling() {
-    autoScrollingRef.current = true;
-    if (autoScrollTimeoutRef.current) clearTimeout(autoScrollTimeoutRef.current);
-    autoScrollTimeoutRef.current = setTimeout(() => {
-      autoScrollingRef.current = false;
-    }, 500);
-  }
+  const visible = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt-BR");
+    return messages.filter((message) => {
+      if (filter === "music" && !hasTrackLink(message.content)) return false;
+      if (filter === "commands" && message.kind !== "command") return false;
+      if (!term) return true;
+      return (message.username + " " + message.content).toLocaleLowerCase("pt-BR").includes(term);
+    });
+  }, [messages, filter, search]);
 
-  const keepAtBottom = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el || !pinnedRef.current) return;
-    markAutoScrolling();
-    el.scrollTop = el.scrollHeight;
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    function handleScrollEnd() {
-      autoScrollingRef.current = false;
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "instant") => {
+    const element = scrollRef.current;
+    if (!element) return;
+    if (behavior === "smooth") {
+      element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+    } else {
+      element.scrollTop = element.scrollHeight;
     }
-    el.addEventListener("scrollend", handleScrollEnd);
-    return () => el.removeEventListener("scrollend", handleScrollEnd);
   }, []);
 
+  const scheduleScroll = useCallback(() => {
+    if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      if (pinnedRef.current) scrollToBottom();
+    });
+  }, [scrollToBottom]);
+
+  const jumpToLatest = useCallback(() => {
+    pinnedRef.current = true;
+    setPinned(true);
+    setUnread(0);
+    scrollToBottom("smooth");
+  }, [scrollToBottom]);
+
   useEffect(() => {
-    return () => {
-      if (autoScrollTimeoutRef.current) clearTimeout(autoScrollTimeoutRef.current);
-      if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
-    };
-  }, []);
+    const previousIds = previousMessageIdsRef.current;
+    const incoming = messages.filter((message) => !previousIds.has(message.id));
+    previousMessageIdsRef.current = new Set(messages.map((message) => message.id));
+
+    if (pinnedRef.current) {
+      scheduleScroll();
+    } else if (previousIds.size > 0 && incoming.length > 0) {
+      setUnread((count) => count + incoming.length);
+    }
+  }, [messages, scheduleScroll]);
+
+  useEffect(() => {
+    // Search and filters change the list height, so reset to its newest result.
+    pinnedRef.current = true;
+    setPinned(true);
+    setUnread(0);
+    scheduleScroll();
+  }, [filter, search, scheduleScroll]);
+
+  useEffect(() => {
+    setFilter("all");
+    setSearch("");
+    setSearchOpen(false);
+    setUnread(0);
+    pinnedRef.current = true;
+    setPinned(true);
+    previousMessageIdsRef.current = new Set();
+  }, [channel]);
 
   useEffect(() => {
     const content = contentRef.current;
-    if (!content) return;
-
+    if (!content || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      if (!pinnedRef.current) return;
-      if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
-      scrollFrameRef.current = requestAnimationFrame(() => {
-        keepAtBottom();
-        scrollFrameRef.current = undefined;
-      });
+      if (pinnedRef.current) scheduleScroll();
     });
-
     observer.observe(content);
-    return () => {
-      observer.disconnect();
-      if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
-    };
-  }, [keepAtBottom]);
-
-  const visible = useMemo(
-    () => (onlyLinks ? messages.filter((m) => hasTrackLink(m.content)) : messages),
-    [messages, onlyLinks],
-  );
-  const linkCount = useMemo(
-    () => messages.filter((m) => hasTrackLink(m.content)).length,
-    [messages],
-  );
-  const latestMessageId = visible.length > 0 ? visible[visible.length - 1]?.id : undefined;
-
-  const scrollToEnd = useCallback((behavior: ScrollBehavior = "smooth") => {
-    const el = scrollRef.current;
-    if (!el) return;
-    markAutoScrolling();
-    if (behavior === "auto") {
-      el.scrollTop = el.scrollHeight;
-    } else {
-      el.scrollTo({ top: el.scrollHeight, behavior });
-    }
-    setUnread(0);
-    setPinnedState(true);
-  }, []);
+    return () => observer.disconnect();
+  }, [scheduleScroll]);
 
   useEffect(() => {
-    if (!pinnedRef.current) {
-      setUnread((count) => count + 1);
-      return;
-    }
-
-    if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
-    scrollFrameRef.current = requestAnimationFrame(() => {
-      keepAtBottom();
-      scrollFrameRef.current = undefined;
-    });
-  }, [latestMessageId, visible.length, keepAtBottom]);
+    return () => {
+      if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+    };
+  }, []);
 
   function handleScroll() {
-    if (autoScrollingRef.current) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-    setPinnedState(atBottom);
+    const element = scrollRef.current;
+    if (!element) return;
+    const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 48;
+    if (pinnedRef.current !== atBottom) {
+      pinnedRef.current = atBottom;
+      setPinned(atBottom);
+    }
     if (atBottom) setUnread(0);
+  }
+
+  async function copyMessage(message: KickChatMessage) {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      toast.success("Mensagem copiada");
+    } catch {
+      toast.error("Não foi possível copiar a mensagem");
+    }
   }
 
   const connection = statusConfig[status];
   const StatusIcon = connection.icon;
 
+  const filters: Array<{ value: ChatFilter; label: string; count: number }> = [
+    { value: "all", label: "Todas", count: messages.length },
+    { value: "music", label: "Músicas", count: musicCount },
+    { value: "commands", label: "Comandos", count: commandCount },
+  ];
+
   return (
     <div className="music-chat relative z-0 flex min-h-0 flex-col">
       <section className="panel relative z-0 flex h-full min-h-0 flex-col overflow-hidden">
-        <header className="flex items-center gap-2 border-b border-border px-5 py-4 shrink-0">
-          <MessageSquare className="size-4 text-primary" aria-hidden />
-          <h2 className="text-sm font-semibold uppercase tracking-widest">Chat</h2>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {messages.length}
+        <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
+            <MessageSquare
+              className="size-4 text-primary"
+              style={isPlaying && accentColor ? { color: accentColor } : undefined}
+              aria-hidden
+            />
           </span>
-          <div className={cn("ml-1 hidden items-center gap-1 text-[10px] font-medium sm:flex", connection.className)} title={`Status do chat: ${connection.label}`}>
-            <StatusIcon className={cn("size-3", status === "connecting" || status === "resolving" || status === "reconnecting" ? "animate-spin" : "")} aria-hidden />
-            {connection.label}
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold leading-tight">Chat da Kick</h2>
+            <div
+              role="status"
+              aria-live="polite"
+              className={cn("mt-0.5 flex items-center gap-1.5 text-[11px] font-medium", connection.className)}
+            >
+              <StatusIcon
+                className={cn("size-3", ["resolving", "connecting", "reconnecting"].includes(status) && "animate-spin")}
+                aria-hidden
+              />
+              <span>{connection.label}</span>
+              {channel && <span className="max-w-24 truncate text-muted-foreground">· @{channel}</span>}
+            </div>
           </div>
+          {status === "error" && onReconnect && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0"
+              onClick={onReconnect}
+              aria-label="Reconectar ao chat da Kick"
+              title="Reconectar"
+            >
+              <RotateCcw className="size-4" aria-hidden />
+            </Button>
+          )}
           <Button
             type="button"
-            variant={onlyLinks ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setOnlyLinks((v) => !v)}
-            className="ml-auto h-7 gap-1.5 px-2 text-xs"
-            aria-pressed={onlyLinks}
+            variant={searchOpen ? "secondary" : "ghost"}
+            size="icon"
+            className="size-8 shrink-0"
+            aria-label={searchOpen ? "Fechar busca" : "Buscar mensagens"}
+            aria-expanded={searchOpen}
+            onClick={() => {
+              if (searchOpen) setSearch("");
+              setSearchOpen((open) => !open);
+            }}
           >
-            <Music2 className="size-3.5" aria-hidden />
-            Só músicas ({linkCount})
+            {searchOpen ? <X className="size-4" aria-hidden /> : <Search className="size-4" aria-hidden />}
           </Button>
         </header>
 
-        <div ref={scrollRef} onScroll={handleScroll} className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-3 py-3">
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 px-3 py-2" role="group" aria-label="Filtrar mensagens">
+          {filters.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={filter === option.value}
+              onClick={() => setFilter(option.value)}
+              className={cn(
+                "flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                filter === option.value
+                  ? "bg-primary/15 text-primary ring-1 ring-inset ring-primary/25"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {option.value === "music" && <Music2 className="size-3" aria-hidden />}
+              {option.value === "commands" && <Zap className="size-3" aria-hidden />}
+              {option.label}
+              <span className={cn("tabular-nums", filter === option.value ? "text-primary/80" : "text-muted-foreground/70")}>
+                {option.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {searchOpen && (
+          <div className="shrink-0 border-b border-border/70 px-3 py-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                type="search"
+                autoFocus
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setSearch("");
+                    setSearchOpen(false);
+                  }
+                }}
+                placeholder="Buscar usuário ou mensagem"
+                aria-label="Buscar no histórico carregado do chat"
+                className="h-9 border-border/70 bg-background/60 pl-9 text-xs"
+              />
+            </div>
+          </div>
+        )}
+
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="scrollbar-slim min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2"
+          aria-label="Mensagens do chat da Kick"
+          role="log"
+          aria-live="off"
+        >
           <div ref={contentRef}>
             {visible.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                {onlyLinks ? "Nenhum link de música ainda." : "Nenhuma mensagem ainda."}
-              </p>
+              <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
+                <MessageSquare className="size-6 text-muted-foreground/50" aria-hidden />
+                <p className="text-sm font-medium text-foreground/80">
+                  {search.trim()
+                    ? "Nenhum resultado encontrado"
+                    : filter === "music"
+                      ? "Nenhum pedido de música ainda"
+                      : filter === "commands"
+                        ? "Nenhum comando registrado"
+                        : "Aguardando mensagens"}
+                </p>
+                <p className="max-w-52 text-xs text-muted-foreground">
+                  {search.trim()
+                    ? "Tente outro nome ou palavra."
+                    : status === "connected"
+                      ? "As mensagens recebidas aparecerão aqui."
+                      : "O histórico aparece quando o chat estiver disponível."}
+                </p>
+              </div>
             ) : (
-              <ul className="space-y-0.5">
+              <ul className="space-y-1">
                 {visible.map((message) => {
                   const withLink = hasTrackLink(message.content);
-                  const time = formatTime(message.createdAt);
                   const isCommand = message.kind === "command";
+                  const time = formatTime(message.createdAt);
+                  const name = message.username.trim() || "Visitante";
+
                   return (
                     <li
                       key={message.id}
                       className={cn(
-                        "group animate-in fade-in slide-in-from-bottom-1 duration-150 rounded-md px-2 py-1.5 text-sm leading-snug break-words transition-colors",
+                        "chat-message-row group relative rounded-lg border border-transparent transition-colors",
                         isCommand
-                          ? "border border-primary/25 bg-primary/[0.07] text-foreground"
-                          : "hover:bg-muted/40",
-                        withLink && !isCommand && "bg-primary/10 ring-1 ring-primary/25 hover:bg-primary/15",
+                          ? "bg-primary/[0.07] hover:bg-primary/[0.11]"
+                          : withLink
+                            ? "bg-primary/[0.05] hover:bg-primary/[0.09]"
+                            : "hover:bg-muted/40",
                       )}
                     >
-                      {isCommand ? (
-                        <div className="flex items-center gap-2">
-                          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                            <Zap className="size-3.5" aria-hidden />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold" style={message.color ? { color: message.color } : undefined}>
-                                {message.username}
+                      <div className="flex items-start gap-2.5">
+                        <span
+                          className={cn(
+                            "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border text-[11px] font-bold",
+                            isCommand
+                              ? "border-primary/25 bg-primary/10 text-primary"
+                              : "border-border/60 bg-muted/70 text-foreground",
+                          )}
+                          style={!isCommand && message.color ? { color: message.color } : undefined}
+                          aria-hidden
+                        >
+                          {isCommand ? <Zap className="size-3.5" /> : name.charAt(0).toLocaleUpperCase("pt-BR")}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                            <span
+                              className="max-w-full truncate text-xs font-semibold"
+                              style={message.color ? { color: message.color } : undefined}
+                            >
+                              {name}
+                            </span>
+                            {isCommand && (
+                              <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                                Comando
                               </span>
-                              <span className="rounded-full border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
-                                comando
+                            )}
+                            {withLink && !isCommand && (
+                              <span className="inline-flex items-center gap-1 rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+                                <Music2 className="size-2.5" aria-hidden />
+                                Pedido
                               </span>
-                              <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground/60">{time}</span>
-                            </div>
-                            <div className="mt-0.5 font-mono text-xs text-foreground/80">{message.content}</div>
+                            )}
+                            <time
+                              dateTime={message.createdAt}
+                              title={formatFullDate(message.createdAt)}
+                              className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground/70"
+                            >
+                              {time}
+                            </time>
                           </div>
+                          <p
+                            className={cn(
+                              "mt-1 whitespace-pre-wrap break-words text-[13px] leading-[1.5]",
+                              isCommand ? "font-mono text-foreground/80" : "text-foreground/90",
+                            )}
+                          >
+                            {isCommand ? message.content : renderMessageContent(message.content)}
+                          </p>
                         </div>
-                      ) : (
-                        <>
-                          <span className="mr-1.5 align-middle text-[10px] tabular-nums text-muted-foreground/60">{time}</span>
-                          {withLink && <Music2 className="mr-1 inline size-3 align-middle text-primary" aria-label="link de música" />}
-                          <span className="font-semibold" style={message.color ? { color: message.color } : undefined}>
-                            {message.username}
-                          </span>
-                          <span className="text-muted-foreground">: </span>
-                          <span className="text-foreground/90">{renderMessageContent(message.content)}</span>
-                        </>
-                      )}
+                        <button
+                          type="button"
+                          onClick={() => void copyMessage(message)}
+                          className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-100 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                          aria-label={"Copiar mensagem de " + name}
+                          title="Copiar mensagem"
+                        >
+                          <Copy className="size-3.5" aria-hidden />
+                        </button>
+                      </div>
                     </li>
                   );
                 })}
               </ul>
             )}
-            <div ref={endRef} />
           </div>
         </div>
 
         {!pinned && (
-          <Button type="button" size="sm" onClick={() => scrollToEnd()} className="absolute bottom-4 left-1/2 z-10 h-8 -translate-x-1/2 gap-1.5 shadow-lg">
+          <Button
+            type="button"
+            size="sm"
+            onClick={jumpToLatest}
+            className="absolute bottom-12 left-1/2 z-10 h-8 max-w-[90%] -translate-x-1/2 gap-1.5 rounded-full px-3 shadow-lg"
+          >
             <ArrowDown className="size-3.5" aria-hidden />
-            {unread > 0 ? `${unread} nova${unread > 1 ? "s" : ""}` : "Ir para o fim"}
+            <span className="truncate">
+              {unread > 0 ? (unread === 1 ? "1 nova mensagem" : unread + " novas mensagens") : "Voltar ao vivo"}
+            </span>
           </Button>
         )}
+
+        <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-border/70 px-3 py-2 text-[11px] text-muted-foreground">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className={cn("size-1.5 shrink-0 rounded-full", pinned && status === "connected" ? "bg-online" : "bg-muted-foreground/50")} />
+            <span className="truncate">{pinned ? "Acompanhando mensagens" : "Leitura pausada"}</span>
+          </span>
+          {channel && (
+            <a
+              href={"https://kick.com/" + encodeURIComponent(channel)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex shrink-0 items-center gap-1 font-medium text-foreground/70 transition-colors hover:text-primary"
+              title="Enviar mensagens pelo site da Kick"
+            >
+              Conversar na Kick
+              <ExternalLink className="size-3" aria-hidden />
+            </a>
+          )}
+        </footer>
       </section>
     </div>
   );
