@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useKickChat } from "@/lib/kick-chat";
 import { extractTracks, parseTrackInput } from "@/lib/link-parser";
 import { usePlayerQueue } from "@/lib/use-player-queue";
+import { useRoomHost } from "@/hooks/use-room-host";
 import { useProfile } from "@/hooks/use-profile";
 import { useAppSettings } from "@/hooks/use-app-settings";
 import { useDominantColor } from "@/hooks/use-dominant-color";
@@ -81,6 +82,7 @@ function PlayerPage() {
   const [slug, setSlug] = useState(DEFAULT_CHANNEL);
   const [manual, setManual] = useState("");
   const queue = usePlayerQueue();
+  const { isRoomAdmin, isHost, checking: hostChecking, error: hostError } = useRoomHost();
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const playerControlsRef = useRef<StageControls | null>(null);
@@ -88,8 +90,7 @@ function PlayerPage() {
   const clientIdRef = useRef<string>(crypto.randomUUID());
   const joinedAtRef = useRef<string>(new Date().toISOString());
 
-  const [remoteSeek, setRemoteSeek] = useState<number | null>(null);
-  const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
+  const hostPausedRef = useRef(false);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
   const [theaterMode, setTheaterMode] = useState(false);
@@ -119,18 +120,11 @@ function PlayerPage() {
   const profileName = userProfile?.display_name || null;
   const profileAvatarUrl = userProfile?.avatar_url || null;
 
-  const hostClientId = useMemo(() => {
-    if (onlineUsers.length === 0) return null;
-    const sorted = [...onlineUsers].sort((a, b) => {
-      const byTime = a.joined_at.localeCompare(b.joined_at);
-      return byTime !== 0 ? byTime : a.clientId.localeCompare(b.clientId);
-    });
-    return sorted[0]?.clientId ?? null;
-  }, [onlineUsers]);
-
-  const isHost = hostClientId === clientIdRef.current;
+  // Host authority comes from a verified database role + expiring lease,
+  // not from the first (potentially untrusted) Presence participant.
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
+  useEffect(() => { hostPausedRef.current = queue.current?.isPaused ?? false; }, [queue.current?.id]);
 
   // Only the elected host auto-starts the first queued request. Previously
   // every listener could call the queue RPC and skip songs during a reconnect.
@@ -157,14 +151,8 @@ function PlayerPage() {
     return set.size;
   }, [queue.queue, queue.history]);
 
-  const broadcast = useCallback((action: string, data?: any) => {
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "sync-action",
-      payload: { action, ...data },
-    });
-  }, []);
-
+  // Playback state is synchronized by authorized database writes, never
+  // by client broadcasts (which any connected viewer could forge).
   useEffect(() => {
     const channel = supabase.channel(`player-room-${slug}`, {
       config: {
@@ -174,19 +162,6 @@ function PlayerPage() {
     });
 
     channel
-      .on("broadcast", { event: "sync-action" }, ({ payload }) => {
-        switch (payload.action) {
-          case "SEEK":
-            setRemoteSeek(payload.time + Math.random() * 0.0001);
-            break;
-          case "TOGGLE_PLAY":
-            setRemotePaused(payload.paused);
-            break;
-          case "HEARTBEAT":
-            setRemoteSeek(payload.time + Math.random() * 0.0001);
-            break;
-        }
-      })
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
         const users: OnlineUser[] = [];
