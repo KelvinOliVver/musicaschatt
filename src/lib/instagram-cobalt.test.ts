@@ -34,7 +34,7 @@ describe("Instagram Cobalt resolver", () => {
       called = true;
       expect(String(input)).toBe("https://cobalt.example/");
       expect(init?.method).toBe("POST");
-      expect((init?.headers as Record<string, string>)?.Authorization).toBe("Bearer test-key");
+      expect((init?.headers as Record<string, string>)?.Authorization).toBe("Api-Key test-key");
       expect(JSON.parse(String(init?.body))).toMatchObject({
         url: "https://www.instagram.com/reel/ABC123/",
         alwaysProxy: true,
