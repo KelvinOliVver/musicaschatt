@@ -931,3 +931,48 @@
   .music-player-stage .social-stage--instagram .instagram-layout-picker { max-width: calc(100% - 12px); }
   .music-player-stage .social-stage--instagram .instagram-framing-settings { right: 6px; bottom: 50px; }
 }
+
+/* 2026-11 auto-fit: position the trusted Instagram embed inside a crop built
+   from the detected MEDIA dimensions, never from an assumed square thumbnail.
+   The iframe itself remains mounted during resizing and cinema transitions.
+   At 350px native iframe width the media is approximately 300px wide.
+   Its 54px header and the post footer remain beyond the overflow viewport. */
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-auto-cropped,
+.music-shell.is-theater-shell .music-player-stage .social-stage--instagram .instagram-reel-window.is-auto-cropped {
+  position: relative;
+  flex: 0 0 auto;
+  display: block;
+  width: var(--ig-auto-width);
+  height: var(--ig-auto-height);
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  aspect-ratio: auto;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #08080a;
+}
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-auto-cropped > .social-stage-frame,
+.music-shell.is-theater-shell .music-player-stage .social-stage--instagram .instagram-reel-window.is-auto-cropped > .social-stage-frame {
+  position: absolute;
+  display: block;
+  box-sizing: border-box;
+  top: var(--ig-auto-top);
+  left: var(--ig-auto-left);
+  width: 350px;
+  height: 1200px;
+  min-width: 350px;
+  max-width: none;
+  min-height: 1200px;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  transform: scale(var(--ig-auto-scale));
+  transform-origin: top left;
+}
+@media (max-width: 767px) {
+  .music-player-stage .social-stage--instagram .instagram-reel-window.is-auto-cropped {
+    max-width: 100%;
+  }
+}

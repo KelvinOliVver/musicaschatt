@@ -38,5 +38,8 @@ jobs:
       - name: Test automatic Instagram orientation
         run: bun test src/lib/instagram-auto-fit.test.ts
 
+      - name: Test responsive Instagram video auto-fit
+        run: bun test src/lib/instagram-video-fit.test.ts
+
       - name: Build production app
         run: bun run build

@@ -2,15 +2,10 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { RotateCcw, SlidersHorizontal, Volume2 } from "lucide-react";
 import { createWorkerTicker, type StageControls } from "@/components/YouTubeStage";
 import { socialEmbedUrl, sourceLabel } from "@/lib/social-video";
-import {
-  inferInstagramLayoutFromImage,
-  instagramPublicPreviewUrls,
-  type InferredInstagramLayout,
-} from "@/lib/instagram-auto-fit";
+import { getInstagramVideoDimensions } from "@/lib/instagram-video-fit.functions";
+import { getInstagramAutoCrop, type InstagramVideoSize } from "@/lib/instagram-video-fit";
 import {
   DEFAULT_INSTAGRAM_FRAMING,
-  decodeInstagramFraming,
-  instagramFramingKey,
   normalizeInstagramFraming,
   type InstagramFraming,
   type InstagramLayout,
@@ -23,15 +18,6 @@ const instagramLayouts: { value: InstagramLayout; label: string }[] = [
   { value: "standard", label: "4:3" },
   { value: "full", label: "Post completo" },
 ];
-
-function getSavedInstagramFraming(trackId: string): InstagramFraming {
-  if (typeof window === "undefined") return { ...DEFAULT_INSTAGRAM_FRAMING };
-  try {
-    return decodeInstagramFraming(window.sessionStorage.getItem(instagramFramingKey(trackId)));
-  } catch {
-    return { ...DEFAULT_INSTAGRAM_FRAMING };
-  }
-}
 
 interface SocialStageProps {
   source: "instagram" | "tiktok";
@@ -59,6 +45,7 @@ export function SocialStage({
   source, trackId, originalUrl, muted, onMuteChange, paused, onEnded, onProgress, controlsRef,
 }: SocialStageProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const elapsedRef = useRef(0);
   const durationRef = useRef(0);
   const lastTickRef = useRef(Date.now());
@@ -79,76 +66,80 @@ export function SocialStage({
   const [showFramingSettings, setShowFramingSettings] = useState(false);
   // Until an actual preview is available, show the complete native embed.
   // Guessing a portrait crop would hide landscape Reels.
-  const [autoLayout, setAutoLayout] = useState<InferredInstagramLayout>("full");
+  const [autoSize, setAutoSize] = useState<InstagramVideoSize | null>(null);
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    setFraming(getSavedInstagramFraming(trackId));
+    // Every new request starts in Auto, never inherits a possibly incorrect
+    // manual crop left in sessionStorage by older releases.
+    setFraming({ ...DEFAULT_INSTAGRAM_FRAMING });
+    setAutoSize(null);
     setShowFramingSettings(false);
   }, [trackId]);
+
+  useEffect(() => {
+    if (source !== "instagram" || !stageRef.current) return;
+    const node = stageRef.current;
+    const measure = () => {
+      const rect = node.getBoundingClientRect();
+      setStageSize((previous) => {
+        const width = Math.round(rect.width);
+        const height = Math.round(rect.height);
+        return previous.width === width && previous.height === height
+          ? previous : { width, height };
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [source]);
 
   useEffect(() => {
     if (source !== "instagram" || framing.layout !== "auto") return;
 
     let disposed = false;
-    let photo: HTMLImageElement | null = null;
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    const previews = instagramPublicPreviewUrls(trackId);
-    let nextPreview = 0;
-    setAutoLayout("full");
+    setAutoSize(null);
 
-    function tryPreview() {
-      if (photo) {
-        photo.onload = null;
-        photo.onerror = null;
-      }
-      if (timeout !== null) clearTimeout(timeout);
-      if (disposed) return;
-      const src = previews[nextPreview++];
-      if (!src) return; // Safe native post fallback, never a forced crop.
+    // IMPORTANT: never derive video geometry from a cover image. Instagram
+    // often publishes portrait/square covers for LANDSCAPE Reels. This was
+    // the cause of clips being cropped off-screen in previous versions.
+    const kind = originalUrl?.includes("/tv/") ? "tv"
+      : originalUrl?.includes("/p/") ? "p" : "reel";
+    void getInstagramVideoDimensions({ data: { trackId, kind } })
+      .then((size) => {
+        if (!disposed) setAutoSize(size);
+      })
+      .catch(() => {
+        if (!disposed) setAutoSize(null);
+      });
 
-      const image = new Image();
-      photo = image;
-      let settled = false;
-      const complete = (layout: InferredInstagramLayout | null) => {
-        if (disposed || settled) return;
-        settled = true;
-        if (timeout !== null) clearTimeout(timeout);
-        if (layout && layout !== "full") setAutoLayout(layout);
-        else tryPreview();
-      };
+    return () => { disposed = true; };
+  }, [source, trackId, originalUrl, framing.layout]);
 
-      image.onload = () => {
-        complete(inferInstagramLayoutFromImage(image.naturalWidth, image.naturalHeight));
-      };
-      image.onerror = () => complete(null);
-      timeout = setTimeout(() => complete(null), 2200);
-      image.src = src;
-    }
-
-    tryPreview();
-    return () => {
-      disposed = true;
-      if (timeout !== null) clearTimeout(timeout);
-      if (photo) {
-        photo.onload = null;
-        photo.onerror = null;
-      }
-    };
-  }, [source, trackId, framing.layout]);
-
-  const effectiveLayout = framing.layout === "auto" ? autoLayout : framing.layout;
+  const autoCrop = framing.layout === "auto"
+    ? getInstagramAutoCrop(stageSize.width, stageSize.height, autoSize)
+    : null;
+  // If neither real metadata nor a credible preview is accessible, preserve
+  // the ENTIRE embed. A fabricated 9:16 crop would cut horizontal videos.
+  const effectiveLayout = framing.layout === "auto"
+    ? (autoCrop ? "auto-cropped" : "full")
+    : framing.layout;
 
   function updateInstagramFraming(patch: Partial<InstagramFraming>) {
     const updated = normalizeInstagramFraming({ ...framing, ...patch });
     setFraming(updated);
-    try { window.sessionStorage.setItem(instagramFramingKey(trackId), JSON.stringify(updated)); }
-    catch { /* Crop persistence is optional. */ }
     if (updated.layout === "full") setShowFramingSettings(false);
   }
 
   const instagramFrameStyle = {
     "--instagram-user-zoom": String(framing.zoom / 100),
     "--instagram-shift-y": `${framing.verticalOffset}px`,
+    "--ig-auto-width": `${autoCrop?.width ?? 0}px`,
+    "--ig-auto-height": `${autoCrop?.height ?? 0}px`,
+    "--ig-auto-scale": String(autoCrop?.scale ?? 1),
+    "--ig-auto-left": `${autoCrop?.iframeLeft ?? 0}px`,
+    "--ig-auto-top": `${autoCrop?.iframeTop ?? 0}px`,
   } as CSSProperties;
 
   pausedRef.current = paused;
@@ -283,7 +274,7 @@ export function SocialStage({
   );
 
   return (
-    <div className={`social-stage social-stage--${source} relative flex aspect-video w-full items-center justify-center overflow-hidden bg-media-background`}>
+    <div ref={stageRef} className={`social-stage social-stage--${source} relative flex aspect-video w-full items-center justify-center overflow-hidden bg-media-background`}>
       {source === "instagram" ? (
         <div className={`instagram-reel-window is-${effectiveLayout}`} style={instagramFrameStyle}>
           {embedFrame}
