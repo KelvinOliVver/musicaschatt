@@ -15,6 +15,7 @@ USER node
 COPY --chown=node:node --chmod=755 infra/cobalt/entrypoint.sh /app/music-chat-entrypoint.sh
 COPY --chown=node:node infra/cobalt/gateway.mjs /app/music-chat-gateway.mjs
 COPY --chown=node:node infra/cobalt/yt-dlp.mjs /app/music-chat-yt-dlp.mjs
+COPY --chown=node:node infra/cobalt/ig-graphql.mjs /app/music-chat-ig-graphql.mjs
 
 # Render's default public port; API_PORT is assigned in the entrypoint.
 EXPOSE 10000
