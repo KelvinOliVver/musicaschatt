@@ -145,7 +145,7 @@ export function QueueList({
           </div>
         ) : (
           <ScrollArea className="min-h-0 flex-1">
-            <ol className="space-y-1.5 p-2">
+            <ol className="space-y-1 p-2">
               {items.map((item, index) => {
                 const isNext = index === 0;
                 // The database sorts VIP tracks ahead of normal tracks.
@@ -159,7 +159,7 @@ export function QueueList({
                 return (
                   <li
                     key={item.id}
-                    className={`music-queue-row group relative flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-3 transition-all duration-200 hover:-translate-y-px hover:bg-accent/35 ${
+                    className={`music-queue-row group relative flex items-center gap-2.5 overflow-hidden rounded-lg border px-2.5 py-2.5 transition-colors duration-150 hover:bg-accent/30 ${
                       isExiting
                         ? "pointer-events-none translate-x-1 opacity-0"
                         : isMounted
@@ -167,13 +167,13 @@ export function QueueList({
                           : "translate-y-1 opacity-0"
                     } ${
                       isNext
-                        ? "border-primary/30 bg-primary/[0.08] shadow-sm shadow-primary/10"
-                        : "border-border/60 bg-background/10"
+                        ? "border-primary/25 bg-primary/[0.07] shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.06)]"
+                        : "border-transparent bg-background/10 hover:border-border/60"
                     } ${isOwnRequest ? "ring-1 ring-inset ring-primary/40" : ""}`}
                   >
                     {isNext && (
                       <span
-                        className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary shadow-[0_0_10px_var(--primary)] transition-all duration-200 group-hover:inset-y-1"
+                        className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-primary"
                         aria-hidden
                       />
                     )}
@@ -191,7 +191,7 @@ export function QueueList({
                     </span>
 
                     <div
-                      className={`queue-artwork relative size-11 shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-inset transition-all duration-200 group-hover:scale-[1.02] ${
+                      className={`queue-artwork relative size-11 shrink-0 overflow-hidden rounded-lg bg-[#111115] ring-1 ring-inset transition-all duration-200 ${
                         isNext ? "ring-primary/20" : "ring-border"
                       }`}
                     >
@@ -203,9 +203,20 @@ export function QueueList({
                           className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
                         />
                       ) : (
-                        <div className="flex size-full animate-pulse items-center justify-center bg-muted-foreground/10">
-                          <Music2 className="size-4 text-muted-foreground" aria-hidden />
+                        <div className={`flex size-full items-center justify-center ${
+                          item.source === "instagram"
+                            ? "bg-gradient-to-br from-fuchsia-900/50 via-[#221325] to-rose-900/40"
+                            : item.source === "tiktok"
+                              ? "bg-gradient-to-br from-cyan-950/60 via-[#101014] to-rose-950/50"
+                              : "bg-muted/40"
+                        }`}>
+                          <SourceIcon source={item.source} className="size-5" />
                         </div>
+                      )}
+                      {item.thumbnail && (
+                        <span className="absolute bottom-0 right-0 flex size-5 items-center justify-center rounded-tl-md bg-black/85 ring-1 ring-white/10">
+                          <SourceIcon source={item.source} className="size-3" />
+                        </span>
                       )}
                     </div>
 
@@ -229,8 +240,8 @@ export function QueueList({
                           <div className="h-4 w-3/4 animate-pulse rounded bg-muted-foreground/15" />
                         )}
                       </div>
-                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                        <SourceIcon source={item.source} className="size-3 transition-transform duration-200 group-hover:scale-110" />
+                      <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden">
+                        <SourceIcon source={item.source} className="size-3 shrink-0" />
                         <span
                           className={`truncate text-xs ${isOwnRequest ? "font-semibold text-primary" : "text-muted-foreground"}`}
                           style={!isOwnRequest && item.requesterColor ? { color: item.requesterColor } : undefined}
@@ -243,13 +254,13 @@ export function QueueList({
                       </div>
                     </div>
 
-                    <div className="queue-actions flex shrink-0 items-center">
+                    <div className="queue-actions flex shrink-0 items-center gap-0.5">
                       {onMove && (
                         <div className="flex flex-col">
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="size-4 transition-all duration-150 hover:bg-accent hover:text-foreground active:scale-90"
+                            className="size-5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                             disabled={!canMoveUp}
                             onClick={() => onMove(item.id, index - 1)}
                             aria-label={`Subir na fila: ${item.title ?? item.trackId}`}
@@ -259,7 +270,7 @@ export function QueueList({
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="size-4 transition-all duration-150 hover:bg-accent hover:text-foreground active:scale-90"
+                            className="size-5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                             disabled={!canMoveDown}
                             onClick={() => onMove(item.id, index + 1)}
                             aria-label={`Descer na fila: ${item.title ?? item.trackId}`}
@@ -271,7 +282,7 @@ export function QueueList({
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="size-8 transition-all duration-200 hover:-translate-y-px hover:bg-primary/10 hover:text-primary active:scale-90"
+                        className="size-8 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                         onClick={() => onPlayNow(item.id)}
                         aria-label={`Tocar agora: ${item.title ?? item.trackId}`}
                       >
@@ -280,7 +291,7 @@ export function QueueList({
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="size-8 text-muted-foreground transition-all duration-200 hover:-translate-y-px hover:bg-destructive/10 hover:text-destructive active:scale-90"
+                        className="size-8 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => handleRemove(item.id)}
                         aria-label={`Remover da fila: ${item.title ?? item.trackId}`}
                       >
@@ -330,9 +341,16 @@ export function QueueList({
                             className="size-full object-cover"
                           />
                         ) : (
-                          <div className="flex size-full items-center justify-center">
-                            <Music2 className="size-3 text-muted-foreground" aria-hidden />
+                          <div className={`flex size-full items-center justify-center ${
+                            item.source === "instagram" ? "bg-fuchsia-950/40" : item.source === "tiktok" ? "bg-cyan-950/30" : "bg-muted/40"
+                          }`}>
+                            <SourceIcon source={item.source} className="size-4" />
                           </div>
+                        )}
+                        {item.thumbnail && (
+                          <span className="absolute bottom-0 right-0 flex size-3.5 items-center justify-center rounded-tl bg-black/85">
+                            <SourceIcon source={item.source} className="size-2.5" />
+                          </span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
