@@ -176,7 +176,7 @@ export function YouTubeStage({
         cancelHiddenAdvance = null;
       }
       if (document.visibilityState !== "hidden" || pausedRef.current) return;
-      if (playerRef.current?.getPlayerState?.() !== window.YT.PlayerState.PLAYING) return;
+      if (!window.YT?.PlayerState || playerRef.current?.getPlayerState?.() !== window.YT.PlayerState.PLAYING) return;
       if (!playerRef.current?.getCurrentTime) return;
 
       try {
