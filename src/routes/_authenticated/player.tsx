@@ -91,6 +91,7 @@ function PlayerPage() {
   const joinedAtRef = useRef<string>(new Date().toISOString());
 
   const hostPausedRef = useRef(false);
+  const [hostCommandPaused, setHostCommandPaused] = useState<boolean | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
   const [theaterMode, setTheaterMode] = useState(false);
@@ -124,7 +125,10 @@ function PlayerPage() {
   // not from the first (potentially untrusted) Presence participant.
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
-  useEffect(() => { hostPausedRef.current = queue.current?.isPaused ?? false; }, [queue.current?.id]);
+  useEffect(() => {
+    hostPausedRef.current = queue.current?.isPaused ?? false;
+    setHostCommandPaused(null);
+  }, [queue.current?.id]);
 
   // Only the elected host auto-starts the first queued request. Previously
   // every listener could call the queue RPC and skip songs during a reconnect.
@@ -243,6 +247,7 @@ function PlayerPage() {
       } else if (command === "!pausar" || command === "!continuar") {
         const paused = command === "!pausar";
         hostPausedRef.current = paused;
+        setHostCommandPaused(paused);
         const item = queue.current;
         if (item) {
           const seconds = playerControlsRef.current?.getCurrentTime() ?? item.playbackPosition;
@@ -437,7 +442,7 @@ function PlayerPage() {
             onNext={handlePlayNext}
             onPrevious={handlePlayPrevious}
             remoteSeek={isHost ? null : (queue.current?.playbackPosition ?? null)}
-            remotePaused={isHost ? null : (queue.current?.isPaused ?? null)}
+            remotePaused={isHost ? hostCommandPaused : (queue.current?.isPaused ?? null)}
             onSeekChange={handleSeekBroadcast}
             onTogglePlayChange={handleTogglePlayBroadcast}
             onPlaybackHeartbeat={handlePlaybackHeartbeat}
