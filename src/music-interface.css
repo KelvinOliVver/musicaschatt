@@ -790,7 +790,7 @@
 }
 .music-player-stage .social-stage--instagram .instagram-reel-window.is-portrait > .social-stage-frame {
   position: absolute;
-  top: calc(-1 * var(--instagram-header-cut) * var(--instagram-iframe-scale));
+  top: calc(-1 * var(--instagram-header-cut) * var(--instagram-iframe-scale) + var(--instagram-shift-y, 0px));
   left: 50%;
   display: block;
   width: calc(100% + 18px);
@@ -799,21 +799,27 @@
   min-height: 0;
   margin: 0;
   border: 0;
-  transform: translateX(-50%) scale(var(--instagram-iframe-scale));
+  transform: translateX(-50%) scale(calc(var(--instagram-iframe-scale) * var(--instagram-user-zoom, 1)));
   transform-origin: top center;
 }
-/* Horizontal: never apply the portrait zoom. Show the full media width and
-   use a 4:3 viewing window (safer for both 4:3 and 16:9 Instagram videos). */
-.music-player-stage .social-stage--instagram .instagram-reel-window.is-landscape {
+/* Landscape choices: 16:9 for wider clips and 4:3 for older/squarer clips.
+   They share the same iframe; only the crop changes, without reloading. */
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-landscape,
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-standard {
   --instagram-header-cut: 54px;
-  width: min(100%, 760px);
+  width: min(100%, 800px);
   height: auto;
+  aspect-ratio: 16 / 9;
+}
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-standard {
+  width: min(100%, 760px);
   aspect-ratio: 4 / 3;
 }
-.music-player-stage .social-stage--instagram .instagram-reel-window.is-landscape > .social-stage-frame {
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-landscape > .social-stage-frame,
+.music-player-stage .social-stage--instagram .instagram-reel-window.is-standard > .social-stage-frame {
   position: absolute;
-  top: calc(-1 * var(--instagram-header-cut));
-  left: 0;
+  top: calc(-1 * var(--instagram-header-cut) + var(--instagram-shift-y, 0px));
+  left: 50%;
   display: block;
   width: 100%;
   max-width: none;
@@ -821,7 +827,8 @@
   min-height: 0;
   margin: 0;
   border: 0;
-  transform: none;
+  transform: translateX(-50%) scale(var(--instagram-user-zoom, 1));
+  transform-origin: top center;
 }
 /* Full-post fallback for videos whose native embed uses a different layout. */
 .music-player-stage .social-stage--instagram .instagram-reel-window.is-full {
@@ -875,7 +882,8 @@
     --instagram-header-cut: 46px;
     width: min(100%, 460px, calc(clamp(390px, 72svh, 740px) * 9 / 16));
   }
-  .music-player-stage .social-stage--instagram .instagram-reel-window.is-landscape {
+  .music-player-stage .social-stage--instagram .instagram-reel-window.is-landscape,
+  .music-player-stage .social-stage--instagram .instagram-reel-window.is-standard {
     --instagram-header-cut: 46px;
     width: 100%;
   }
@@ -886,6 +894,9 @@
     width: min(100%, 460px, calc((100svh - var(--cinema-reserved-height)) * 9 / 16));
   }
   .music-shell.is-theater-shell .music-player-stage .social-stage--instagram .instagram-reel-window.is-landscape {
+    width: min(100%, calc((100svh - var(--cinema-reserved-height)) * 16 / 9));
+  }
+  .music-shell.is-theater-shell .music-player-stage .social-stage--instagram .instagram-reel-window.is-standard {
     width: min(100%, calc((100svh - var(--cinema-reserved-height)) * 4 / 3));
   }
   .music-player-stage .social-stage--instagram .instagram-layout-picker {
@@ -895,4 +906,24 @@
     padding: 6px 7px;
     font-size: 10px;
   }
+}
+
+/* Reel adjustment panel is scoped to the Instagram embed only. */
+.music-player-stage .social-stage--instagram .instagram-framing-settings {
+  backdrop-filter: blur(12px);
+  max-height: min(290px, 60svh);
+  overflow-y: auto;
+}
+.music-player-stage .social-stage--instagram .instagram-framing-slider {
+  display: block;
+  height: 18px;
+  cursor: pointer;
+}
+.music-player-stage .social-stage--instagram .instagram-layout-option:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+@media (max-width: 767px) {
+  .music-player-stage .social-stage--instagram .instagram-layout-picker { max-width: calc(100% - 12px); }
+  .music-player-stage .social-stage--instagram .instagram-framing-settings { right: 6px; bottom: 50px; }
 }
