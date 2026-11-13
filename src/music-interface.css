@@ -1305,7 +1305,7 @@
 .music-shell.is-obs-shell .music-player-stage .social-stage {
   background: #000 !important;
 }
-.music-shell.is-obs-shell .music-player-stage .social-stage-frame {
+.music-shell.is-obs-shell .music-player-stage .social-stage--tiktok .social-stage-frame {
   height: 100% !important;
   width: min(100%, calc(100svh * 9 / 16)) !important;
   max-width: 100% !important;
