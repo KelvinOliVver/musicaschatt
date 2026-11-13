@@ -248,8 +248,6 @@ function PlayerPage() {
             username: profileName ?? getFriendlyListenerName(clientIdRef.current),
             avatarUrl: profileAvatarUrl,
             joined_at: joinedAtRef.current,
-      isAdmin: isAdministrator,
-      obsMode,
             isAdmin: isAdministrator,
             obsMode,
           });
@@ -270,6 +268,8 @@ function PlayerPage() {
       username: profileName ?? getFriendlyListenerName(clientIdRef.current),
       avatarUrl: profileAvatarUrl,
       joined_at: joinedAtRef.current,
+      isAdmin: isAdministrator,
+      obsMode,
     });
   }, [profileName, profileAvatarUrl, isAdministrator, roleLoaded, obsMode]);
 
