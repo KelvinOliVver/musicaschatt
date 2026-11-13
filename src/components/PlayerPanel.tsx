@@ -320,6 +320,7 @@ export function PlayerPanel({
                     trackId={current.trackId}
                     originalUrl={current.url}
                     muted={muted}
+                    volume={volume}
                     onMuteChange={setMuted}
                     paused={paused}
                     onEnded={() => { if (isHost) onNext(); }}
