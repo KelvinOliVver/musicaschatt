@@ -2,7 +2,7 @@
  * This view-only preference lets streamers correct cropping without reloading
  * playback or attempting to access Instagram's iframe contents.
  */
-export type InstagramLayout = "portrait" | "landscape" | "standard" | "full";
+export type InstagramLayout = "auto" | "portrait" | "landscape" | "standard" | "full";
 
 export interface InstagramFraming {
   layout: InstagramLayout;
@@ -13,7 +13,7 @@ export interface InstagramFraming {
 }
 
 export const DEFAULT_INSTAGRAM_FRAMING: InstagramFraming = {
-  layout: "portrait",
+  layout: "auto",
   zoom: 100,
   verticalOffset: 0,
 };
@@ -27,7 +27,7 @@ export function normalizeInstagramFraming(value: unknown): InstagramFraming {
   if (!value || typeof value !== "object") return { ...DEFAULT_INSTAGRAM_FRAMING };
   const entry = value as Record<string, unknown>;
   return {
-    layout: entry.layout === "portrait" || entry.layout === "landscape" || entry.layout === "standard" || entry.layout === "full"
+    layout: entry.layout === "auto" || entry.layout === "portrait" || entry.layout === "landscape" || entry.layout === "standard" || entry.layout === "full"
       ? entry.layout
       : DEFAULT_INSTAGRAM_FRAMING.layout,
     zoom: clampFinite(entry.zoom, DEFAULT_INSTAGRAM_FRAMING.zoom, 75, 160),
@@ -45,5 +45,6 @@ export function decodeInstagramFraming(serialized: string | null, legacyLayout?:
 }
 
 export function instagramFramingKey(trackId: string): string {
-  return `music-chat-reel-framing:${trackId}`;
+  // Versioned to make Auto the default even for browsers with saved manual crops.
+  return `music-chat-reel-auto-v2:${trackId}`;
 }
