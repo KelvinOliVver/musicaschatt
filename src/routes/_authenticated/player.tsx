@@ -23,6 +23,7 @@ import { useDominantColor } from "@/hooks/use-dominant-color";
 import { supabase } from "@/integrations/supabase/client";
 import type { KickChatMessage } from "@/lib/types";
 import type { StageControls } from "@/components/YouTubeStage";
+import { parsePlaybackSync, shouldAcceptPlaybackSync, type PlaybackSyncState } from "@/lib/player-sync";
 
 const DEFAULT_CHANNEL = "roceiraplay";
 
@@ -100,8 +101,14 @@ function PlayerPage() {
   const clientIdRef = useRef<string>(crypto.randomUUID());
   const joinedAtRef = useRef<string>(new Date().toISOString());
 
-  const [remoteSeek, setRemoteSeek] = useState<number | null>(null);
-  const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
+  const [remoteSync, setRemoteSync] = useState<PlaybackSyncState | null>(null);
+  const lastReceivedSyncRef = useRef<PlaybackSyncState | null>(null);
+  const syncSequenceRef = useRef(0);
+  const playbackStateRef = useRef({ time: 0, paused: false, volume: 70, muted: false });
+  const currentTrackIdRef = useRef<string | null>(null);
+  currentTrackIdRef.current = queue.current?.id ?? null;
+  const hostIdRef = useRef<string | null>(null);
+  const lastSyncRequestRef = useRef(0);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [isAdministrator, setIsAdministrator] = useState(false);
   const [roleLoaded, setRoleLoaded] = useState(false);
@@ -158,6 +165,7 @@ function PlayerPage() {
     return sorted[0]?.clientId ?? null;
   }, [onlineUsers]);
 
+  hostIdRef.current = hostClientId;
   const isHost = roleLoaded && isAdministrator && !obsMode && hostClientId === clientIdRef.current;
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
@@ -191,13 +199,32 @@ function PlayerPage() {
     return set.size;
   }, [queue.queue, queue.history]);
 
-  const broadcast = useCallback((action: string, data?: any) => {
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "sync-action",
-      payload: { action, ...data },
-    });
+  // One authoritative snapshot contains track, position, pause, volume and mute.
+  // Never replay a delayed packet onto the next video.
+  const sendPlaybackSync = useCallback((patch: Partial<typeof playbackStateRef.current> = {}) => {
+    if (!isHostRef.current || !currentTrackIdRef.current) return;
+    const state = { ...playbackStateRef.current, ...patch };
+    playbackStateRef.current = state;
+    const packet: PlaybackSyncState = {
+      ...state,
+      trackId: currentTrackIdRef.current,
+      senderId: clientIdRef.current,
+      sequence: ++syncSequenceRef.current,
+      sentAt: Date.now(),
+    };
+    void channelRef.current?.send({ type: "broadcast", event: "sync-state", payload: packet });
   }, []);
+
+  useEffect(() => {
+    const current = queue.current;
+    playbackStateRef.current = {
+      ...playbackStateRef.current,
+      time: current?.playbackPosition ?? 0,
+      paused: current?.isPaused ?? false,
+    };
+    lastReceivedSyncRef.current = null;
+    setRemoteSync(null);
+  }, [queue.current?.id]);
 
   useEffect(() => {
     const channel = supabase.channel(`player-room-${slug}`, {
@@ -208,18 +235,18 @@ function PlayerPage() {
     });
 
     channel
-      .on("broadcast", { event: "sync-action" }, ({ payload }) => {
-        switch (payload.action) {
-          case "SEEK":
-            setRemoteSeek(payload.time + Math.random() * 0.0001);
-            break;
-          case "TOGGLE_PLAY":
-            setRemotePaused(payload.paused);
-            break;
-          case "HEARTBEAT":
-            setRemoteSeek(payload.time + Math.random() * 0.0001);
-            break;
-        }
+      .on("broadcast", { event: "sync-state" }, ({ payload }) => {
+        const packet = parsePlaybackSync(payload);
+        if (!packet || !shouldAcceptPlaybackSync(
+          packet, currentTrackIdRef.current, hostIdRef.current, lastReceivedSyncRef.current
+        )) return;
+        lastReceivedSyncRef.current = packet;
+        setRemoteSync(packet);
+      })
+      .on("broadcast", { event: "sync-request" }, () => {
+        if (isHostRef.current) sendPlaybackSync({
+          time: playerControlsRef.current?.getCurrentTime() ?? playbackStateRef.current.time,
+        });
       })
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
@@ -240,6 +267,13 @@ function PlayerPage() {
         });
 
         setOnlineUsers(users);
+        // On a late join / host failover request an immediate state snapshot.
+        const candidate = users.filter((user) => user.isAdmin && !user.obsMode)
+          .sort((a, b) => a.joined_at.localeCompare(b.joined_at) || a.clientId.localeCompare(b.clientId))[0];
+        if (candidate && candidate.clientId !== clientIdRef.current && Date.now() - lastSyncRequestRef.current > 8000) {
+          lastSyncRequestRef.current = Date.now();
+          void channel.send({ type: "broadcast", event: "sync-request", payload: { from: clientIdRef.current } });
+        }
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
@@ -259,7 +293,7 @@ function PlayerPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [slug]);
+  }, [slug, sendPlaybackSync]);
 
   useEffect(() => {
     if (!roleLoaded || !channelRef.current) return;
@@ -333,18 +367,18 @@ function PlayerPage() {
         toast.info("Voltando para a música anterior pelo chat!");
       } else if (command === "!pausar") {
         setRemotePaused(true);
-        broadcast("TOGGLE_PLAY", { paused: true });
+        sendPlaybackSync({ paused: true });
         toast.info("Pausado pelo comando do chat!");
       } else if (command === "!continuar") {
         setRemotePaused(false);
-        broadcast("TOGGLE_PLAY", { paused: false });
+        sendPlaybackSync({ paused: false });
         toast.info("Retomado pelo comando do chat!");
       } else if (command === "!limpar") {
         queue.clearQueue();
         toast.info("Fila limpa pelo comando do chat!");
       }
     },
-    [queue, broadcast, slug],
+    [queue, sendPlaybackSync, slug],
   );
 
   const chat = useKickChat(slug, handleMessage, handleCommand, () => isHostRef.current);
@@ -438,19 +472,33 @@ function PlayerPage() {
     [queue],
   );
 
-  const handleSeekBroadcast = useCallback((time: number) => { if (isHostRef.current) broadcast("SEEK", { time }); }, [broadcast]);
-  const handleTogglePlayBroadcast = useCallback(
-    (paused: boolean) => { if (isHostRef.current) broadcast("TOGGLE_PLAY", { paused }); },
-    [broadcast],
-  );
+  const handleSeekBroadcast = useCallback((time: number) => {
+    if (isHostRef.current) sendPlaybackSync({ time });
+  }, [sendPlaybackSync]);
+  const handleTogglePlayBroadcast = useCallback((paused: boolean) => {
+    if (isHostRef.current) sendPlaybackSync({
+      paused,
+      time: playerControlsRef.current?.getCurrentTime() ?? playbackStateRef.current.time,
+    });
+  }, [sendPlaybackSync]);
+  const handleVolumeBroadcast = useCallback((volume: number) => {
+    if (isHostRef.current) sendPlaybackSync({ volume });
+  }, [sendPlaybackSync]);
+  const handleMuteBroadcast = useCallback((muted: boolean) => {
+    if (isHostRef.current) sendPlaybackSync({ muted });
+  }, [sendPlaybackSync]);
 
   const handlePlaybackHeartbeat = useCallback(
-    (position: number, paused: boolean, duration?: number) => {
+    (position: number, paused: boolean, duration?: number, volume?: number, muted?: boolean) => {
       if (!queue.current || !isHostRef.current) return;
       queue.updatePlaybackHeartbeat(queue.current.id, position, paused, duration);
-      broadcast("HEARTBEAT", { time: position });
+      sendPlaybackSync({
+        time: position, paused,
+        ...(typeof volume === "number" ? { volume } : {}),
+        ...(typeof muted === "boolean" ? { muted } : {}),
+      });
     },
-    [queue, broadcast],
+    [queue, sendPlaybackSync],
   );
 
   return (
@@ -648,10 +696,11 @@ function PlayerPage() {
             onNext={handlePlayNext}
             onAutomaticNext={handleAutomaticNext}
             onPrevious={handlePlayPrevious}
-            remoteSeek={remoteSeek}
-            remotePaused={remotePaused}
+            remoteSync={remoteSync}
             onSeekChange={handleSeekBroadcast}
             onTogglePlayChange={handleTogglePlayBroadcast}
+            onVolumeChange={handleVolumeBroadcast}
+            onMuteChange={handleMuteBroadcast}
             onPlaybackHeartbeat={handlePlaybackHeartbeat}
             onPlayingStateChange={setIsCurrentlyPlaying}
             controlsRef={playerControlsRef}
