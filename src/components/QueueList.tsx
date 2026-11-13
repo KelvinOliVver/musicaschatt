@@ -149,8 +149,10 @@ export function QueueList({
             <ol className="space-y-1.5 p-2">
               {items.map((item, index) => {
                 const isNext = index === 0;
-                const canMoveUp = Boolean(onMove) && index > 0;
-                const canMoveDown = Boolean(onMove) && index < items.length - 1;
+                // The database sorts VIP tracks ahead of normal tracks.
+                // Crossing the group boundary would not change their actual order.
+                const canMoveUp = Boolean(onMove) && index > 0 && items[index - 1]?.priority === item.priority;
+                const canMoveDown = Boolean(onMove) && index < items.length - 1 && items[index + 1]?.priority === item.priority;
                 const isOwnRequest = item.requestedBy.trim().toLowerCase() === "você";
                 const isExiting = exitingIds.has(item.id);
                 const isMounted = mountedIds.has(item.id);
