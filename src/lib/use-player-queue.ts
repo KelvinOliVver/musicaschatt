@@ -58,6 +58,7 @@ function isHeartbeatOnlyChange(oldRow: QueueRow, newRow: QueueRow): boolean {
     oldRow.priority === newRow.priority &&
     oldRow.position === newRow.position &&
     oldRow.title === newRow.title &&
+    oldRow.is_paused === newRow.is_paused &&
     oldRow.author === newRow.author &&
     oldRow.thumbnail === newRow.thumbnail &&
     oldRow.requested_by === newRow.requested_by &&
