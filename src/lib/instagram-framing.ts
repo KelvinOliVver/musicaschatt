@@ -2,7 +2,7 @@
  * This view-only preference lets streamers correct cropping without reloading
  * playback or attempting to access Instagram's iframe contents.
  */
-export type InstagramLayout = "portrait" | "landscape" | "full";
+export type InstagramLayout = "portrait" | "landscape" | "standard" | "full";
 
 export interface InstagramFraming {
   layout: InstagramLayout;
@@ -27,7 +27,7 @@ export function normalizeInstagramFraming(value: unknown): InstagramFraming {
   if (!value || typeof value !== "object") return { ...DEFAULT_INSTAGRAM_FRAMING };
   const entry = value as Record<string, unknown>;
   return {
-    layout: entry.layout === "portrait" || entry.layout === "landscape" || entry.layout === "full"
+    layout: entry.layout === "portrait" || entry.layout === "landscape" || entry.layout === "standard" || entry.layout === "full"
       ? entry.layout
       : DEFAULT_INSTAGRAM_FRAMING.layout,
     zoom: clampFinite(entry.zoom, DEFAULT_INSTAGRAM_FRAMING.zoom, 75, 160),
