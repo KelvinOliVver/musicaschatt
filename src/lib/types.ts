@@ -36,6 +36,7 @@ export interface KickChatMessage {
   color: string | null;
   /** Kick avatar, when the realtime payload or chatters endpoint provides it. */
   avatarUrl?: string | null;
+  badges?: string[];
   content: string;
   createdAt: string;
   /** Mensagens de controle vindas do streamer, exibidas com estilo próprio no chat. */
