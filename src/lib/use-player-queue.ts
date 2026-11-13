@@ -41,6 +41,7 @@ function toItem(row: QueueRow): QueueItem {
     requesterColor: row.requester_color,
     priority: row.priority,
     addedAt: new Date(row.added_at).getTime(),
+    playedAt: row.played_at ? new Date(row.played_at).getTime() : null,
     position: row.position ?? new Date(row.added_at).getTime(),
     playbackPosition: Number(row.playback_position ?? 0),
     isPaused: row.is_paused ?? false,
