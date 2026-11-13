@@ -280,6 +280,41 @@ server.listen(port, "0.0.0.0", () => {
     void resolvePublicInstagramGraphQL("reel", smokeId).then((found) => {
       console.info("instagram_smoke_test=public_graphql result=" + (found ? "ready" : "unavailable"));
     }).catch(() => console.info("instagram_smoke_test=public_graphql result=error"));
+    // Probe Cobalt only after the subprocess is ready (it starts later than
+    // the public listener). Never emit the URL or API key in application logs.
+    setTimeout(async () => {
+      try {
+        const reelUrl = "https://www.instagram.com/reel/" + encodeURIComponent(smokeId) + "/";
+        const response = await fetch(upstream + "/", {
+          method: "POST",
+          headers: {
+            "Authorization": "Api-Key " + cobaltKey,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: reelUrl,
+            downloadMode: "auto",
+            videoQuality: "720",
+            alwaysProxy: true,
+            localProcessing: "disabled",
+          }),
+          redirect: "error",
+          signal: AbortSignal.timeout(9000),
+        });
+        if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) {
+          console.info("instagram_smoke_test=cobalt result=unavailable http=" + response.status);
+          return;
+        }
+        const json = await response.json();
+        const validMedia = (json?.status === "tunnel" || json?.status === "redirect")
+          && Boolean(acceptableVideoUrl(json.url));
+        console.info("instagram_smoke_test=cobalt result=" + (validMedia ? "ready" : "unavailable")
+          + " api_status=" + String(json?.status || "missing").replace(/[^a-z_]/gi, "").slice(0, 30));
+      } catch {
+        console.info("instagram_smoke_test=cobalt result=error");
+      }
+    }, 18000).unref();
   }
 });
 
