@@ -36,6 +36,7 @@ export function SocialStage({
   const onEndedRef = useRef(onEnded);
   const onProgressRef = useRef(onProgress);
   const [playerError, setPlayerError] = useState(false);
+  const [showFullInstagramPost, setShowFullInstagramPost] = useState(false);
 
   pausedRef.current = paused;
   mutedRef.current = muted;
@@ -149,16 +150,29 @@ export function SocialStage({
 
   return (
     <div className={`social-stage social-stage--${source} relative flex aspect-video w-full items-center justify-center overflow-hidden bg-media-background`}>
-      <iframe
-        ref={iframeRef}
-        src={socialEmbedUrl(source, trackId, originalUrl)}
-        title={`Reproduzir vídeo do ${sourceLabel(source)}`}
-        className="social-stage-frame relative z-[1] border-0"
-        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-        allowFullScreen
-        scrolling="no"
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
+      <div className={source === "instagram" ? `instagram-reel-window${showFullInstagramPost ? " is-full-post" : " is-video-only"}` : "social-embed-window"}>
+        <iframe
+          ref={iframeRef}
+          src={socialEmbedUrl(source, trackId, originalUrl)}
+          title={`Reproduzir vídeo do ${sourceLabel(source)}`}
+          className="social-stage-frame relative z-[1] border-0"
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowFullScreen
+          scrolling="no"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
+      {source === "instagram" && (
+        <button
+          type="button"
+          className="instagram-view-toggle absolute bottom-2 right-2 z-20 rounded-sm border border-white/20 bg-black/80 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          onClick={() => setShowFullInstagramPost((full) => !full)}
+          aria-pressed={showFullInstagramPost}
+          title={showFullInstagramPost ? "Mostrar apenas o vídeo do Instagram" : "Mostrar a publicação inteira do Instagram"}
+        >
+          {showFullInstagramPost ? "Só vídeo" : "Ver post completo"}
+        </button>
+      )
       {playerError && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-media-background/95 px-6 text-center">
           <p className="text-sm font-semibold text-foreground">Este vídeo não pôde ser reproduzido aqui.</p>
