@@ -17,6 +17,8 @@ export interface QueueItem {
   /** True when the requester is on the priority (VIP) list. */
   priority: boolean;
   addedAt: number;
+  /** When playback finished, used by the history timeline. */
+  playedAt?: number | null;
   /** Posição fracionária usada para ordenar/reordenar a fila. */
   position: number;
   /** Última posição de playback gravada pelo host (segundos). */
