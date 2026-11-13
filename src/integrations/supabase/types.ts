@@ -24,12 +24,12 @@ export type Database = {
         Insert: {
           chat_cooldown_seconds?: number
           blocked_usernames?: string[]
-          blocked_usernames?: string[]
           id?: number
           updated_at?: string
         }
         Update: {
           chat_cooldown_seconds?: number
+          blocked_usernames?: string[]
           id?: number
           updated_at?: string
         }
