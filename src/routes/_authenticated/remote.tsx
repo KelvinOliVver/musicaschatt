@@ -18,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/remote")({
 
 function RemotePage() {
   const queue = usePlayerQueue();
+  const channelSlug = typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("channel") ?? "roceiraplay").toLowerCase().replace(/[^a-z0-9_-]/g, "") : "roceiraplay";
   const { settings, updateBlockedUsernames } = useAppSettings();
   const { preferences, updatePreferences } = useStreamerPreferences();
   const [connected, setConnected] = useState(false);
@@ -26,11 +27,11 @@ function RemotePage() {
   const [nick, setNick] = useState("");
   useEffect(() => setVolume(settings.obsVolume), [settings.obsVolume]);
   useEffect(() => {
-    const room = supabase.channel("player-room-roceiraplay");
+    const room = supabase.channel(`player-room-${channelSlug}`);
     room.subscribe((status) => setConnected(status === "SUBSCRIBED"));
     setChannel(room);
     return () => { setChannel(null); void supabase.removeChannel(room); };
-  }, []);
+  }, [channelSlug]);
   const send = async (action: string, value?: number) => {
     if (!channel || !connected) { toast.error("Controle desconectado. Verifique o painel principal."); return; }
     const status = await channel.send({ type: "broadcast", event: "remote-command", payload: { action, value } });
