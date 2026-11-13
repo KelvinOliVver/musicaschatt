@@ -91,6 +91,8 @@ export function PlayerPanel({
   onPlaybackHeartbeat,
   onPlayingStateChange,
   controlsRef: externalControlsRef,
+  theaterMode = false,
+  onToggleTheaterMode,
 }: PlayerPanelProps) {
   const [volume, setVolume] = useState(() => {
     if (typeof window === "undefined") return 70;
