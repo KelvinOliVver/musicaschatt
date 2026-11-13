@@ -35,6 +35,7 @@ interface PlayerPanelProps {
   hasNext: boolean;
   isHost?: boolean;
   onNext: () => void;
+  onAutomaticNext?: () => void;
   onPrevious: () => void;
   remoteSeek?: number | null;
   remotePaused?: boolean | null;
@@ -82,6 +83,7 @@ export function PlayerPanel({
   hasNext,
   isHost = true,
   onNext,
+  onAutomaticNext,
   onPrevious,
   remoteSeek,
   remotePaused,
@@ -163,11 +165,11 @@ export function PlayerPanel({
   useEffect(() => {
     function handleVisibilityChange() {
       if (!isHost) return;
-      if (document.visibilityState === "visible" && current && progress.duration > 0 && progress.current >= progress.duration - 1) onNext();
+      if (document.visibilityState === "visible" && current && progress.duration > 0 && progress.current >= progress.duration - 1) (onAutomaticNext ?? onNext)();
     }
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [current, progress, onNext, isHost]);
+  }, [current, progress, onNext, onAutomaticNext, isHost]);
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
@@ -323,7 +325,7 @@ export function PlayerPanel({
                     muted={muted}
                     volume={volume}
                     paused={paused}
-                    onEnded={() => { if (isHost) onNext(); }}
+                    onEnded={() => { if (isHost) (onAutomaticNext ?? onNext)(); }}
                     onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
                     onPlayingChange={(playing) => {
                       const newPaused = !playing;
@@ -343,7 +345,7 @@ export function PlayerPanel({
                     volume={volume}
                     onMuteChange={setMuted}
                     paused={paused}
-                    onEnded={() => { if (isHost) onNext(); }}
+                    onEnded={() => { if (isHost) (onAutomaticNext ?? onNext)(); }}
                     onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
                     onPlayingChange={(playing) => {
                       const newPaused = !playing;
@@ -359,7 +361,7 @@ export function PlayerPanel({
                   volume={volume}
                   muted={muted}
                   paused={paused}
-                  onEnded={() => { if (isHost) onNext(); }}
+                  onEnded={() => { if (isHost) (onAutomaticNext ?? onNext)(); }}
                   onPlayingChange={(playing) => { const newPaused = !playing; setPaused(newPaused); onTogglePlayChange?.(newPaused); }}
                   onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
                   controlsRef={controlsRef}
