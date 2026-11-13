@@ -154,3 +154,12 @@
   .music-chat-column { display: flex !important; flex-direction: column; }
   .music-chat-column > * { flex: 1; min-height: 0; }
 }
+/* Chat com altura fixa: as mensagens rolam por dentro, sem empurrar a página para baixo. */
+.music-chat-column { overflow: hidden; }
+.music-chat .panel { height: 100%; min-height: 0; overflow: hidden; }
+@media (min-width: 1101px) {
+  .music-queue-column, .music-chat-column { height: min(680px, calc(100svh - 140px)); min-height: 480px; }
+  .music-chat-column > *, .music-chat { height: 100%; }
+}
+@media (max-width: 767px) { .music-player-tabs [role="tabpanel"] { overflow: hidden; } }
+.social-stage::before { content: ""; position: absolute; inset: 0; background: var(--media-background); }

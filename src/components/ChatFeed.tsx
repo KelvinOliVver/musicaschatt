@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, CheckCircle2, LoaderCircle, MessageSquare, Music2, Radio, RotateCcw, Zap } from "lucide-react";
-import { SocialEmbed, findSocialVideo } from "@/components/SocialEmbed";
 import { hasTrackLink } from "@/lib/link-parser";
 import { Button } from "@/components/ui/button";
 import type { ChatStatus, KickChatMessage } from "@/lib/types";
@@ -185,8 +184,8 @@ export function ChatFeed({ messages, accentColor, isPlaying = false, status = "i
   const StatusIcon = connection.icon;
 
   return (
-    <div className="music-chat relative z-0 flex flex-col">
-      <section className="panel relative z-0 flex h-full max-h-[600px] flex-col">
+    <div className="music-chat relative z-0 flex min-h-0 flex-col">
+      <section className="panel relative z-0 flex h-full min-h-0 flex-col overflow-hidden">
         <header className="flex items-center gap-2 border-b border-border px-5 py-4 shrink-0">
           <MessageSquare className="size-4 text-primary" aria-hidden />
           <h2 className="text-sm font-semibold uppercase tracking-widest">Chat</h2>
@@ -260,7 +259,6 @@ export function ChatFeed({ messages, accentColor, isPlaying = false, status = "i
                           </span>
                           <span className="text-muted-foreground">: </span>
                           <span className="text-foreground/90">{renderMessageContent(message.content)}</span>
-                          {(() => { const v = findSocialVideo(message.content); return v ? <SocialEmbed video={v} /> : null; })()}
                         </>
                       )}
                     </li>

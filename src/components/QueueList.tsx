@@ -8,13 +8,14 @@ import {
   Music2,
   Play,
   Trash2,
-  Youtube,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Equalizer } from "@/components/Equalizer";
+import { SourceIcon } from "@/components/SourceIcon";
+import { isSocialSource, sourceLabel } from "@/lib/social-video";
 
 import type { QueueItem } from "@/lib/types";
 
@@ -220,12 +221,16 @@ export function QueueList({
                           <p className={`min-w-0 truncate text-sm font-medium ${isNext ? "font-semibold text-foreground" : ""}`}>
                             {item.title}
                           </p>
+                        ) : isSocialSource(item.source) ? (
+                          <p className={`min-w-0 truncate text-sm font-medium ${isNext ? "font-semibold text-foreground" : ""}`}>
+                            Vídeo do {sourceLabel(item.source)}
+                          </p>
                         ) : (
                           <div className="h-4 w-3/4 animate-pulse rounded bg-muted-foreground/15" />
                         )}
                       </div>
                       <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                        <Youtube className="size-3 text-youtube transition-transform duration-200 group-hover:scale-110" aria-hidden />
+                        <SourceIcon source={item.source} className="size-3 transition-transform duration-200 group-hover:scale-110" />
                         <span
                           className={`truncate text-xs ${isOwnRequest ? "font-semibold text-primary" : "text-muted-foreground"}`}
                           style={!isOwnRequest && item.requesterColor ? { color: item.requesterColor } : undefined}
@@ -332,7 +337,7 @@ export function QueueList({
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-medium">
-                          {item.title ?? `Vídeo ${item.trackId}`}
+                          {item.title ?? (isSocialSource(item.source) ? `Vídeo do ${sourceLabel(item.source)}` : `Vídeo ${item.trackId}`)}
                         </p>
                         <p className="truncate text-[11px] text-muted-foreground">
                           {item.requestedBy}
