@@ -281,7 +281,7 @@ function PlayerPage() {
     [queue, broadcast],
   );
 
-  const chat = useKickChat(slug, handleMessage, handleCommand);
+  const chat = useKickChat(slug, handleMessage, handleCommand, () => isHostRef.current);
 
   function handleManualAdd(event: FormEvent) {
     event.preventDefault();
