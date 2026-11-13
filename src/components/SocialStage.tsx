@@ -424,7 +424,7 @@ export function SocialStage({
               Tentar novamente
             </button>
             <a
-              href={`https://www.tiktok.com/@/video/${encodeURIComponent(trackId)}`}
+              href={originalUrl?.startsWith("https://www.tiktok.com/") ? originalUrl : `https://www.tiktok.com/player/v1/${encodeURIComponent(trackId)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-sm border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-secondary"
