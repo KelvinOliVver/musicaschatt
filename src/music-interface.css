@@ -1177,3 +1177,12 @@
   .music-shell:not(.is-theater-shell) .music-player-page .music-topbar-channel { flex-basis: 100%; }
   .music-shell:not(.is-theater-shell) .music-player-page .music-add-track button[type="submit"] { padding: 0 10px; }
 }
+
+/* Empty player: simple intentional design, no generated photography. */
+.music-player-stage .player-empty {
+  background: #0b0a10;
+  min-height: 260px;
+  border-radius: 10px;
+}
+.music-player-stage .player-empty h2,
+.music-player-stage .player-empty p { position: relative; }
