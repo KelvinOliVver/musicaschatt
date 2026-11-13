@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, Instagram, LoaderCircle, Play, SkipForward } from "lucide-react";
+import { ExternalLink, LoaderCircle, Play } from "lucide-react";
 import type { StageControls } from "@/components/YouTubeStage";
 import { supabase } from "@/integrations/supabase/client";
 import { getInstagramPublicMedia } from "@/lib/instagram-video-fit.functions";
@@ -15,15 +15,11 @@ interface InstagramCleanStageProps {
   onProgress: (currentTime: number, duration: number) => void;
   onPlayingChange?: (playing: boolean) => void;
   controlsRef?: React.MutableRefObject<StageControls | null>;
-  /** Only the host should advance the shared queue. */
-  autoAdvanceOnFailure?: boolean;
-  onUnavailable?: () => void;
 }
 
 type State = "resolving" | "buffering" | "playing" | "unavailable";
 const RESOLVE_TIMEOUT_MS = 16_000;
 const MEDIA_TIMEOUT_MS = 11_000;
-const FAILED_REEL_SKIP_SECONDS = 6;
 
 function canonicalInstagramUrl(trackId: string, originalUrl?: string): string {
   if (originalUrl) {
@@ -41,19 +37,18 @@ function canonicalInstagramUrl(trackId: string, originalUrl?: string): string {
 
 /**
  * Streamer-first Instagram player:
- * - The white Instagram post iframe is intentionally NEVER mounted.
+ * - Prefer the full-screen native video, then use the official embed in-place.
  * - Try real media from metadata and from the authenticated Cobalt gateway.
  * - If the first URL is invalid or stalls, transparently try the other one.
- * - If none plays, do not stall the live; host advances after a short grace.
+ * - A failed media lookup must never skip the queue automatically.
  */
 export function InstagramCleanStage({
   trackId, originalUrl, muted, volume, paused, onEnded, onProgress,
-  onPlayingChange, controlsRef, autoAdvanceOnFailure = false, onUnavailable,
+  onPlayingChange, controlsRef,
 }: InstagramCleanStageProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const onProgressRef = useRef(onProgress);
   const onPlayingChangeRef = useRef(onPlayingChange);
-  const onUnavailableRef = useRef(onUnavailable);
   const failCurrentRef = useRef<() => void>(() => {});
   const mediaTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endedRef = useRef(false);
@@ -61,12 +56,10 @@ export function InstagramCleanStage({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<State>("resolving");
   const [needsGesture, setNeedsGesture] = useState(false);
-  const [secondsToNext, setSecondsToNext] = useState(FAILED_REEL_SKIP_SECONDS);
   const publicUrl = canonicalInstagramUrl(trackId, originalUrl);
 
   onProgressRef.current = onProgress;
   onPlayingChangeRef.current = onPlayingChange;
-  onUnavailableRef.current = onUnavailable;
 
   useEffect(() => {
     let disposed = false;
@@ -196,22 +189,6 @@ export function InstagramCleanStage({
     });
   }, [videoUrl, muted, volume, paused]);
 
-  useEffect(() => {
-    if (status !== "unavailable" || !autoAdvanceOnFailure) return;
-    setSecondsToNext(FAILED_REEL_SKIP_SECONDS);
-    let seconds = FAILED_REEL_SKIP_SECONDS;
-    const interval = window.setInterval(() => {
-      seconds -= 1;
-      if (seconds <= 0) {
-        window.clearInterval(interval);
-        onUnavailableRef.current?.();
-      } else {
-        setSecondsToNext(seconds);
-      }
-    }, 1000);
-    return () => window.clearInterval(interval);
-  }, [status, autoAdvanceOnFailure]);
-
   const onMediaReady = () => {
     if (mediaTimeoutRef.current) {
       clearTimeout(mediaTimeoutRef.current);
@@ -278,27 +255,27 @@ export function InstagramCleanStage({
           )}
         </>
       ) : status === "unavailable" ? (
-        <div className="flex max-w-md flex-col items-center gap-3 px-5 text-center text-white">
-          <Instagram className="size-8 text-white/50" aria-hidden />
-          <h3 className="text-base font-semibold">Este Reel não pôde ser reproduzido aqui</h3>
-          <p className="text-xs text-white/60">
-            O Instagram não disponibilizou um vídeo que o player consiga abrir.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <a href={publicUrl} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">
-              <ExternalLink className="size-3.5"/> Abrir no Instagram
-            </a>
-            <button type="button" onClick={() => setAttempt((count) => count + 1)}
-              className="rounded-md border border-white/20 px-3 py-2 text-xs text-white/80 hover:bg-white/10">
-              Tentar novamente
-            </button>
-          </div>
-          {autoAdvanceOnFailure && (
-            <p className="flex items-center gap-2 text-xs text-white/60">
-              <SkipForward className="size-3.5"/> Próximo pedido em {secondsToNext}s
-            </p>
-          )}
+        <div className="relative h-full w-full bg-black">
+          {/* Official embed fallback: stays inside the player and never advances
+              the queue on iframe load/error. Instagram owns its playback UI. */}
+          <iframe
+            key={publicUrl}
+            src={`${publicUrl}embed/`}
+            title="Vídeo do Instagram"
+            className="block h-full w-full border-0"
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            allowFullScreen
+            scrolling="yes"
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+          <a
+            href={publicUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute bottom-2 right-2 z-10 inline-flex items-center gap-1 rounded-md bg-black/75 px-2 py-1 text-[11px] text-white/75 hover:text-white"
+          >
+            <ExternalLink className="size-3" /> Abrir original
+          </a>
         </div>
       ) : (
         <span className="flex items-center gap-2 text-xs text-white/70">
