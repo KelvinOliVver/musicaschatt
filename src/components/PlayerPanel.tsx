@@ -375,7 +375,7 @@ export function PlayerPanel({
           {isInstagramVideo ? (
             <div className="social-player-native-controls flex flex-wrap items-center justify-between gap-3 border-t border-border/70 py-3">
               <span className="text-xs text-muted-foreground">
-                Para reproduzir ou pausar, use o próprio vídeo do Instagram.
+                O Instagram tenta iniciar sozinho. Se estiver parado, toque no vídeo para reproduzir.
               </span>
               <div className="flex items-center gap-2">
                 <Button type="button" size="sm" variant="secondary" onClick={onPrevious} disabled={!hasPrevious} className="gap-2">
