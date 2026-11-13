@@ -161,6 +161,7 @@ function PlayerPage() {
   blockedUsernamesRef.current = settings.blockedUsernames;
   const lastRequestByUserRef = useRef<Map<string, number>>(new Map());
   const seenRequestIdsRef = useRef<Set<string>>(new Set());
+  const pendingRequestsRef = useRef<Map<string, number>>(new Map());
 
   const totalPlayed = queue.history.length;
   const totalRequesters = useMemo(() => {
@@ -261,18 +262,26 @@ function PlayerPage() {
 
       const tracks = extractTracks(message.content).filter((track) => prefs.allowedPlatforms.includes(track.source));
       if (tracks.length === 0 || queue.queue.length >= prefs.maxQueue) return;
-      const activeByUser = queue.queue.filter((item) => item.requestedBy.trim().toLowerCase() === sender).length;
-      if (activeByUser >= prefs.maxPerUser) return;
+      const pending = pendingRequestsRef.current;
+      const alreadyPending = pending.get(sender) ?? 0;
+      const activeByUser = queue.queue.filter((item) => item.requestedBy.trim().toLowerCase() === sender).length + alreadyPending;
+      const pendingTotal = [...pending.values()].reduce((sum, count) => sum + count, 0);
+      if (activeByUser >= prefs.maxPerUser || queue.queue.length + pendingTotal >= prefs.maxQueue) return;
 
       const cooldownMs = prefs.cooldownSeconds * 1000;
       const lastRequestAt = lastRequestByUserRef.current.get(sender) ?? 0;
       if (cooldownMs > 0 && Date.now() - lastRequestAt < cooldownMs) return;
       lastRequestByUserRef.current.set(sender, Date.now());
 
-      const slots = Math.min(prefs.maxLinksPerMessage, prefs.maxPerUser - activeByUser, prefs.maxQueue - queue.queue.length);
-      for (const track of tracks.slice(0, slots)) {
-        void queue.addTrack(track, message.username, message.color);
-      }
+      const slots = Math.max(0, Math.min(prefs.maxLinksPerMessage, prefs.maxPerUser - activeByUser, prefs.maxQueue - queue.queue.length - pendingTotal));
+      if (slots === 0) return;
+      pending.set(sender, alreadyPending + slots);
+      void Promise.all(tracks.slice(0, slots).map((track) => queue.addTrack(track, message.username, message.color)))
+        .finally(() => {
+          const remaining = (pendingRequestsRef.current.get(sender) ?? 0) - slots;
+          if (remaining > 0) pendingRequestsRef.current.set(sender, remaining);
+          else pendingRequestsRef.current.delete(sender);
+        });
     },
     [queue, settingsLoading],
   );
@@ -284,7 +293,13 @@ function PlayerPage() {
       if (!nick || !preferencesRef.current.moderatorNicks.includes(nick)) return;
 
       if (command === "!skip" || command === "!proxima") {
-        queue.playNext();
+        const head = queue.queue[0];
+        const alternative = head && queue.current && preferencesRef.current.fairQueue
+          ? queue.queue.find((item) => item.priority === head.priority &&
+              item.requestedBy.trim().toLowerCase() !== queue.current!.requestedBy.trim().toLowerCase())
+          : null;
+        if (alternative) queue.playNow(alternative.id);
+        else queue.playNext();
         toast.info("Música pulada pelo comando do chat!");
       } else if (command === "!back" || command === "!anterior") {
         queue.playPrevious();
