@@ -178,7 +178,7 @@ export function SocialStage({
         >
           {showFullInstagramPost ? "Só vídeo" : "Ver post completo"}
         </button>
-      )
+      )}
       {playerError && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-media-background/95 px-6 text-center">
           <p className="text-sm font-semibold text-foreground">Este vídeo não pôde ser reproduzido aqui.</p>
