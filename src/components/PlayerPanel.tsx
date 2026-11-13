@@ -37,6 +37,7 @@ interface PlayerPanelProps {
   hasPrevious: boolean;
   hasNext: boolean;
   isHost?: boolean;
+  forceMuted?: boolean;
   onNext: () => void;
   onAutomaticNext?: () => void;
   onPrevious: () => void;
@@ -85,6 +86,7 @@ export function PlayerPanel({
   hasPrevious,
   hasNext,
   isHost = true,
+  forceMuted = false,
   onNext,
   onAutomaticNext,
   onPrevious,
@@ -114,7 +116,7 @@ export function PlayerPanel({
       return 70;
     }
   });
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(forceMuted);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState({ current: 0, duration: 0 });
   const [health, setHealth] = useState<"loading" | "playing" | "recovering" | "stalled">("loading");
@@ -136,6 +138,7 @@ export function PlayerPanel({
   }, [current?.id]);
   useEffect(() => {
     if (!current || paused || !isHost) return;
+    lastProgressRef.current.seenAt = Date.now();
     const timer = window.setInterval(() => {
       if (Date.now() - lastProgressRef.current.seenAt < 22000) return;
       if (automaticRecovery && recoveryAttemptRef.current < 1 && current.source !== "instagram") {
@@ -169,13 +172,13 @@ export function PlayerPanel({
     if (isHost || !current || !remoteSync || remoteSync.trackId !== current.id) return;
     setPaused(remoteSync.paused);
     setVolume(remoteSync.volume);
-    setMuted(remoteSync.muted);
+    setMuted(forceMuted || remoteSync.muted);
     const expectedTime = projectedPlaybackTime(remoteSync);
     const localTime = controlsRef.current?.getCurrentTime();
     if (Number.isFinite(localTime) && Math.abs((localTime as number) - expectedTime) > DRIFT_THRESHOLD_SECONDS) {
       controlsRef.current?.seekTo(expectedTime);
     }
-  }, [remoteSync, current?.id, isHost, controlsRef]);
+  }, [remoteSync, current?.id, isHost, forceMuted, controlsRef]);
 
   useEffect(() => {
     try { window.localStorage.setItem(VOLUME_KEY, String(volume)); } catch { /* storage indisponível */ }
@@ -263,7 +266,7 @@ export function PlayerPanel({
         controlsRef.current?.seekTo(nextPosition);
         setProgress((value) => ({ ...value, current: nextPosition }));
         onSeekChange?.(nextPosition);
-      } else if (event.code === "KeyM" && current?.source !== "instagram") {
+      } else if (event.code === "KeyM" && !forceMuted && current?.source !== "instagram") {
         const nextMuted = !muted;
         setMuted(nextMuted);
         if (isHost) onMuteChange?.(nextMuted);
@@ -271,7 +274,7 @@ export function PlayerPanel({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [current?.id, controlsRef, onNext, onPrevious, onSeekChange, onTogglePlayChange, isHost, muted, onMuteChange]);
+  }, [current?.id, controlsRef, onNext, onPrevious, onSeekChange, onTogglePlayChange, isHost, muted, onMuteChange, forceMuted]);
 
   const shown = scrubbing ?? progress.current;
   const isInstagramVideo = current?.source === "instagram";
