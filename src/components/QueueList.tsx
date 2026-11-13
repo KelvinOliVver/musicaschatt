@@ -8,13 +8,14 @@ import {
   Music2,
   Play,
   Trash2,
-  Youtube,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Equalizer } from "@/components/Equalizer";
+import { SourceIcon } from "@/components/SourceIcon";
+import { isSocialSource, sourceLabel } from "@/lib/social-video";
 
 import type { QueueItem } from "@/lib/types";
 
@@ -219,6 +220,10 @@ export function QueueList({
                         {item.title ? (
                           <p className={`min-w-0 truncate text-sm font-medium ${isNext ? "font-semibold text-foreground" : ""}`}>
                             {item.title}
+                          </p>
+                        ) : isSocialSource(item.source) ? (
+                          <p className={`min-w-0 truncate text-sm font-medium ${isNext ? "font-semibold text-foreground" : ""}`}>
+                            Vídeo do {sourceLabel(item.source)}
                           </p>
                         ) : (
                           <div className="h-4 w-3/4 animate-pulse rounded bg-muted-foreground/15" />
