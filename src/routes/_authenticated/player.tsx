@@ -150,7 +150,7 @@ function PlayerPage() {
     queue.playNow(queuedHeadId);
   }, [isHost, queue.current?.id, queuedHeadId, queue.playNow]);
 
-  const { settings, loading: settingsLoading, updateBlockedUsernames } = useAppSettings();
+  const { settings, loading: settingsLoading, blocklistLocalOnly, updateBlockedUsernames } = useAppSettings();
   const blockedUsernamesRef = useRef<string[]>([]);
   blockedUsernamesRef.current = settings.blockedUsernames;
   const lastRequestByUserRef = useRef<Map<string, number>>(new Map());
@@ -304,8 +304,11 @@ function PlayerPage() {
     }
     const updated = [...blockedUsernamesRef.current, nick];
     blockedUsernamesRef.current = updated; // Stop accepting links immediately, before the save completes.
-    if (await updateBlockedUsernames(updated)) {
-      toast.success(`Pedidos de @${nick} bloqueados.`);
+    const saved = await updateBlockedUsernames(updated);
+    if (saved) {
+      toast.success(`Pedidos de @${nick} bloqueados.`, saved === "local"
+        ? { description: "Salvo neste navegador. Para bloquear em outros aparelhos, use o mesmo navegador do player." }
+        : undefined);
       setBlockedNickInput("");
     } else {
       blockedUsernamesRef.current = settings.blockedUsernames;
@@ -316,7 +319,8 @@ function PlayerPage() {
   const unblockUsername = useCallback(async (nick: string) => {
     const updated = blockedUsernamesRef.current.filter((user) => user !== nick);
     blockedUsernamesRef.current = updated;
-    if (await updateBlockedUsernames(updated)) {
+    const saved = await updateBlockedUsernames(updated);
+    if (saved) {
       toast.success(`@${nick} pode enviar pedidos novamente.`);
     } else {
       blockedUsernamesRef.current = settings.blockedUsernames;
@@ -425,6 +429,11 @@ function PlayerPage() {
                 <div className="space-y-1">
                   <h3 className="flex items-center gap-2 text-sm font-semibold"><ShieldBan className="size-4 text-primary" /> Bloquear pedidos por nick</h3>
                   <p className="text-xs text-muted-foreground">Links enviados por estes usuários serão ignorados pela fila. Não bane ninguém do chat da Kick.</p>
+                  {blocklistLocalOnly && (
+                    <p className="rounded-md border border-amber-500/25 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-200">
+                      Lista salva neste navegador. O host deve usar este navegador para aplicar os bloqueios.
+                    </p>
+                  )}
                 </div>
                 <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); void blockUsername(blockedNickInput); }}>
                   <Input
