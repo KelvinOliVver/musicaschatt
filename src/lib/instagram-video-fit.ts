@@ -40,6 +40,65 @@ export function getInstagramVideoSizeFromHtml(html: string): InstagramAspectResu
   );
 }
 
+
+/** Public metadata can expose a temporary CDN URL for the real video.
+ * Never treat thumbnails or oEmbed HTML as playable media.
+ */
+export interface InstagramPublicMedia {
+  videoUrl: string | null;
+  size: InstagramVideoSize | null;
+}
+
+function decodeHtmlAttributes(value: string): string {
+  return value.replace(/&amp;/gi, "&").replace(/&#38;/g, "&")
+    .replace(/&quot;/gi, '"').replace(/&#x27;/gi, "'");
+}
+
+export function safeInstagramVideoUrl(raw: string | undefined): string | null {
+  if (!raw || raw.length > 4096) return null;
+  try {
+    const url = new URL(decodeHtmlAttributes(raw));
+    const host = url.hostname.toLowerCase();
+    const trustedHost = host === "cdninstagram.com" || host.endsWith(".cdninstagram.com")
+      || host === "fbcdn.net" || host.endsWith(".fbcdn.net")
+      || host === "instagram.com" || host.endsWith(".instagram.com");
+    if (url.protocol !== "https:" || url.username || url.password || !trustedHost) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+export function getInstagramPublicMediaFromHtml(html: string): InstagramPublicMedia {
+  const size = getInstagramVideoSizeFromHtml(html);
+  const ogVideo = getMetaContent(html, "og:video:secure_url")
+    ?? getMetaContent(html, "og:video:url")
+    ?? getMetaContent(html, "og:video")
+    ?? getMetaContent(html, "twitter:player:stream");
+
+  let videoUrl = safeInstagramVideoUrl(ogVideo);
+  if (!videoUrl) {
+    // Some public posts supply VideoObject instead of an OpenGraph video URL.
+    // Read only structured public metadata, never private GraphQL endpoints.
+    for (const [, json] of html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+      try {
+        const parsed = JSON.parse(json) as unknown;
+        const nodes = Array.isArray(parsed) ? parsed : [parsed];
+        for (const node of nodes) {
+          if (typeof node !== "object" || node === null) continue;
+          const entry = node as Record<string, unknown>;
+          const typed = String(entry["@type"] ?? "");
+          if (!typed.includes("VideoObject")) continue;
+          videoUrl = safeInstagramVideoUrl(typeof entry.contentUrl === "string" ? entry.contentUrl : undefined);
+          if (videoUrl) break;
+        }
+        if (videoUrl) break;
+      } catch { /* not JSON-LD that we can use */ }
+    }
+  }
+  return { videoUrl, size };
+}
+
 /** Geometry of a centered, scaled native 350px Instagram iframe crop.
  * Measured baseline of common embeds: 300px media width, 25px side gutter,
  * 54px header. These are ONLY applied when dimensions were inferred.
