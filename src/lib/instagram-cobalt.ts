@@ -74,7 +74,7 @@ export async function resolveInstagramWithCobalt({
       Accept: "application/json",
       "Content-Type": "application/json",
     };
-    if (token) headers.Authorization = `Bearer ${token}`;
+    if (token) headers.Authorization = `Api-Key ${token}`;
     const response = await fetchImpl(baseUrl.toString(), {
       method: "POST",
       redirect: "error",
