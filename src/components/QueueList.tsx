@@ -27,6 +27,7 @@ interface QueueListProps {
   onMove?: (id: string, toIndex: number) => void;
   accentColor?: string | null;
   isPlaying?: boolean;
+  canManage?: boolean;
 }
 
 function formatRelativeTime(timestampMs: number, now: number): string {
@@ -49,6 +50,7 @@ export function QueueList({
   onMove,
   accentColor,
   isPlaying = false,
+  canManage = true,
 }: QueueListProps) {
   const vipCount = items.filter((item) => item.priority).length;
   const [showHistory, setShowHistory] = useState(false);
@@ -124,7 +126,7 @@ export function QueueList({
               </Badge>
             )}
           </div>
-          {items.length > 0 && (
+          {canManage && items.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -150,8 +152,8 @@ export function QueueList({
                 const isNext = index === 0;
                 // The database sorts VIP tracks ahead of normal tracks.
                 // Crossing the group boundary would not change their actual order.
-                const canMoveUp = Boolean(onMove) && index > 0 && items[index - 1]?.priority === item.priority;
-                const canMoveDown = Boolean(onMove) && index < items.length - 1 && items[index + 1]?.priority === item.priority;
+                const canMoveUp = canManage && Boolean(onMove) && index > 0 && items[index - 1]?.priority === item.priority;
+                const canMoveDown = canManage && Boolean(onMove) && index < items.length - 1 && items[index + 1]?.priority === item.priority;
                 const isOwnRequest = item.requestedBy.trim().toLowerCase() === "você";
                 const isExiting = exitingIds.has(item.id);
                 const isMounted = mountedIds.has(item.id);
@@ -254,7 +256,7 @@ export function QueueList({
                       </div>
                     </div>
 
-                    <div className="queue-actions flex shrink-0 items-center gap-0.5">
+                    {canManage && <div className="queue-actions flex shrink-0 items-center gap-0.5">
                       {onMove && (
                         <div className="flex flex-col">
                           <Button
@@ -297,7 +299,7 @@ export function QueueList({
                       >
                         <Trash2 className="size-4 transition-transform duration-150 group-hover:scale-105" aria-hidden />
                       </Button>
-                    </div>
+                    </div>}
                   </li>
                 );
               })}
