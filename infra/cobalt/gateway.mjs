@@ -2,6 +2,7 @@ import http from "node:http";
 import { spawn } from "node:child_process";
 import { Readable } from "node:stream";
 import { resolveInstagramWithYtDlp } from "./music-chat-yt-dlp.mjs";
+import { resolvePublicInstagramGraphQL } from "./music-chat-ig-graphql.mjs";
 
 // The only public listener is this gateway. Cobalt itself is bound to
 // 127.0.0.1 and its API key never reaches a browser or GitHub.
@@ -173,10 +174,15 @@ async function resolve(req, res) {
     return playable;
   }).catch(() => null);
 
-  let unfinished = 2;
+  const graphqlProbe = resolvePublicInstagramGraphQL(kind, trackId).then((playable) => {
+    console.info("instagram_resolver=public_graphql result=" + (playable ? "ready" : "unavailable"));
+    return playable;
+  }).catch(() => null);
+
+  let unfinished = 3;
   let decided = false;
   const answer = await new Promise((resolveFirst) => {
-    for (const probe of [cobaltProbe, ytdlpProbe]) {
+    for (const probe of [cobaltProbe, ytdlpProbe, graphqlProbe]) {
       void probe.then((playable) => {
         if (decided) return;
         if (playable) {
@@ -271,6 +277,9 @@ server.listen(port, "0.0.0.0", () => {
     void tryYtDlp("reel", smokeId).then((found) => {
       console.info("instagram_smoke_test=yt_dlp result=" + (found ? "ready" : "unavailable"));
     }).catch(() => console.info("instagram_smoke_test=yt_dlp result=error"));
+    void resolvePublicInstagramGraphQL("reel", smokeId).then((found) => {
+      console.info("instagram_smoke_test=public_graphql result=" + (found ? "ready" : "unavailable"));
+    }).catch(() => console.info("instagram_smoke_test=public_graphql result=error"));
   }
 });
 
