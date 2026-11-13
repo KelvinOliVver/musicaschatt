@@ -322,8 +322,6 @@ export function PlayerPanel({
                     muted={muted}
                     volume={volume}
                     paused={paused}
-                    autoAdvanceOnFailure={isHost && hasNext}
-                    onUnavailable={() => { if (isHost && hasNext) onNext(); }}
                     onEnded={() => { if (isHost) onNext(); }}
                     onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
                     onPlayingChange={(playing) => {
