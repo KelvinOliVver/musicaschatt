@@ -256,8 +256,8 @@ export function ChatFeed({
   ];
 
   return (
-    <div className="music-chat relative z-0 flex min-h-0 flex-col">
-      <section className="panel relative z-0 flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="music-chat relative z-0 flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
+      <section className="panel relative z-0 flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
         <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
             <MessageSquare
