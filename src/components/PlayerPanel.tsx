@@ -5,6 +5,7 @@ import {
   Maximize2,
   Minimize2,
   Music2,
+  Keyboard,
   Pause,
   Play,
   SkipBack,
@@ -179,18 +180,45 @@ export function PlayerPanel({
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (
+        target?.closest("input, textarea, select, button, a, [contenteditable='true'], [role='slider'], [role='textbox']") ||
+        event.metaKey || event.ctrlKey || event.altKey || event.repeat
+      ) return;
+
       if (event.code === "Space") {
+        if (!current) return;
         event.preventDefault();
-        setPaused((value) => { const nextVal = !value; onTogglePlayChange?.(nextVal); return nextVal; });
-      } else if (event.code === "ArrowRight" && event.shiftKey) { event.preventDefault(); onNext();
-      } else if (event.code === "ArrowLeft" && event.shiftKey) { event.preventDefault(); onPrevious();
-      } else if (event.key.toLowerCase() === "m") setMuted((value) => !value);
+        setPaused((value) => {
+          const nextValue = !value;
+          onTogglePlayChange?.(nextValue);
+          return nextValue;
+        });
+      } else if (event.shiftKey && event.code === "ArrowRight") {
+        event.preventDefault();
+        onNext();
+      } else if (event.shiftKey && event.code === "ArrowLeft") {
+        event.preventDefault();
+        onPrevious();
+      } else if (current && ["ArrowLeft", "ArrowRight", "KeyJ", "KeyL"].includes(event.code)) {
+        event.preventDefault();
+        const backwards = event.code === "ArrowLeft" || event.code === "KeyJ";
+        const position = controlsRef.current?.getCurrentTime() ?? progressRef.current.current;
+        const duration = progressRef.current.duration;
+        if (!Number.isFinite(position)) return;
+        const nextPosition = Math.max(0, Math.min(
+          duration > 0 ? duration : Number.MAX_SAFE_INTEGER,
+          position + (backwards ? -5 : 5),
+        ));
+        controlsRef.current?.seekTo(nextPosition);
+        setProgress((value) => ({ ...value, current: nextPosition }));
+        onSeekChange?.(nextPosition);
+      } else if (event.code === "KeyM") {
+        setMuted((value) => !value);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onNext, onPrevious, onTogglePlayChange]);
+  }, [current?.id, controlsRef, onNext, onPrevious, onSeekChange, onTogglePlayChange]);
 
   const shown = scrubbing ?? progress.current;
   const [videoOpacity, setVideoOpacity] = useState(1);
@@ -202,6 +230,21 @@ export function PlayerPanel({
     const timer = setTimeout(() => setVideoOpacity(1), 220);
     return () => clearTimeout(timer);
   }, [current?.id]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || typeof MediaMetadata === "undefined") return;
+    if (!current) {
+      navigator.mediaSession.metadata = null;
+      return;
+    }
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: current.title ?? "Music Chat",
+      artist: current.author ?? `Pedido por ${current.requestedBy}`,
+      album: "Music Chat · Ao vivo",
+      artwork: current.thumbnail ? [{ src: current.thumbnail, sizes: "512x512" }] : [],
+    });
+    return () => { navigator.mediaSession.metadata = null; };
+  }, [current?.id, current?.title, current?.author, current?.thumbnail, current?.requestedBy]);
 
   const accentColor = useDominantColor(current?.thumbnail);
   useEffect(() => { onPlayingStateChange?.(Boolean(current) && !paused); }, [current, paused, onPlayingStateChange]);
@@ -326,6 +369,13 @@ export function PlayerPanel({
 
           <div className="player-up-next flex items-center justify-between gap-2 text-muted-foreground">
             <span className="truncate">{next ? <>A seguir: <span className="text-foreground">{next.title ?? (isSocialSource(next.source) ? `Vídeo do ${sourceLabel(next.source)}` : next.trackId)}</span></> : "Fila vazia — a próxima música que cair no chat toca aqui."}</span>
+          </div>
+          <div className="music-player-shortcuts flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground/80" aria-label="Atalhos de teclado">
+            <Keyboard className="size-3.5" aria-hidden />
+            <span><kbd>Espaço</kbd> pausa</span>
+            <span><kbd>←</kbd> <kbd>→</kbd> ±5s</span>
+            <span><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd> anterior/próxima</span>
+            <span><kbd>M</kbd> mudo</span>
           </div>
         </div>
       </section>
