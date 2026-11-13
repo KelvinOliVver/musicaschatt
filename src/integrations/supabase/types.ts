@@ -247,6 +247,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_obs_player_state: { Args: { p_token: string }; Returns: Json }
       advance_player_queue: { Args: never; Returns: undefined }
       has_role: {
         Args: {
