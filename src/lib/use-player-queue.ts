@@ -281,7 +281,15 @@ export function usePlayerQueue(): PlayerQueue {
           .select("id")
           .maybeSingle();
         if (error) {
-          console.error("[ADD TRACK ERROR]", error.message, error);
+          // A duplicate or an active cooldown is an expected rejection, not a
+          // database outage. Avoid spamming the streamer with error toasts.
+          if (error.code === "23505" || error.message.includes("chat_request_cooldown:")) {
+            return false;
+          }
+          console.error("[ADD TRACK ERROR]", error.message);
+          if (options?.priority) {
+            toast.error("Não foi possível adicionar o vídeo. Tente novamente.");
+          }
           return false;
         }
         if (!data) return false;
