@@ -35,5 +35,8 @@ jobs:
       - name: Test Reel framing preferences
         run: bun test src/lib/instagram-framing.test.ts
 
+      - name: Test automatic Instagram orientation
+        run: bun test src/lib/instagram-auto-fit.test.ts
+
       - name: Build production app
         run: bun run build
