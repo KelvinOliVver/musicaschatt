@@ -14,6 +14,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useKickChat } from "@/lib/kick-chat";
 import { extractTracks, parseTrackInput } from "@/lib/link-parser";
 import { usePlayerQueue } from "@/lib/use-player-queue";
+import { useStreamerPreferences } from "@/hooks/use-streamer-preferences";
+import { StreamerSettingsPanel } from "@/components/StreamerSettingsPanel";
 import { normalizeKickUsername } from "@/lib/kick-avatars";
 import { useProfile } from "@/hooks/use-profile";
 import { useAppSettings } from "@/hooks/use-app-settings";
@@ -84,6 +86,10 @@ function PlayerPage() {
   const [slug, setSlug] = useState(DEFAULT_CHANNEL);
   const [manual, setManual] = useState("");
   const [blockedNickInput, setBlockedNickInput] = useState("");
+  const { preferences, updatePreferences } = useStreamerPreferences();
+  const preferencesRef = useRef(preferences);
+  preferencesRef.current = preferences;
+  const obsMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("obs") === "1";
   const queue = usePlayerQueue();
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -154,6 +160,7 @@ function PlayerPage() {
   const blockedUsernamesRef = useRef<string[]>([]);
   blockedUsernamesRef.current = settings.blockedUsernames;
   const lastRequestByUserRef = useRef<Map<string, number>>(new Map());
+  const seenRequestIdsRef = useRef<Set<string>>(new Set());
 
   const totalPlayed = queue.history.length;
   const totalRequesters = useMemo(() => {
@@ -246,27 +253,35 @@ function PlayerPage() {
       if (!isHostRef.current || settingsLoading) return;
       const sender = normalizeKickUsername(message.username);
       if (!sender || blockedUsernamesRef.current.includes(sender)) return;
-      const tracks = extractTracks(message.content);
-      if (tracks.length === 0) return;
+      const prefs = preferencesRef.current;
+      // Kick reconnects can replay a message; never process it twice.
+      if (seenRequestIdsRef.current.has(message.id)) return;
+      seenRequestIdsRef.current.add(message.id);
+      if (seenRequestIdsRef.current.size > 1500) seenRequestIdsRef.current.clear();
 
-      const cooldownMs = settings.chatCooldownSeconds * 1000;
-      if (cooldownMs > 0) {
-        const usernameKey = message.username.trim().toLowerCase();
-        const lastRequestAt = lastRequestByUserRef.current.get(usernameKey) ?? 0;
-        if (Date.now() - lastRequestAt < cooldownMs) return;
-        lastRequestByUserRef.current.set(usernameKey, Date.now());
-      }
+      const tracks = extractTracks(message.content).filter((track) => prefs.allowedPlatforms.includes(track.source));
+      if (tracks.length === 0 || queue.queue.length >= prefs.maxQueue) return;
+      const activeByUser = queue.queue.filter((item) => item.requestedBy.trim().toLowerCase() === sender).length;
+      if (activeByUser >= prefs.maxPerUser) return;
 
-      for (const track of tracks) {
-        queue.addTrack(track, message.username, message.color);
+      const cooldownMs = prefs.cooldownSeconds * 1000;
+      const lastRequestAt = lastRequestByUserRef.current.get(sender) ?? 0;
+      if (cooldownMs > 0 && Date.now() - lastRequestAt < cooldownMs) return;
+      lastRequestByUserRef.current.set(sender, Date.now());
+
+      const slots = Math.min(prefs.maxLinksPerMessage, prefs.maxPerUser - activeByUser, prefs.maxQueue - queue.queue.length);
+      for (const track of tracks.slice(0, slots)) {
+        void queue.addTrack(track, message.username, message.color);
       }
     },
-    [queue, settings.chatCooldownSeconds, settingsLoading],
+    [queue, settingsLoading],
   );
 
   const handleCommand = useCallback(
-    (command: string) => {
+    (command: string, username: string) => {
       if (!isHostRef.current) return;
+      const nick = normalizeKickUsername(username);
+      if (!nick || !preferencesRef.current.moderatorNicks.includes(nick)) return;
 
       if (command === "!skip" || command === "!proxima") {
         queue.playNext();
@@ -344,7 +359,19 @@ function PlayerPage() {
     setManual("");
   }
 
-  const handlePlayNext = useCallback(() => queue.playNext(), [queue]);
+  const handlePlayNext = useCallback(() => {
+    const first = queue.queue[0];
+    if (!first || !preferences.fairQueue || !queue.current) {
+      queue.playNext();
+      return;
+    }
+    // Rotate only within the same VIP priority group.
+    const candidate = queue.queue.find((item) =>
+      item.priority === first.priority &&
+      item.requestedBy.trim().toLowerCase() !== queue.current!.requestedBy.trim().toLowerCase());
+    if (candidate) queue.playNow(candidate.id);
+    else queue.playNext();
+  }, [queue, preferences.fairQueue]);
   const handlePlayPrevious = useCallback(() => queue.playPrevious(), [queue]);
   const handlePlayNow = useCallback((id: string) => queue.playNow(id), [queue]);
   const handleRemoveItem = useCallback((id: string) => queue.removeItem(id), [queue]);
@@ -370,7 +397,7 @@ function PlayerPage() {
   );
 
   return (
-    <div className={`music-shell${theaterMode ? " is-theater-shell" : ""}${sidebarOpen ? "" : " is-sidebar-collapsed"}`}>
+    <div className={`music-shell${theaterMode ? " is-theater-shell" : ""}${sidebarOpen ? "" : " is-sidebar-collapsed"}${obsMode ? " is-obs-shell" : ""}`}>
       <MusicSidebar active="player" />
       <main className="music-page music-player-page">
         <div className="music-topbar">
@@ -409,6 +436,7 @@ function PlayerPage() {
                 🎵 {totalPlayed} tocada{totalPlayed === 1 ? "" : "s"} · {totalRequesters} pedindo
               </span>
             )}
+            {!obsMode && <StreamerSettingsPanel preferences={preferences} onUpdate={updatePreferences} canManage={isHost} />}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -583,7 +611,7 @@ function PlayerPage() {
           </div>
 
           <div className="music-chat-column hidden md:block">
-            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} onBlockUser={blockUsername} blockedUsernames={settings.blockedUsernames} />
+            <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} onBlockUser={isHost ? blockUsername : undefined} blockedUsernames={settings.blockedUsernames} />
           </div>
 
           <Tabs defaultValue="fila" className="music-player-tabs flex min-h-[420px] flex-col md:hidden">
@@ -610,7 +638,7 @@ function PlayerPage() {
               />
             </TabsContent>
             <TabsContent value="chat" className="mt-3 flex min-h-0 flex-1 flex-col">
-              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} onBlockUser={blockUsername} blockedUsernames={settings.blockedUsernames} />
+              <ChatFeed messages={chat.messages} accentColor={accentColor} isPlaying={isCurrentlyPlaying} status={chat.status} channel={slug} onReconnect={chat.reconnect} onBlockUser={isHost ? blockUsername : undefined} blockedUsernames={settings.blockedUsernames} />
             </TabsContent>
           </Tabs>
         </div>
