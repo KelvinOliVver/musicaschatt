@@ -32,6 +32,7 @@ interface ChatFeedProps {
   onBlockUser?: (username: string) => void;
   blockedUsernames?: string[];
   requestOutcomes?: Record<string, { status: "accepted" | "rejected"; reason: string }>;
+  commandOutcomes?: Record<string, { status: "executed" | "ignored"; reason: string }>;
 }
 
 type ChatFilter = "all" | "music" | "commands";
@@ -159,6 +160,7 @@ export function ChatFeed({
   onBlockUser,
   blockedUsernames = [],
   requestOutcomes = {},
+  commandOutcomes = {},
 }: ChatFeedProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -456,6 +458,14 @@ export function ChatFeed({
                                 {requestOutcomes[message.id].status === "accepted" ? "Aceito" : "Recusado"}
                               </span>
                             )}
+                            {isCommand && commandOutcomes[message.id] && (
+                              <span
+                                title={commandOutcomes[message.id].reason}
+                                className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${commandOutcomes[message.id].status === "executed" ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"}`}
+                              >
+                                {commandOutcomes[message.id].status === "executed" ? "Enviado ao player" : "Ignorado"}
+                              </span>
+                            )}
                             {onBlockUser && withLink && normalizeKickUsername(name) && !blockedUsernames.includes(normalizeKickUsername(name)!) && (
                               <button
                                 type="button"
@@ -487,6 +497,11 @@ export function ChatFeed({
                             {isCommand ? message.content : renderMessageContent(message.content)}
                           </p>
                           {requestOutcomes[message.id]?.status === "rejected" && <p className="mt-1 text-[11px] text-amber-400/80">{requestOutcomes[message.id].reason}</p>}
+                          {isCommand && commandOutcomes[message.id] && (
+                            <p className={`mt-1 text-[11px] ${commandOutcomes[message.id].status === "ignored" ? "text-amber-400/80" : "text-emerald-400/80"}`}>
+                              {commandOutcomes[message.id].reason}
+                            </p>
+                          )}
                         </div>
                         <button
                           type="button"
