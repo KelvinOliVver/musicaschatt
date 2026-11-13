@@ -329,24 +329,25 @@ function PlayerPage() {
   return (
     <div className={`music-shell${theaterMode ? " is-theater-shell" : ""}${sidebarOpen ? "" : " is-sidebar-collapsed"}`}>
       <MusicSidebar active="player" />
-      {!theaterMode && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="music-sidebar-toggle"
-          onClick={() => setSidebarOpen((value) => !value)}
-          aria-label={sidebarOpen ? "Ocultar menu lateral" : "Abrir menu lateral"}
-          aria-expanded={sidebarOpen}
-          title={sidebarOpen ? "Ocultar menu" : "Abrir menu"}
-        >
-          {sidebarOpen ? <PanelLeftClose className="size-4 shrink-0" aria-hidden /> : <PanelLeftOpen className="size-4 shrink-0" aria-hidden />}
-          <span className="text-xs font-semibold">{sidebarOpen ? "Fechar menu" : "Menu"}</span>
-        </Button>
-      )}
       <main className="music-page music-player-page">
         <div className="music-topbar">
-          <div className="flex-1">
+        {!theaterMode && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="music-sidebar-toggle"
+            onClick={() => setSidebarOpen((value) => !value)}
+            aria-label={sidebarOpen ? "Ocultar menu lateral" : "Abrir menu lateral"}
+            aria-expanded={sidebarOpen}
+            title={sidebarOpen ? "Ocultar menu" : "Abrir menu"}
+          >
+            {sidebarOpen ? <PanelLeftClose className="size-4 shrink-0" aria-hidden /> : <PanelLeftOpen className="size-4 shrink-0" aria-hidden />}
+            <span className="text-xs font-semibold">{sidebarOpen ? "Fechar menu" : "Menu"}</span>
+          </Button>
+        )}
+  
+          <div className="music-topbar-channel flex-1 min-w-0">
             <ChannelBar
               slug={slug}
               status={chat.status}
