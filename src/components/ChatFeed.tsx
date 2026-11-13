@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowDown,
   Ban,
   CheckCircle2,
   AlignJustify,
@@ -164,14 +163,10 @@ export function ChatFeed({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
-  const pinnedRef = useRef(true);
-  const previousMessageIdsRef = useRef<Set<string>>(new Set());
 
   const [filter, setFilter] = useState<ChatFilter>("all");
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [pinned, setPinned] = useState(true);
-  const [unread, setUnread] = useState(0);
   const [compact, setCompact] = useState(false);
 
   const musicCount = useMemo(
@@ -207,54 +202,32 @@ export function ChatFeed({
     if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
     scrollFrameRef.current = requestAnimationFrame(() => {
       scrollFrameRef.current = null;
-      if (pinnedRef.current) scrollToBottom();
+      // Always follow the most recent message, even after manual scrolling.
+      // Use an immediate jump so a busy chat cannot queue smooth animations.
+      scrollToBottom();
     });
   }, [scrollToBottom]);
 
-  const jumpToLatest = useCallback(() => {
-    pinnedRef.current = true;
-    setPinned(true);
-    setUnread(0);
-    scrollToBottom("smooth");
-  }, [scrollToBottom]);
-
+  // The chat should remain live at all times. New messages, avatar updates,
+  // search results and filter changes can all increase its height.
   useEffect(() => {
-    const previousIds = previousMessageIdsRef.current;
-    const incoming = messages.filter((message) => !previousIds.has(message.id));
-    previousMessageIdsRef.current = new Set(messages.map((message) => message.id));
-
-    if (pinnedRef.current) {
-      scheduleScroll();
-    } else if (previousIds.size > 0 && incoming.length > 0) {
-      setUnread((count) => count + incoming.length);
-    }
-  }, [messages, scheduleScroll]);
-
-  useEffect(() => {
-    // Search and filters change the list height, so reset to its newest result.
-    pinnedRef.current = true;
-    setPinned(true);
-    setUnread(0);
     scheduleScroll();
-  }, [filter, search, scheduleScroll]);
+  }, [visible, scheduleScroll]);
 
   useEffect(() => {
     setFilter("all");
     setSearch("");
     setSearchOpen(false);
-    setUnread(0);
-    pinnedRef.current = true;
-    setPinned(true);
-    previousMessageIdsRef.current = new Set();
-  }, [channel]);
+    scheduleScroll();
+  }, [channel, scheduleScroll]);
 
   useEffect(() => {
     const content = contentRef.current;
+    const viewport = scrollRef.current;
     if (!content || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => {
-      if (pinnedRef.current) scheduleScroll();
-    });
+    const observer = new ResizeObserver(scheduleScroll);
     observer.observe(content);
+    if (viewport) observer.observe(viewport);
     return () => observer.disconnect();
   }, [scheduleScroll]);
 
@@ -263,17 +236,6 @@ export function ChatFeed({
       if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
     };
   }, []);
-
-  function handleScroll() {
-    const element = scrollRef.current;
-    if (!element) return;
-    const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 48;
-    if (pinnedRef.current !== atBottom) {
-      pinnedRef.current = atBottom;
-      setPinned(atBottom);
-    }
-    if (atBottom) setUnread(0);
-  }
 
   async function copyMessage(message: KickChatMessage) {
     try {
@@ -409,7 +371,6 @@ export function ChatFeed({
 
         <div
           ref={scrollRef}
-          onScroll={handleScroll}
           className="scrollbar-slim min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2"
           aria-label="Mensagens do chat da Kick"
           role="log"
@@ -545,24 +506,10 @@ export function ChatFeed({
           </div>
         </div>
 
-        {!pinned && (
-          <Button
-            type="button"
-            size="sm"
-            onClick={jumpToLatest}
-            className="absolute bottom-12 left-1/2 z-10 h-8 max-w-[90%] -translate-x-1/2 gap-1.5 rounded-full px-3 shadow-lg"
-          >
-            <ArrowDown className="size-3.5" aria-hidden />
-            <span className="truncate">
-              {unread > 0 ? (unread === 1 ? "1 nova mensagem" : unread + " novas mensagens") : "Voltar ao vivo"}
-            </span>
-          </Button>
-        )}
-
         <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-border/70 px-3 py-2 text-[11px] text-muted-foreground">
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className={cn("size-1.5 shrink-0 rounded-full", pinned && status === "connected" ? "bg-online" : "bg-muted-foreground/50")} />
-            <span className="truncate">{pinned ? "Acompanhando mensagens" : "Leitura pausada"}</span>
+            <span className={cn("size-1.5 shrink-0 rounded-full", status === "connected" ? "bg-online" : "bg-muted-foreground/50")} />
+            <span className="truncate">Rolagem automática</span>
           </span>
           {channel && (
             <a
