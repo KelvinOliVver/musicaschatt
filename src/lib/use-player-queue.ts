@@ -30,7 +30,7 @@ interface QueueRow {
 function toItem(row: QueueRow): QueueItem {
   return {
     id: row.id,
-    source: "youtube",
+    source: row.source === "instagram" || row.source === "tiktok" ? row.source : "youtube",
     trackId: row.track_id,
     url: row.url,
     title: row.title,
@@ -314,7 +314,7 @@ export function usePlayerQueue(): PlayerQueue {
             source: track.source,
             track_id: trackId,
             url: track.url,
-            thumbnail: `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg`,
+            thumbnail: track.source === "youtube" ? `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg` : null,
             requested_by: requestedBy,
             requester_color: requesterColor,
             priority: isVip,

@@ -11,12 +11,14 @@ import {
   SkipForward,
   Volume2,
   VolumeX,
-  Youtube,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
 import { Equalizer } from "@/components/Equalizer";
+import { SocialStage } from "@/components/SocialStage";
+import { SourceIcon } from "@/components/SourceIcon";
+import { isSocialSource, sourceLabel } from "@/lib/social-video";
 import { useDominantColor } from "@/hooks/use-dominant-color";
 import type { QueueItem } from "@/lib/types";
 import sessionImage from "@/assets/music-session.jpg";
@@ -240,6 +242,18 @@ export function PlayerPanel({
           <div ref={fullscreenContainerRef} onMouseMove={showControlsTemporarily} className="player-video group relative overflow-hidden transition-opacity duration-300" style={{ opacity: videoOpacity }}>
             {current ? (
               <>
+                {isSocialSource(current.source) ? (
+                  <SocialStage
+                    key={current.id}
+                    source={current.source}
+                    trackId={current.trackId}
+                    muted={muted}
+                    paused={paused}
+                    onEnded={() => { if (isHost) onNext(); }}
+                    onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
+                    controlsRef={controlsRef}
+                  />
+                ) : (
                 <YouTubeStage
                   key={current.id}
                   videoId={current.trackId}
@@ -251,11 +265,12 @@ export function PlayerPanel({
                   onProgress={(currentTime, duration) => setProgress({ current: currentTime, duration })}
                   controlsRef={controlsRef}
                 />
-                <Button variant="ghost" type="button" onClick={() => setPaused((value) => { const nextVal = !value; onTogglePlayChange?.(nextVal); return nextVal; })} className="absolute inset-0 h-full w-full rounded-none hover:bg-media-background/20" aria-label={paused ? "Tocar" : "Pausar"}>
+                )}
+                {!isSocialSource(current.source) && <Button variant="ghost" type="button" onClick={() => setPaused((value) => { const nextVal = !value; onTogglePlayChange?.(nextVal); return nextVal; })} className="absolute inset-0 h-full w-full rounded-none hover:bg-media-background/20" aria-label={paused ? "Tocar" : "Pausar"}>
                   <span className={`flex size-14 items-center justify-center rounded-full bg-media-background/60 text-hero-foreground backdrop-blur-sm transition-opacity ${overlayControlsOpacity}`}>
                     {paused ? <Play className="size-6 translate-x-0.5" aria-hidden /> : <Pause className="size-6" aria-hidden />}
                   </span>
-                </Button>
+                </Button>}
                 <Button variant="ghost" size="icon" type="button" onClick={(event) => { event.stopPropagation(); toggleFullscreen(); }} className={`absolute right-2 top-2 z-10 flex size-9 items-center justify-center rounded-full bg-media-background/60 text-hero-foreground backdrop-blur-sm transition-opacity hover:bg-media-background/80 focus-visible:opacity-100 ${overlayControlsOpacity}`} aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}>
                   {isFullscreen ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
                 </Button>
@@ -275,10 +290,10 @@ export function PlayerPanel({
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   {current.priority && <span className="bg-gradient-vip inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-vip-foreground"><Crown className="size-3" aria-hidden /> VIP</span>}
-                  <Youtube className="size-4 text-youtube" aria-hidden />
+                  <SourceIcon source={current.source} className="size-4" />
                   {!paused && <Equalizer bars={4} className="h-3" />}
-                  {current.title ? <h2 className="min-w-0 flex-1 player-title text-2xl font-semibold">{current.title}</h2> : <h2 className="min-w-0 flex-1 player-title animate-pulse text-2xl font-semibold text-muted-foreground">Tocando {current.trackId}</h2>}
-                  <ExternalLinkButton url={current.url} />
+                  {current.title ? <h2 className="min-w-0 flex-1 player-title text-2xl font-semibold">{current.title}</h2> : <h2 className={`min-w-0 flex-1 player-title text-2xl font-semibold text-muted-foreground ${isSocialSource(current.source) ? "" : "animate-pulse"}`}>{isSocialSource(current.source) ? `Vídeo do ${sourceLabel(current.source)}` : `Tocando ${current.trackId}`}</h2>}
+                  <ExternalLinkButton url={current.url} label={`Abrir no ${sourceLabel(current.source)}`} />
                 </div>
                 <p className="mt-1.5 text-sm text-muted-foreground">Pedido por <span className="font-medium text-foreground" style={current.requesterColor ? { color: current.requesterColor } : undefined}>{current.requestedBy}</span>{current.author ? ` · ${current.author}` : ""}</p>
               </>
@@ -306,7 +321,7 @@ export function PlayerPanel({
           </div>
 
           <div className="player-up-next flex items-center justify-between gap-2 text-muted-foreground">
-            <span className="truncate">{next ? <>A seguir: <span className="text-foreground">{next.title ?? next.trackId}</span></> : "Fila vazia — a próxima música que cair no chat toca aqui."}</span>
+            <span className="truncate">{next ? <>A seguir: <span className="text-foreground">{next.title ?? (isSocialSource(next.source) ? `Vídeo do ${sourceLabel(next.source)}` : next.trackId)}</span></> : "Fila vazia — a próxima música que cair no chat toca aqui."}</span>
           </div>
         </div>
       </section>
@@ -314,7 +329,7 @@ export function PlayerPanel({
   );
 }
 
-function ExternalLinkButton({ url }: { url: string }) {
-  return <a href={url} target="_blank" rel="noreferrer" className="text-muted-foreground transition-colors hover:text-primary" aria-label="Abrir no YouTube"><ExternalLink className="size-4" aria-hidden /></a>;
+function ExternalLinkButton({ url, label }: { url: string; label: string }) {
+  return <a href={url} target="_blank" rel="noreferrer" className="text-muted-foreground transition-colors hover:text-primary" aria-label={label}><ExternalLink className="size-4" aria-hidden /></a>;
 }
 function HeadphonesIcon() { return <span className="relative text-primary"><Music2 className="size-12" strokeWidth={1.3} /></span>; }

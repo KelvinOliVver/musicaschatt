@@ -41,7 +41,7 @@ export interface StageControls {
  * minimizado ou jogo em tela cheia), o navegador pode estrangular timers da
  * página. O Worker funciona como uma rede de segurança para o avanço.
  */
-function createWorkerTicker(onTick: () => void, intervalMs = 500): () => void {
+export function createWorkerTicker(onTick: () => void, intervalMs = 500): () => void {
   const source = `let t=null;onmessage=(e)=>{if(e.data==="start"&&!t){t=setInterval(()=>postMessage("tick"),${intervalMs});}else if(e.data==="stop"&&t){clearInterval(t);t=null;}};`;
   try {
     const blob = new Blob([source], { type: "application/javascript" });

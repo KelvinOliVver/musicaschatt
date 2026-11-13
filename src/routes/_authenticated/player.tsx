@@ -252,13 +252,13 @@ function PlayerPage() {
     event.preventDefault();
     const track = parseTrackInput(manual);
     if (!track) {
-      toast.error("Link inválido", { description: "Cole um link ou ID de vídeo do YouTube." });
+      toast.error("Link inválido", { description: "Cole um link do YouTube, Instagram (Reels) ou TikTok." });
       return;
     }
 
     void queue.addTrack(track, "você", null, { priority: true }).then((added) => {
       toast[added ? "success" : "info"](
-        added ? "Música adicionada à fila" : "Essa música já está na fila",
+        added ? "Adicionado à fila" : "Esse vídeo já está na fila",
       );
     });
     setManual("");
@@ -382,7 +382,7 @@ function PlayerPage() {
           <Input
             value={manual}
             onChange={(event) => setManual(event.target.value)}
-            placeholder="Cole um link do YouTube"
+            placeholder="Cole um link do YouTube, Instagram ou TikTok"
             aria-label="Adicionar música manualmente"
             className="h-8 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
           />

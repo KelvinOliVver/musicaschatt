@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ChatStatus, KickChannelInfo, KickChatMessage } from "./types";
 
 /** Legacy public Pusher endpoint. Kept as a fallback for channels/environments where it still works. */
-const KICK_PUSHER_KEY = "32cbd69e4b950bf97679";
+const KICK_PUSHER_KEY = "34bf7a0ff419a2a775b9";
 const KICK_PUSHER_URL = `wss://ws-us2.pusher.com/app/${KICK_PUSHER_KEY}?protocol=7&client=js&version=8.4.0&flash=false`;
 const KICK_VIEWER_TOKEN_URL = "https://websockets.kick.com/viewer/v1/token";
 const KICK_VIEWER_SOCKET_URL = "wss://websockets.kick.com/viewer/v1/connect?token=";
@@ -353,7 +353,7 @@ export function useKickChat(
             pingTimer = undefined;
             setStatus("reconnecting");
             retries += 1;
-            retryTimer = setTimeout(() => openSocket(info, true), Math.min(1000 * 2 ** Math.min(retries, 5), 20000));
+            retryTimer = setTimeout(() => openSocket(info, false), Math.min(1000 * 2 ** Math.min(retries, 5), 20000));
           };
         });
         return;
@@ -397,7 +397,7 @@ export function useKickChat(
         if (disposed) return;
         setStatus("reconnecting");
         retries += 1;
-        retryTimer = setTimeout(() => openSocket(info, true), Math.min(1000 * 2 ** Math.min(retries, 5), 20000));
+        retryTimer = setTimeout(() => openSocket(info, false), Math.min(1000 * 2 ** Math.min(retries, 5), 20000));
       };
     };
 
@@ -405,7 +405,7 @@ export function useKickChat(
       .then((info) => {
         if (disposed) return;
         setChannel(info);
-        openSocket(info, true);
+        openSocket(info, false);
       })
       .catch((cause: unknown) => {
         if (disposed) return;

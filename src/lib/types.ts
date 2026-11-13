@@ -1,4 +1,4 @@
-export type TrackSource = "youtube";
+export type TrackSource = "youtube" | "instagram" | "tiktok";
 
 export interface QueueItem {
   /** Stable local id for React keys and queue operations. */
