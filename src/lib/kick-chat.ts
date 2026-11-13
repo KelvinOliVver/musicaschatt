@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getKickChannelInfo } from "./kick.functions";
+import { getKickChannelInfo, getKickUserAvatar } from "./kick.functions";
 import { fetchKickChatAvatars, normalizeKickAvatar, normalizeKickUsername } from "./kick-avatars";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatStatus, KickChannelInfo, KickChatMessage } from "./types";
@@ -243,6 +243,44 @@ export function useKickChat(
     let avatarTimer: ReturnType<typeof setInterval> | undefined;
     let avatarRequest: AbortController | null = null;
     const avatarByUser = new Map<string, string>();
+    // Fallback lookup for chatters absent from Kick's active-chatters endpoint.
+    // Limit concurrency and do not query the same username repeatedly.
+    const avatarLookupAttempted = new Set<string>();
+    const avatarLookupQueue: string[] = [];
+    let avatarLookupsRunning = 0;
+    const lookupAvatarForUser = (rawUsername: string) => {
+      const username = normalizeKickUsername(rawUsername);
+      if (!username || avatarByUser.has(username) || avatarLookupAttempted.has(username)) return;
+      if (avatarLookupAttempted.size >= 100) return;
+      avatarLookupAttempted.add(username);
+      avatarLookupQueue.push(username);
+      pumpAvatarLookups();
+    };
+    const pumpAvatarLookups = () => {
+      while (!disposed && avatarLookupsRunning < 2 && avatarLookupQueue.length > 0) {
+        const username = avatarLookupQueue.shift()!;
+        if (avatarByUser.has(username)) continue;
+        avatarLookupsRunning++;
+        void getKickUserAvatar({ data: { username } })
+          .then((candidate) => {
+            if (disposed || !candidate) return;
+            const avatar = normalizeKickAvatar(candidate);
+            if (!avatar) return;
+            avatarByUser.set(username, avatar);
+            setMessages((current) => {
+              let changed = false;
+              const updated = current.map((message) => {
+                if (normalizeKickUsername(message.username) !== username || message.avatarUrl === avatar) return message;
+                changed = true;
+                return { ...message, avatarUrl: avatar };
+              });
+              return changed ? updated : current;
+            });
+          })
+          .catch(() => { /* Keep the initial when Kick blocks profile requests. */ })
+          .finally(() => { avatarLookupsRunning--; pumpAvatarLookups(); });
+      }
+    };
 
     // Kick's active chatters endpoint can expose photos for many people in
     // one request. It is optional and can be blocked; initials remain a fallback.
@@ -283,6 +321,10 @@ export function useKickChat(
         ...message,
         avatarUrl: avatarByUser.get(normalizeKickUsername(message.username) ?? "") ?? null,
       }))));
+      // Only resolve recent distinct history users, never every old message.
+      for (const name of [...new Set(history.slice(-25).map((message) => message.username))]) {
+        lookupAvatarForUser(name);
+      }
     });
 
     const handleChatPayload = (payload: KickChatPayload) => {
@@ -302,6 +344,9 @@ export function useKickChat(
       const { content, username, color, avatarUrl } = normalizedPayload;
       const normalizedUsername = normalizeKickUsername(username);
       if (normalizedUsername && avatarUrl) avatarByUser.set(normalizedUsername, avatarUrl);
+      if (normalizedUsername && !avatarUrl && !avatarByUser.has(normalizedUsername)) {
+        lookupAvatarForUser(normalizedUsername);
+      }
       const resolvedAvatar = avatarUrl ?? avatarByUser.get(normalizedUsername ?? "") ?? null;
       const commandText = content.trim().toLowerCase();
 
@@ -495,6 +540,7 @@ export function useKickChat(
 
     return () => {
       disposed = true;
+      avatarLookupQueue.length = 0;
       if (retryTimer) clearTimeout(retryTimer);
       if (pingTimer) clearInterval(pingTimer);
       if (avatarTimer) clearInterval(avatarTimer);
