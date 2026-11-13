@@ -60,8 +60,7 @@ export function safeInstagramVideoUrl(raw: string | undefined): string | null {
     const url = new URL(decodeHtmlAttributes(raw));
     const host = url.hostname.toLowerCase();
     const trustedHost = host === "cdninstagram.com" || host.endsWith(".cdninstagram.com")
-      || host === "fbcdn.net" || host.endsWith(".fbcdn.net")
-      || host === "instagram.com" || host.endsWith(".instagram.com");
+      || host === "fbcdn.net" || host.endsWith(".fbcdn.net");
     if (url.protocol !== "https:" || url.username || url.password || !trustedHost) return null;
     return url.toString();
   } catch {
