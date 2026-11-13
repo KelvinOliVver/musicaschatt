@@ -770,7 +770,7 @@
   position: relative;
   z-index: 1;
   flex: 0 1 auto;
-  width: min(100%, 440px);
+  width: min(100%, 540px);
   height: 100%;
   max-height: 100%;
   min-width: 0;
@@ -779,8 +779,11 @@
 }
 .music-player-stage .social-stage--instagram .instagram-reel-window.is-video-only {
   --instagram-header-cut: 54px;
-  height: auto;
-  aspect-ratio: 5 / 6;
+  /* The crop must fill the portrait stage vertically, not use a short 5:6
+     window that leaves huge black bars above and below the actual Reel. */
+  height: 100%;
+  width: min(100%, 540px, calc(clamp(490px, 78svh, 840px) * 9 / 16));
+  aspect-ratio: 9 / 16;
   max-height: 100%;
   border-radius: 3px;
 }
@@ -812,9 +815,35 @@
 }
 @media (max-width: 767px) {
   .music-player-stage .social-stage--instagram .instagram-reel-window {
-    width: min(100%, 400px);
+    width: min(100%, 460px);
   }
   .music-player-stage .social-stage--instagram .instagram-reel-window.is-video-only {
     --instagram-header-cut: 46px;
+    width: min(100%, 460px, calc(clamp(390px, 72svh, 740px) * 9 / 16));
+  }
+}
+
+/* A taller stage gives Reel media more real pixels without stretching it;
+   this applies ONLY to Instagram, never to the TikTok player. */
+.music-player-stage .social-stage--instagram {
+  height: clamp(490px, 78svh, 840px);
+}
+.music-shell.is-theater-shell .music-player-grid.is-theater-mode:has(.social-stage--instagram) {
+  --cinema-reserved-height: 195px;
+}
+.music-shell.is-theater-shell .music-player-stage .social-stage--instagram {
+  height: 100%;
+  max-height: 100%;
+}
+.music-shell.is-theater-shell .music-player-stage .social-stage--instagram .instagram-reel-window.is-video-only {
+  width: min(100%, 540px, calc((100svh - var(--cinema-reserved-height)) * 9 / 16));
+  height: 100%;
+}
+@media (max-width: 767px) {
+  .music-player-stage .social-stage--instagram {
+    height: clamp(390px, 72svh, 740px);
+  }
+  .music-shell.is-theater-shell .music-player-grid.is-theater-mode:has(.social-stage--instagram) {
+    --cinema-reserved-height: 235px;
   }
 }
