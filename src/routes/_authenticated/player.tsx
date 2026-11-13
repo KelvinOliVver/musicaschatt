@@ -93,6 +93,26 @@ function PlayerPage() {
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
   const [theaterMode, setTheaterMode] = useState(false);
+
+  useEffect(() => {
+    if (!theaterMode) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.fullscreenElement) {
+        setTheaterMode(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [theaterMode]);
+
   const accentColor = useDominantColor(queue.current?.thumbnail);
 
   const { data: userProfile } = useProfile();
