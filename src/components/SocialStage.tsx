@@ -71,6 +71,7 @@ export function SocialStage({
   const onMuteChangeRef = useRef(onMuteChange);
   const [tiktokActuallyMuted, setTiktokActuallyMuted] = useState<boolean | null>(null);
   const [playerError, setPlayerError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   // Instagram doesn't expose dimensions of cross-origin embeds. A streamer can
   // tune the crop for this Reel; changing CSS does not recreate the iframe.
   // Use the same initial markup on SSR and client; restore saved crop in an effect.
@@ -269,6 +270,7 @@ export function SocialStage({
 
   const embedFrame = (
     <iframe
+      key={retryKey}
       ref={iframeRef}
       src={socialEmbedUrl(source, trackId, originalUrl)}
       title={`Reproduzir vídeo do ${sourceLabel(source)}`}
@@ -396,12 +398,40 @@ export function SocialStage({
           </p>
         </div>
       )}
-      {playerError && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-media-background/95 px-6 text-center">
-          <p className="text-sm font-semibold text-foreground">Este vídeo não pôde ser reproduzido aqui.</p>
-          <p className="text-xs text-muted-foreground">
-            O TikTok pode restringir a reprodução incorporada. Use o link ao lado do título para abrir o original.
+      {playerError && source === "tiktok" && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-media-background/95 px-6 text-center" role="alert">
+          <p className="text-sm font-semibold text-foreground">O TikTok não conseguiu reproduzir este vídeo.</p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            Alguns vídeos são privados, removidos ou bloqueados para reprodução incorporada.
           </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                // A new iframe is created only on explicit retry, not on
+                // theater/crop changes. Clear the previous track's counters.
+                elapsedRef.current = 0;
+                durationRef.current = 0;
+                endedRef.current = false;
+                playingRef.current = false;
+                lastTickRef.current = Date.now();
+                setTiktokActuallyMuted(null);
+                setPlayerError(false);
+                setRetryKey((key) => key + 1);
+              }}
+              className="rounded-sm border border-primary bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+            >
+              Tentar novamente
+            </button>
+            <a
+              href={originalUrl?.startsWith("https://www.tiktok.com/") ? originalUrl : `https://www.tiktok.com/player/v1/${encodeURIComponent(trackId)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-sm border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-secondary"
+            >
+              Abrir no TikTok
+            </a>
+          </div>
         </div>
       )}
     </div>
