@@ -47,6 +47,7 @@ interface PlayerPanelProps {
   onPlayingStateChange?: (isPlaying: boolean) => void;
   /** Enlarge the embedded video while leaving the queue and chat below it. */
   theaterMode?: boolean;
+  automaticRecovery?: boolean;
   onToggleTheaterMode?: () => void;
 }
 
@@ -92,6 +93,7 @@ export function PlayerPanel({
   onPlayingStateChange,
   controlsRef: externalControlsRef,
   theaterMode = false,
+  automaticRecovery = true,
   onToggleTheaterMode,
 }: PlayerPanelProps) {
   const [volume, setVolume] = useState(() => {
@@ -334,6 +336,7 @@ export function PlayerPanel({
                   <SocialStage
                     key={current.id}
                     source={current.source}
+                    autoRecover={automaticRecovery}
                     trackId={current.trackId}
                     originalUrl={current.url}
                     muted={muted}
