@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Volume2 } from "lucide-react";
 import { createWorkerTicker, type StageControls } from "@/components/YouTubeStage";
 import { socialEmbedUrl, sourceLabel } from "@/lib/social-video";
 
@@ -8,6 +9,8 @@ interface SocialStageProps {
   /** Original canonical URL, used to distinguish Instagram Reels from posts. */
   originalUrl?: string;
   muted: boolean;
+  /** Reflect mute state reported by TikTok, including autoplay muting. */
+  onMuteChange?: (muted: boolean) => void;
   paused: boolean;
   onEnded: () => void;
   onProgress: (currentTime: number, duration: number) => void;
@@ -23,7 +26,7 @@ interface SocialStageProps {
  * the streamer can interact with the embed and skip manually.
  */
 export function SocialStage({
-  source, trackId, originalUrl, muted, paused, onEnded, onProgress, controlsRef,
+  source, trackId, originalUrl, muted, onMuteChange, paused, onEnded, onProgress, controlsRef,
 }: SocialStageProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const elapsedRef = useRef(0);
@@ -35,6 +38,8 @@ export function SocialStage({
   const endedRef = useRef(false);
   const onEndedRef = useRef(onEnded);
   const onProgressRef = useRef(onProgress);
+  const onMuteChangeRef = useRef(onMuteChange);
+  const [tiktokActuallyMuted, setTiktokActuallyMuted] = useState<boolean | null>(null);
   const [playerError, setPlayerError] = useState(false);
   const [showFullInstagramPost, setShowFullInstagramPost] = useState(false);
 
@@ -42,6 +47,7 @@ export function SocialStage({
   mutedRef.current = muted;
   onEndedRef.current = onEnded;
   onProgressRef.current = onProgress;
+  onMuteChangeRef.current = onMuteChange;
 
   function finish() {
     if (endedRef.current) return;
@@ -109,6 +115,8 @@ export function SocialStage({
       const { type, value } = data as { type?: string; value?: unknown };
 
       if (type === "onPlayerReady") {
+        // TikTok may start muted despite autoplay. Ask for audio when the app
+        // wants sound, but keep the explicit unmute button below as fallback.
         postToTikTok(mutedRef.current ? "mute" : "unMute");
         postToTikTok(pausedRef.current ? "pause" : "play");
       } else if (type === "onCurrentTime" && value && typeof value === "object") {
@@ -118,12 +126,16 @@ export function SocialStage({
         if (Number.isFinite(duration) && duration > 0) durationRef.current = duration;
         if (Number.isFinite(current) && current >= 0) elapsedRef.current = current;
         onProgressRef.current(elapsedRef.current, durationRef.current);
+      } else if (type === "onMute" && typeof value === "boolean") {
+        setTiktokActuallyMuted(value);
+        onMuteChangeRef.current?.(value);
       } else if (type === "onStateChange") {
         const state = Number(value);
         if (state === 0) finish();
         else if (state === 1) {
           playingRef.current = true;
           lastTickRef.current = Date.now();
+          if (!mutedRef.current) postToTikTok("unMute");
         } else if (state === 2 || state === 3) {
           playingRef.current = false;
         }
@@ -168,6 +180,23 @@ export function SocialStage({
           {embedFrame}
         </div>
       ) : embedFrame}
+      {source === "tiktok" && (muted || tiktokActuallyMuted !== false) && (
+        <button
+          type="button"
+          className="tiktok-unmute-button absolute bottom-3 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded bg-black/85 px-3 py-2 text-xs font-semibold text-white shadow-lg transition-colors hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          onClick={() => {
+            // Send this during the actual click, not from a delayed effect:
+            // browsers can require a user gesture to enable audible playback.
+            mutedRef.current = false;
+            onMuteChangeRef.current?.(false);
+            postToTikTok("unMute");
+          }}
+          aria-label="Ativar som do vídeo do TikTok"
+        >
+          <Volume2 className="size-4" aria-hidden />
+          Ativar som
+        </button>
+      )}
       {source === "instagram" && (
         <button
           type="button"

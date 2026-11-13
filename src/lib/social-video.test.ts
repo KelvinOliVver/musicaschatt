@@ -37,6 +37,7 @@ describe("social player embeds", () => {
     expect(url.pathname).toBe("/player/v1/7412345678901234567");
     expect(url.searchParams.get("autoplay")).toBe("1");
     expect(url.searchParams.get("loop")).toBe("0");
+    expect(url.searchParams.get("force_muted")).toBe("0");
     for (const name of ["controls", "progress_bar", "play_button", "volume_control", "fullscreen_button", "timestamp", "music_info", "description", "closed_caption", "rel"]) {
       expect(url.searchParams.get(name)).toBe("0");
     }
