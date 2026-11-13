@@ -1186,3 +1186,56 @@
 }
 .music-player-stage .player-empty h2,
 .music-player-stage .player-empty p { position: relative; }
+
+/* OBS capture link: keep the same native player, strip browser-facing chrome. */
+.music-shell.is-obs-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  width: 100%;
+  height: 100svh;
+  min-height: 0;
+  background: #08080b;
+  overflow: hidden;
+}
+.music-shell.is-obs-shell .music-player-page {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: none;
+  height: 100svh;
+}
+.music-shell.is-obs-shell .music-sidebar,
+.music-shell.is-obs-shell .music-player-page > .music-topbar,
+.music-shell.is-obs-shell .music-player-page > .music-player-header,
+.music-shell.is-obs-shell .music-player-page > .music-add-track,
+.music-shell.is-obs-shell .music-player-grid > .music-queue-column,
+.music-shell.is-obs-shell .music-player-grid > .music-chat-column,
+.music-shell.is-obs-shell .music-player-grid > .music-player-tabs,
+.music-shell.is-obs-shell .music-stage-actions,
+.music-shell.is-obs-shell .music-player-shortcuts,
+.music-shell.is-obs-shell .player-up-next { display: none !important; }
+.music-shell.is-obs-shell .music-player-grid,
+.music-shell.is-obs-shell .music-player-grid.is-theater-mode {
+  display: flex !important;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  padding: 0;
+  margin: 0;
+  gap: 0;
+  grid-template-columns: none;
+}
+.music-shell.is-obs-shell .music-player-stage {
+  display: flex !important;
+  width: 100%;
+  height: 100%;
+}
+.music-shell.is-obs-shell .music-player-stage .panel {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 0;
+  background: #08080b;
+}
