@@ -1,15 +1,34 @@
-import { useEffect, useRef, useState } from "react";
-import { Volume2 } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { RotateCcw, SlidersHorizontal, Volume2 } from "lucide-react";
 import { createWorkerTicker, type StageControls } from "@/components/YouTubeStage";
 import { socialEmbedUrl, sourceLabel } from "@/lib/social-video";
-
-type InstagramLayout = "portrait" | "landscape" | "full";
+import {
+  DEFAULT_INSTAGRAM_FRAMING,
+  decodeInstagramFraming,
+  instagramFramingKey,
+  normalizeInstagramFraming,
+  type InstagramFraming,
+  type InstagramLayout,
+} from "@/lib/instagram-framing";
 
 const instagramLayouts: { value: InstagramLayout; label: string }[] = [
   { value: "portrait", label: "Vertical" },
-  { value: "landscape", label: "Horizontal" },
+  { value: "landscape", label: "16:9" },
+  { value: "standard", label: "4:3" },
   { value: "full", label: "Post completo" },
 ];
+
+function getSavedInstagramFraming(trackId: string): InstagramFraming {
+  if (typeof window === "undefined") return { ...DEFAULT_INSTAGRAM_FRAMING };
+  try {
+    return decodeInstagramFraming(
+      window.sessionStorage.getItem(instagramFramingKey(trackId)),
+      window.sessionStorage.getItem(`music-chat-reel-layout:${trackId}`),
+    );
+  } catch {
+    return { ...DEFAULT_INSTAGRAM_FRAMING };
+  }
+}
 
 interface SocialStageProps {
   source: "instagram" | "tiktok";
@@ -49,23 +68,28 @@ export function SocialStage({
   const onMuteChangeRef = useRef(onMuteChange);
   const [tiktokActuallyMuted, setTiktokActuallyMuted] = useState<boolean | null>(null);
   const [playerError, setPlayerError] = useState(false);
-  // A Reel can contain a vertical OR horizontal video. Instagram's cross-origin
-  // embed does not expose the underlying media dimensions, so let the viewer
-  // switch framing without reloading the iframe or interrupting playback.
-  const [instagramLayout, setInstagramLayout] = useState<InstagramLayout>(() => {
-    if (typeof window === "undefined") return "portrait";
-    try {
-      const saved = window.sessionStorage.getItem(`music-chat-reel-layout:${trackId}`);
-      if (saved === "portrait" || saved === "landscape" || saved === "full") return saved;
-    } catch { /* Storage may be disabled. */ }
-    return "portrait";
-  });
+  // Instagram doesn't expose dimensions of cross-origin embeds. A streamer can
+  // tune the crop for this Reel; changing CSS does not recreate the iframe.
+  const [framing, setFraming] = useState<InstagramFraming>(() => getSavedInstagramFraming(trackId));
+  const [showFramingSettings, setShowFramingSettings] = useState(false);
 
-  function chooseInstagramLayout(layout: InstagramLayout) {
-    setInstagramLayout(layout);
-    try { window.sessionStorage.setItem(`music-chat-reel-layout:${trackId}`, layout); }
-    catch { /* Optional preference only. */ }
+  useEffect(() => {
+    setFraming(getSavedInstagramFraming(trackId));
+    setShowFramingSettings(false);
+  }, [trackId]);
+
+  function updateInstagramFraming(patch: Partial<InstagramFraming>) {
+    const updated = normalizeInstagramFraming({ ...framing, ...patch });
+    setFraming(updated);
+    try { window.sessionStorage.setItem(instagramFramingKey(trackId), JSON.stringify(updated)); }
+    catch { /* Crop persistence is optional. */ }
+    if (updated.layout === "full") setShowFramingSettings(false);
   }
+
+  const instagramFrameStyle = {
+    "--instagram-user-zoom": String(framing.zoom / 100),
+    "--instagram-shift-y": `${framing.verticalOffset}px`,
+  } as CSSProperties;
 
   pausedRef.current = paused;
   mutedRef.current = muted;
@@ -200,7 +224,7 @@ export function SocialStage({
   return (
     <div className={`social-stage social-stage--${source} relative flex aspect-video w-full items-center justify-center overflow-hidden bg-media-background`}>
       {source === "instagram" ? (
-        <div className={`instagram-reel-window is-${instagramLayout}`}>
+        <div className={`instagram-reel-window is-${framing.layout}`} style={instagramFrameStyle}>
           {embedFrame}
         </div>
       ) : embedFrame}
@@ -232,17 +256,83 @@ export function SocialStage({
               key={value}
               type="button"
               className={`instagram-layout-option rounded-sm px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${instagramLayout === value ? "bg-primary text-primary-foreground" : "text-white hover:bg-white/20"}`}
-              onClick={() => chooseInstagramLayout(value)}
-              aria-pressed={instagramLayout === value}
+              onClick={() => updateInstagramFraming({ layout: value })}
+              aria-pressed={framing.layout === value}
               title={value === "landscape"
-                ? "Mostrar o vídeo horizontal sem o zoom vertical"
-                : value === "portrait"
-                  ? "Mostrar o Reel com corte vertical"
-                  : "Exibir a publicação original sem recorte"}
+                ? "Enquadrar o vídeo horizontal em 16:9"
+                : value === "standard"
+                  ? "Enquadrar o vídeo em 4:3"
+                  : value === "portrait"
+                    ? "Mostrar o Reel vertical"
+                    : "Exibir a publicação original sem recorte"}
             >
               {label}
             </button>
           ))}
+          <button
+            type="button"
+            className={`instagram-layout-option inline-flex items-center gap-1 rounded-sm border-l border-white/20 px-2 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${showFramingSettings ? "bg-white/20 text-white" : "text-white hover:bg-white/20"}`}
+            onClick={() => setShowFramingSettings((open) => !open)}
+            aria-expanded={showFramingSettings}
+            aria-controls="instagram-framing-settings"
+            aria-label="Ajustar zoom e posição do Instagram"
+            disabled={framing.layout === "full"}
+            title="Ajustar zoom e posição do vídeo"
+          >
+            <SlidersHorizontal className="size-3.5" aria-hidden />
+            <span className="hidden sm:inline">Ajustar</span>
+          </button>
+        </div>
+      )}
+      {source === "instagram" && showFramingSettings && framing.layout !== "full" && (
+        <div
+          id="instagram-framing-settings"
+          className="instagram-framing-settings absolute bottom-14 right-2 z-20 w-[min(290px,calc(100%-16px))] rounded-md border border-white/20 bg-[#17171b]/95 p-3 text-white shadow-xl"
+          role="group"
+          aria-label="Ajuste fino do vídeo do Instagram"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <strong className="text-xs font-semibold">Enquadramento</strong>
+            <button
+              type="button"
+              onClick={() => updateInstagramFraming({ zoom: 100, verticalOffset: 0 })}
+              className="inline-flex items-center gap-1 text-[11px] text-white/75 hover:text-white"
+              title="Restaurar zoom e posição padrão"
+            >
+              <RotateCcw className="size-3" aria-hidden /> Redefinir
+            </button>
+          </div>
+          <label className="mb-1 flex items-center justify-between text-[11px]" htmlFor="instagram-zoom-slider">
+            <span>Zoom</span>
+            <span className="tabular-nums">{framing.zoom}%</span>
+          </label>
+          <input
+            id="instagram-zoom-slider"
+            type="range"
+            min={75}
+            max={160}
+            step={5}
+            value={framing.zoom}
+            onChange={(event) => updateInstagramFraming({ zoom: Number(event.target.value) })}
+            className="instagram-framing-slider mb-3 w-full accent-[#b59af8]"
+          />
+          <label className="mb-1 flex items-center justify-between text-[11px]" htmlFor="instagram-position-slider">
+            <span>Posição vertical</span>
+            <span className="tabular-nums">{framing.verticalOffset > 0 ? "+" : ""}{framing.verticalOffset}px</span>
+          </label>
+          <input
+            id="instagram-position-slider"
+            type="range"
+            min={-240}
+            max={240}
+            step={10}
+            value={framing.verticalOffset}
+            onChange={(event) => updateInstagramFraming({ verticalOffset: Number(event.target.value) })}
+            className="instagram-framing-slider w-full accent-[#b59af8]"
+          />
+          <p className="mt-2 text-[10px] leading-4 text-white/65">
+            Ajuste o vídeo sem reiniciar. A configuração deste Reel fica salva nesta sessão.
+          </p>
         </div>
       )}
       {playerError && (
