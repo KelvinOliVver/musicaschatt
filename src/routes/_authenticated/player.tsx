@@ -418,6 +418,17 @@ function PlayerPage() {
     if (candidate) queue.playNow(candidate.id);
     else queue.playNext();
   }, [queue, preferences.fairQueue]);
+  const finishedTrackRef = useRef<string | null>(null);
+  useEffect(() => {
+    finishedTrackRef.current = null;
+  }, [queue.current?.id]);
+  const handleAutomaticNext = useCallback(() => {
+    const currentId = queue.current?.id;
+    if (!isHostRef.current || !currentId || finishedTrackRef.current === currentId) return;
+    finishedTrackRef.current = currentId;
+    handlePlayNext();
+  }, [queue.current?.id, handlePlayNext]);
+
   const handlePlayPrevious = useCallback(() => queue.playPrevious(), [queue]);
   const handlePlayNow = useCallback((id: string) => queue.playNow(id), [queue]);
   const handleRemoveItem = useCallback((id: string) => queue.removeItem(id), [queue]);
@@ -634,6 +645,7 @@ function PlayerPage() {
             hasNext={queue.queue.length > 0}
             isHost={isHost}
             onNext={handlePlayNext}
+            onAutomaticNext={handleAutomaticNext}
             onPrevious={handlePlayPrevious}
             remoteSeek={remoteSeek}
             remotePaused={remotePaused}
