@@ -225,7 +225,7 @@ export function QueueList({
                         )}
                       </div>
                       <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                        <Youtube className="size-3 text-youtube transition-transform duration-200 group-hover:scale-110" aria-hidden />
+                        <SourceIcon source={item.source} className="size-3 transition-transform duration-200 group-hover:scale-110" />
                         <span
                           className={`truncate text-xs ${isOwnRequest ? "font-semibold text-primary" : "text-muted-foreground"}`}
                           style={!isOwnRequest && item.requesterColor ? { color: item.requesterColor } : undefined}
@@ -332,7 +332,7 @@ export function QueueList({
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-medium">
-                          {item.title ?? `Vídeo ${item.trackId}`}
+                          {item.title ?? (isSocialSource(item.source) ? `Vídeo do ${sourceLabel(item.source)}` : `Vídeo ${item.trackId}`)}
                         </p>
                         <p className="truncate text-[11px] text-muted-foreground">
                           {item.requestedBy}
