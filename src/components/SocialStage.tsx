@@ -49,6 +49,7 @@ export function SocialStage({
   const [retryKey, setRetryKey] = useState(0);
   const [autoSize, setAutoSize] = useState<InstagramVideoSize | null>(null);
   const [publicVideoUrl, setPublicVideoUrl] = useState<string | null>(null);
+  const [instagramLoading, setInstagramLoading] = useState(source === "instagram");
   const [nativeFailed, setNativeFailed] = useState(false);
   const [nativeNeedsGesture, setNativeNeedsGesture] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
@@ -75,6 +76,7 @@ export function SocialStage({
     let disposed = false;
     setAutoSize(null);
     setPublicVideoUrl(null);
+    setInstagramLoading(true);
     setNativeFailed(false);
     setNativeNeedsGesture(false);
     const kind = originalUrl?.includes("/tv/") ? "tv"
@@ -84,6 +86,7 @@ export function SocialStage({
         if (disposed) return;
         setAutoSize(media.size);
         setPublicVideoUrl(media.videoUrl);
+        setInstagramLoading(false);
       })
       .catch(() => {
         // Instagram can block public metadata requests. Keep the native
@@ -91,6 +94,7 @@ export function SocialStage({
         if (!disposed) {
           setAutoSize(null);
           setPublicVideoUrl(null);
+          setInstagramLoading(false);
         }
       });
     return () => { disposed = true; };
@@ -259,7 +263,11 @@ export function SocialStage({
   return (
     <div ref={stageRef} className={`social-stage social-stage--${source} relative flex aspect-video w-full items-center justify-center overflow-hidden bg-media-background`}>
       {source === "instagram" ? (
-        useNativeInstagram ? (
+        instagramLoading ? (
+          <div className="relative z-[1] flex h-full w-full items-center justify-center text-xs text-white/60">
+            Preparando o vídeo…
+          </div>
+        ) : useNativeInstagram ? (
           <video
             ref={nativeVideoRef}
             className="instagram-native-video relative z-[1] block h-full w-full object-contain"
