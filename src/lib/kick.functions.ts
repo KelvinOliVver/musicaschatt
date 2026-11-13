@@ -71,11 +71,25 @@ interface OEmbedResponse {
 
 export const getTrackMetadata = createServerFn({ method: "GET" })
   .inputValidator((input: { source: TrackSource; trackId: string }) => {
-    if (input.source !== "youtube") throw new Error("Fonte inválida.");
+    if (!["youtube", "instagram", "tiktok"].includes(input.source)) throw new Error("Fonte inválida.");
     if (!/^[A-Za-z0-9_-]{1,40}$/.test(input.trackId)) throw new Error("Id inválido.");
     return input;
   })
   .handler(async ({ data }): Promise<TrackMetadata> => {
+    if (data.source === "instagram") {
+      // O oEmbed do Instagram exige token; o player mostra um título padrão.
+      return { title: null, author: null, thumbnail: null };
+    }
+    if (data.source === "tiktok") {
+      try {
+        const response = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(`https://www.tiktok.com/@/video/${data.trackId}`)}`, { headers: BROWSER_HEADERS });
+        if (!response.ok) return { title: null, author: null, thumbnail: null };
+        const payload = (await response.json()) as OEmbedResponse;
+        return { title: payload.title?.trim() || null, author: payload.author_name ?? null, thumbnail: payload.thumbnail_url ?? null };
+      } catch {
+        return { title: null, author: null, thumbnail: null };
+      }
+    }
     const oembedUrl = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${data.trackId}`)}`;
     const fallbackThumb = `https://i.ytimg.com/vi/${data.trackId}/hqdefault.jpg`;
     try {

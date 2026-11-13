@@ -56,6 +56,27 @@ function parseYouTube(url: URL): DetectedTrack | null {
   };
 }
 
+function parseSocial(url: URL): DetectedTrack | null {
+  const host = url.hostname.replace(/^(www|m)\./, "").toLowerCase();
+  if (host === "instagram.com") {
+    const m = url.pathname.match(/^\/(?:[^/]+\/)?(p|reel|reels|tv)\/([A-Za-z0-9_-]+)/);
+    if (!m) return null;
+    const kind = m[1] === "reels" ? "reel" : m[1];
+    return { source: "instagram", trackId: m[2]!, url: `https://www.instagram.com/${kind}/${m[2]}/` };
+  }
+  if (host === "tiktok.com" || host.endsWith(".tiktok.com")) {
+    const m = url.pathname.match(/\/video\/(\d+)/);
+    if (!m) return null;
+    const user = url.pathname.match(/^\/(@[^/]+)\//)?.[1] ?? "@";
+    return { source: "tiktok", trackId: m[1]!, url: `https://www.tiktok.com/${user}/video/${m[1]}` };
+  }
+  return null;
+}
+
+function parseUrl(url: URL): DetectedTrack | null {
+  return parseYouTube(url) ?? parseSocial(url);
+}
+
 /** Parses a single pasted link (or bare video id) into a track. */
 export function parseTrackInput(input: string): DetectedTrack | null {
   const value = input.trim();
@@ -71,7 +92,7 @@ export function parseTrackInput(input: string): DetectedTrack | null {
 
   const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
   try {
-    return parseYouTube(new URL(withProtocol));
+    return parseUrl(new URL(withProtocol));
   } catch {
     return null;
   }
@@ -95,10 +116,11 @@ export function extractTracks(content: string): DetectedTrack[] {
       continue;
     }
 
-    const track = parseYouTube(url);
+    const track = parseUrl(url);
     if (!track) continue;
-    if (seen.has(track.trackId)) continue;
-    seen.add(track.trackId);
+    const key = `${track.source}:${track.trackId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     found.push(track);
   }
 
