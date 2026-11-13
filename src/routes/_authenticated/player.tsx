@@ -78,6 +78,8 @@ interface OnlineUser {
   username: string;
   avatarUrl: string | null;
   joined_at: string;
+  isAdmin: boolean;
+  obsMode: boolean;
 }
 
 function PlayerPage() {
@@ -101,6 +103,27 @@ function PlayerPage() {
   const [remoteSeek, setRemoteSeek] = useState<number | null>(null);
   const [remotePaused, setRemotePaused] = useState<boolean | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [isAdministrator, setIsAdministrator] = useState(false);
+  const [roleLoaded, setRoleLoaded] = useState(false);
+  useEffect(() => {
+    let active = true;
+    const verifyRole = async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      let allowed = false;
+      if (authData.user) {
+        const { data, error } = await supabase.from("user_roles")
+          .select("role").eq("user_id", authData.user.id).eq("role", "admin").maybeSingle();
+        allowed = !error && data?.role === "admin";
+      }
+      if (active) {
+        setIsAdministrator(allowed);
+        setRoleLoaded(true);
+      }
+    };
+    void verifyRole();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => { void verifyRole(); });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, []);
   const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
   const [theaterMode, setTheaterMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("obs") === "1");
 
@@ -130,15 +153,17 @@ function PlayerPage() {
   const profileAvatarUrl = userProfile?.avatar_url || null;
 
   const hostClientId = useMemo(() => {
-    if (onlineUsers.length === 0) return null;
-    const sorted = [...onlineUsers].sort((a, b) => {
+    // The host is elected only among verified admin tabs, never passive OBS views.
+    const candidates = onlineUsers.filter((user) => user.isAdmin && !user.obsMode);
+    if (candidates.length === 0) return null;
+    const sorted = [...candidates].sort((a, b) => {
       const byTime = a.joined_at.localeCompare(b.joined_at);
       return byTime !== 0 ? byTime : a.clientId.localeCompare(b.clientId);
     });
     return sorted[0]?.clientId ?? null;
   }, [onlineUsers]);
 
-  const isHost = hostClientId === clientIdRef.current;
+  const isHost = roleLoaded && isAdministrator && !obsMode && hostClientId === clientIdRef.current;
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
 
@@ -213,6 +238,8 @@ function PlayerPage() {
               username: p.username || "Ouvinte Anônimo",
               avatarUrl: p.avatarUrl ?? null,
               joined_at: p.joined_at,
+              isAdmin: p.isAdmin === true,
+              obsMode: p.obsMode === true,
             });
           });
         });
@@ -226,6 +253,10 @@ function PlayerPage() {
             username: profileName ?? getFriendlyListenerName(clientIdRef.current),
             avatarUrl: profileAvatarUrl,
             joined_at: joinedAtRef.current,
+      isAdmin: isAdministrator,
+      obsMode,
+            isAdmin: isAdministrator,
+            obsMode,
           });
         }
       });
@@ -246,7 +277,7 @@ function PlayerPage() {
       avatarUrl: profileAvatarUrl,
       joined_at: joinedAtRef.current,
     });
-  }, [profileName, profileAvatarUrl]);
+  }, [profileName, profileAvatarUrl, isAdministrator, roleLoaded, obsMode]);
 
   const handleMessage = useCallback(
     (message: KickChatMessage) => {
