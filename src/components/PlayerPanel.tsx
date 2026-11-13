@@ -87,8 +87,16 @@ export function PlayerPanel({
 }: PlayerPanelProps) {
   const [volume, setVolume] = useState(() => {
     if (typeof window === "undefined") return 70;
-    const stored = Number(window.localStorage.getItem(VOLUME_KEY));
-    return Number.isFinite(stored) && stored >= 0 && stored <= 100 ? stored : 70;
+    try {
+      const saved = window.localStorage.getItem(VOLUME_KEY);
+      if (saved === null) return 70;
+
+      const stored = Number(saved);
+      return Number.isFinite(stored) && stored >= 0 && stored <= 100 ? stored : 70;
+    } catch {
+      // Private browsing or disabled storage must not crash the player.
+      return 70;
+    }
   });
   const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
