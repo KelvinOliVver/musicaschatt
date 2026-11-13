@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppSettings } from "@/hooks/use-app-settings";
+import { useRoomAdmin } from "@/hooks/use-room-admin";
 
 import { MusicSidebar } from "@/components/MusicSidebar";
 
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
 
 function AdminPage() {
   const { settings, loading, updateCooldown } = useAppSettings();
+  const { isAdmin, checking } = useRoomAdmin();
   const [cooldown, setCooldown] = useState(settings.chatCooldownSeconds);
   const [saving, setSaving] = useState(false);
 
@@ -36,6 +38,10 @@ function AdminPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!isAdmin) {
+      toast.error("Somente o streamer pode alterar as configurações.");
+      return;
+    }
     setSaving(true);
     const ok = await updateCooldown(cooldown);
     setSaving(false);
@@ -63,11 +69,14 @@ function AdminPage() {
           Administração
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Essas configurações valem pra todo mundo que usa o site — qualquer pessoa
-          logada pode ajustar aqui.
+          Essas configurações valem para toda a sala. Somente a conta administradora
+          do streamer pode modificá-las.
         </p>
       </div>
 
+      {!checking && !isAdmin && (
+        <p role="alert" className="text-sm text-destructive">Somente o streamer autorizado pode alterar estas configurações.</p>
+      )}
       <form onSubmit={handleSubmit} className="panel flex flex-col gap-6 p-6">
         <div className="grid gap-2">
           <Label htmlFor="cooldown">Cooldown de pedidos por pessoa (segundos)</Label>
@@ -78,7 +87,7 @@ function AdminPage() {
             max={600}
             value={cooldown}
             onChange={(event) => setCooldown(Number(event.target.value))}
-            disabled={loading}
+            disabled={loading || checking || !isAdmin}
           />
           <p className="text-xs text-muted-foreground">
             Cada pessoa no chat só consegue pedir uma música nova depois de esperar esse
@@ -86,7 +95,7 @@ function AdminPage() {
           </p>
         </div>
 
-        <Button type="submit" disabled={saving || loading} className="w-fit">
+        <Button type="submit" disabled={saving || loading || checking || !isAdmin} className="w-fit">
           {saving && <Loader2 className="size-4 animate-spin" aria-hidden />}
           Salvar alterações
         </Button>
