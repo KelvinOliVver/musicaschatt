@@ -1367,3 +1367,56 @@
 .music-shell.music-chat-hidden .music-player-tabs [value="chat"] { display: none !important; }
 .music-shell.music-layout-compact .music-queue header,
 .music-shell.music-layout-compact .music-chat header { padding-block: 9px; }
+
+
+/* 2026-11-13 · Prevent chat/queue from overlapping neighbouring grid tracks.
+   Columns and nested flex items must not size beyond their grid cells. */
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  column-gap: clamp(14px, 1.15vw, 22px);
+}
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-grid > .music-player-stage,
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-grid > .music-queue-column,
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-grid > .music-chat-column {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  margin-inline: 0;
+  inset-inline: auto;
+  overflow: hidden;
+}
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-grid .music-queue,
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-grid .music-chat,
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-grid .music-queue > .panel,
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-grid .music-chat > .panel {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  margin-inline: 0;
+  overflow: hidden;
+}
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-grid .music-queue header,
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-grid .music-chat header,
+.music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-grid .music-queue [data-radix-scroll-area-viewport] {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (min-width: 1251px) {
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid {
+    /* All desktop columns shrink within the available viewport; no min-content bleed. */
+    grid-template-columns: minmax(0, 1.72fr) minmax(0, .88fr) minmax(0, .94fr);
+  }
+  .music-shell.music-layout-player:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid {
+    grid-template-columns: minmax(0, 2.35fr) minmax(0, .78fr) minmax(0, .84fr);
+  }
+  .music-shell.music-layout-compact:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid {
+    grid-template-columns: minmax(0, 1.32fr) minmax(0, .92fr) minmax(0, .94fr);
+  }
+  .music-shell.music-chat-hidden:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid {
+    grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+  }
+}
