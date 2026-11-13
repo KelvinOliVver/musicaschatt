@@ -24,7 +24,6 @@ import { SourceIcon } from "@/components/SourceIcon";
 import { isSocialSource, sourceLabel } from "@/lib/social-video";
 import { useDominantColor } from "@/hooks/use-dominant-color";
 import type { QueueItem } from "@/lib/types";
-import sessionImage from "@/assets/music-session.jpg";
 
 const VOLUME_KEY = "musicas-chat-volume";
 const DRIFT_THRESHOLD_SECONDS = 1.5;
@@ -373,11 +372,17 @@ export function PlayerPanel({
                 </Button>
               </>
             ) : (
-              <div className="player-empty relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden px-6 text-center">
-                <img src={sessionImage} alt="" width={1200} height={800} />
-                <HeadphonesIcon />
-                <h2 className="mt-5 text-lg font-semibold">Pronto para o próximo play</h2>
-                <p className="mt-2 text-sm text-muted-foreground">Nenhuma música tocando.</p>
+              <div className="player-empty relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-white/[0.06] bg-[#0b0a10] px-6 text-center">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,rgba(161,122,224,0.09),transparent_53%)]" aria-hidden />
+                <div className="relative flex size-16 items-center justify-center rounded-2xl border border-primary/15 bg-primary/[0.06] text-primary">
+                  <Music2 className="size-7" aria-hidden />
+                </div>
+                <h2 className="relative mt-5 text-lg font-semibold tracking-tight text-foreground">Pronto para o próximo play</h2>
+                <p className="relative mt-2 max-w-xs text-sm text-muted-foreground">Aguardando um pedido do chat.</p>
+                <div className="relative mt-6 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/60">
+                  <span className="size-1.5 rounded-full bg-primary" aria-hidden />
+                  Fila em espera
+                </div>
               </div>
             )}
           </div>
