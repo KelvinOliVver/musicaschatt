@@ -7,7 +7,7 @@ import {
 } from "./instagram-framing";
 
 describe("Instagram Reel framing", () => {
-  it("defaults to portrait framing with neutral adjustments", () => {
+  it("defaults to automatic framing with neutral adjustments", () => {
     expect(decodeInstagramFraming(null)).toEqual(DEFAULT_INSTAGRAM_FRAMING);
     expect(normalizeInstagramFraming(undefined)).toEqual(DEFAULT_INSTAGRAM_FRAMING);
   });
@@ -22,7 +22,7 @@ describe("Instagram Reel framing", () => {
 
   it("clamps corrupted storage to safe zoom and offset bounds", () => {
     expect(normalizeInstagramFraming({ layout: "evil", zoom: 999, verticalOffset: -900 }))
-      .toEqual({ layout: "portrait", zoom: 160, verticalOffset: -240 });
+      .toEqual({ layout: "auto", zoom: 160, verticalOffset: -240 });
     expect(normalizeInstagramFraming({ zoom: NaN, verticalOffset: "999" }))
       .toEqual(DEFAULT_INSTAGRAM_FRAMING);
   });
