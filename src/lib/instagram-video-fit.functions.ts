@@ -32,7 +32,7 @@ export const getInstagramPublicMedia = createServerFn({ method: "GET" })
     // clients never receive the endpoint's API token or configuration.
     const cobaltPromise = resolveInstagramWithCobalt({
       endpoint: process.env.COBALT_API_URL,
-      token: process.env.COBALT_API_TOKEN,
+      token: process.env.COBALT_API_KEY,
       canonicalUrl: `https://www.instagram.com/${data.kind}/${encodeURIComponent(data.trackId)}/`,
     });
     try {
