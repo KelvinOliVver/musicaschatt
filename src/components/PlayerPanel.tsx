@@ -441,7 +441,7 @@ export function PlayerPanel({
   
               <div className="player-volume flex flex-1 items-center gap-2">
                 <Button size="icon" variant="ghost" className="size-8 shrink-0 rounded-full transition-colors duration-200 hover:bg-secondary" onClick={() => { const nextMuted = !muted; setMuted(nextMuted); if (isHost) onMuteChange?.(nextMuted); }} aria-label={muted ? "Tirar do mudo" : "Deixar mudo"}>{muted ? <VolumeX className="size-4 text-muted-foreground" aria-hidden /> : <Volume2 className="size-4 text-muted-foreground" aria-hidden />}</Button>
-                <Slider className="volume-slider text-primary" value={[muted ? 0 : volume]} onValueChange={([value]) => { const newVol = value ?? 0; setVolume(newVol); if (newVol > 0) { setMuted(false); if (isHost) onMuteChange?.(false); } if (isHost) onVolumeChange?.(newVol); }} max={100} step={1} aria-label="Volume" />
+                <Slider className="volume-slider text-primary" value={[muted ? 0 : volume]} onValueChange={([value]) => { const newVol = value ?? 0; setVolume(newVol); if (newVol > 0) setMuted(false); }} onValueCommit={([value]) => { if (!isHost) return; const next = value ?? 0; onVolumeChange?.(next); if (next > 0) onMuteChange?.(false); }} max={100} step={1} aria-label="Volume" />
                 <span className="volume-readout w-8 shrink-0 text-right text-xs tabular-nums">{muted ? 0 : volume}</span>
               </div>
             </div>
