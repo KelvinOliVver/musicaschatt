@@ -47,7 +47,7 @@ interface KickChatPayload {
     profile_picture?: string | null;
     profile_pic?: string | null;
     avatar?: string | null;
-    identity?: { color?: string };
+    identity?: { color?: string; badges?: Array<string | { type?: string; name?: string }> };
   };
   user?: {
     username?: string;
@@ -176,6 +176,7 @@ function normalizeChatPayload(payload: KickChatPayload): {
   username: string;
   color: string | null;
   avatarUrl: string | null;
+  badges: string[];
 } | null {
   const content = (payload.content ?? payload.message ?? "").trim();
   const username = (payload.sender?.username ?? payload.user?.username ?? "").trim();
@@ -185,6 +186,10 @@ function normalizeChatPayload(payload: KickChatPayload): {
     content,
     username,
     color: payload.sender?.identity?.color ?? payload.user?.identity?.color ?? null,
+    badges: (payload.sender?.identity?.badges ?? payload.user?.identity?.badges ?? [])
+      .map((badge) => typeof badge === "string" ? badge : badge?.type ?? badge?.name ?? "")
+      .map((value) => value.toLowerCase())
+      .filter((value) => /mod|vip|broadcaster|streamer|sub|og|verified/.test(value)).slice(0, 5),
     avatarUrl: normalizeKickAvatar(
       payload.sender?.profile_picture ??
       payload.sender?.profile_pic ??
@@ -341,7 +346,7 @@ export function useKickChat(
         }
       }
 
-      const { content, username, color, avatarUrl } = normalizedPayload;
+      const { content, username, color, avatarUrl, badges } = normalizedPayload;
       const normalizedUsername = normalizeKickUsername(username);
       if (normalizedUsername && avatarUrl) avatarByUser.set(normalizedUsername, avatarUrl);
       if (normalizedUsername && !avatarUrl && !avatarByUser.has(normalizedUsername)) {
@@ -383,6 +388,7 @@ export function useKickChat(
             username: username || "Pitee4",
             color,
             avatarUrl: resolvedAvatar,
+            badges,
             content: canonicalCommand,
             createdAt: payload.created_at ?? new Date().toISOString(),
             kind: "command",
@@ -401,6 +407,7 @@ export function useKickChat(
         username: username || "desconhecido",
         color,
         avatarUrl: resolvedAvatar,
+        badges,
         content,
         createdAt: payload.created_at ?? new Date().toISOString(),
         kind: "message",
