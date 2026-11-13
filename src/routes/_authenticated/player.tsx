@@ -298,7 +298,8 @@ function PlayerPage() {
       const pendingTotal = [...pending.values()].reduce((sum, count) => sum + count, 0);
       if (activeByUser >= prefs.maxPerUser || queue.queue.length + pendingTotal >= prefs.maxQueue) return;
 
-      const cooldownMs = prefs.cooldownSeconds * 1000;
+      // Database trigger enforces its own cooldown; never promise a shorter one.
+      const cooldownMs = Math.max(prefs.cooldownSeconds, settings.chatCooldownSeconds) * 1000;
       const lastRequestAt = lastRequestByUserRef.current.get(sender) ?? 0;
       if (cooldownMs > 0 && Date.now() - lastRequestAt < cooldownMs) return;
       lastRequestByUserRef.current.set(sender, Date.now());
@@ -313,7 +314,7 @@ function PlayerPage() {
           else pendingRequestsRef.current.delete(sender);
         });
     },
-    [queue, settingsLoading],
+    [queue, settingsLoading, settings.chatCooldownSeconds],
   );
 
   const handleCommand = useCallback(
@@ -497,7 +498,7 @@ function PlayerPage() {
                 🎵 {totalPlayed} tocada{totalPlayed === 1 ? "" : "s"} · {totalRequesters} pedindo
               </span>
             )}
-            {!obsMode && <StreamerSettingsPanel preferences={preferences} onUpdate={updatePreferences} canManage={isHost} />}
+            {!obsMode && <StreamerSettingsPanel preferences={preferences} onUpdate={updatePreferences} canManage={isHost} globalCooldown={settings.chatCooldownSeconds} />}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
