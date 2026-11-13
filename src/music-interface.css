@@ -1239,3 +1239,91 @@
   border-radius: 0;
   background: #08080b;
 }
+
+
+/* OBS CLEAN CAPTURE: ONLY THE VIDEO. Overrides cinema's reserved space.
+   Keep media mounted at its native aspect ratio; no labels, transport or chrome. */
+.music-shell.is-obs-shell,
+.music-shell.is-obs-shell .music-player-page,
+.music-shell.is-obs-shell .music-player-grid,
+.music-shell.is-obs-shell .music-player-stage,
+.music-shell.is-obs-shell .music-player-stage .panel,
+.music-shell.is-obs-shell .music-player-stage .player-content,
+.music-shell.is-obs-shell .music-player-stage .player-video {
+  background: #000 !important;
+}
+.music-shell.is-obs-shell .music-player-page,
+.music-shell.is-obs-shell .music-player-grid,
+.music-shell.is-obs-shell .music-player-stage,
+.music-shell.is-obs-shell .music-player-stage .panel,
+.music-shell.is-obs-shell .music-player-stage .player-content {
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+}
+.music-shell.is-obs-shell .music-player-stage .panel {
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.music-shell.is-obs-shell .music-stage-label,
+.music-shell.is-obs-shell .music-player-stage .player-content > :not(.player-video) {
+  display: none !important;
+}
+.music-shell.is-obs-shell .music-player-stage .player-content {
+  display: flex !important;
+  flex-direction: column;
+  justify-content: stretch;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+.music-shell.is-obs-shell .music-player-stage .player-video {
+  flex: 1 1 auto !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  aspect-ratio: auto !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+.music-shell.is-obs-shell .music-player-stage .player-video > .aspect-video,
+.music-shell.is-obs-shell .music-player-stage .player-video > .social-stage {
+  height: 100% !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
+}
+.music-shell.is-obs-shell .music-player-stage .social-stage {
+  background: #000 !important;
+}
+.music-shell.is-obs-shell .music-player-stage .social-stage-frame {
+  height: 100% !important;
+  width: min(100%, calc(100svh * 9 / 16)) !important;
+  max-width: 100% !important;
+  flex: 0 1 auto !important;
+}
+/* Native portrait media keeps its proportions; widescreen YouTube fills 16:9 OBS sources. */
+.music-shell.is-obs-shell .music-player-stage .instagram-native-video,
+.music-shell.is-obs-shell .music-player-stage video {
+  object-fit: contain !important;
+}
+.music-shell.is-obs-shell .music-player-stage .player-video > button,
+.music-shell.is-obs-shell .music-player-stage .player-empty > * {
+  display: none !important;
+}
+.music-shell.is-obs-shell .music-player-stage .player-empty {
+  height: 100% !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #000 !important;
+}
