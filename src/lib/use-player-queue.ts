@@ -488,7 +488,8 @@ export function usePlayerQueue(): PlayerQueue {
         fromIndex < 0 ||
         toIndex < 0 ||
         toIndex >= items.length ||
-        fromIndex === toIndex
+        fromIndex === toIndex ||
+        items[fromIndex]?.priority !== items[toIndex]?.priority
       ) {
         return;
       }

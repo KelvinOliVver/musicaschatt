@@ -166,6 +166,7 @@ export function YouTubeStage({
     let cancelHiddenAdvance: (() => void) | null = null;
     let apiCheck: number | null = null;
     let cancelTransientRetry: (() => void) | null = null;
+    let clearYouTubeApiReady: (() => void) | null = null;
     endedTriggeredRef.current = false;
     transientRetryRef.current = 0;
 
@@ -174,7 +175,8 @@ export function YouTubeStage({
         cancelHiddenAdvance();
         cancelHiddenAdvance = null;
       }
-      if (document.visibilityState !== "hidden") return;
+      if (document.visibilityState !== "hidden" || pausedRef.current) return;
+      if (!window.YT?.PlayerState || playerRef.current?.getPlayerState?.() !== window.YT.PlayerState.PLAYING) return;
       if (!playerRef.current?.getCurrentTime) return;
 
       try {
@@ -184,7 +186,19 @@ export function YouTubeStage({
 
         const remainingMs = (duration - current + 0.5) * 1000;
         cancelHiddenAdvance = createWorkerTimeout(() => {
-          if (isMounted) triggerEndedOnce();
+          if (!isMounted || pausedRef.current || document.visibilityState !== "hidden") return;
+
+          // A hidden tab may buffer, pause or be throttled. A predicted
+          // duration alone is not proof that the YouTube video has ended.
+          const player = playerRef.current;
+          if (player?.getPlayerState?.() !== window.YT.PlayerState.PLAYING) return;
+          const position = player.getCurrentTime?.() ?? 0;
+          const actualDuration = player.getDuration?.() ?? 0;
+          if (actualDuration > 0 && position >= actualDuration - 0.75) {
+            triggerEndedOnce();
+          } else {
+            handleVisibilityForAdvance();
+          }
         }, remainingMs);
       } catch {
         // ignora
@@ -256,7 +270,12 @@ export function YouTubeStage({
                   onProgressRef.current(current, duration);
                 }
 
-                if (duration > 0 && current >= duration - 0.75) {
+                if (
+                  duration > 0 &&
+                  current >= duration - 0.75 &&
+                  !pausedRef.current &&
+                  playerRef.current?.getPlayerState?.() === window.YT.PlayerState.PLAYING
+                ) {
                   triggerEndedOnce();
                 }
               } catch {
@@ -268,8 +287,19 @@ export function YouTubeStage({
             if (!isMounted) return;
             if (event.data === window.YT.PlayerState.PLAYING) {
               onPlayingChangeRef.current(true);
-            } else if (event.data === window.YT.PlayerState.PAUSED) {
-              onPlayingChangeRef.current(false);
+              handleVisibilityForAdvance();
+            } else if (
+              event.data === window.YT.PlayerState.PAUSED ||
+              event.data === window.YT.PlayerState.BUFFERING ||
+              event.data === window.YT.PlayerState.CUED
+            ) {
+              if (cancelHiddenAdvance) {
+                cancelHiddenAdvance();
+                cancelHiddenAdvance = null;
+              }
+              if (event.data === window.YT.PlayerState.PAUSED) {
+                onPlayingChangeRef.current(false);
+              }
             } else if (event.data === window.YT.PlayerState.ENDED) {
               triggerEndedOnce();
             }
@@ -315,9 +345,15 @@ export function YouTubeStage({
       }
 
       const previousReady = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
+      const readyHandler = () => {
         previousReady?.();
         initPlayer();
+      };
+      window.onYouTubeIframeAPIReady = readyHandler;
+      clearYouTubeApiReady = () => {
+        if (window.onYouTubeIframeAPIReady === readyHandler) {
+          window.onYouTubeIframeAPIReady = previousReady;
+        }
       };
 
       apiCheck = window.setInterval(() => {
@@ -338,6 +374,7 @@ export function YouTubeStage({
       document.removeEventListener("visibilitychange", handleVisibilityForAdvance);
 
       if (apiCheck !== null) clearInterval(apiCheck);
+      clearYouTubeApiReady?.();
       if (stopTicker) stopTicker();
       if (cancelHiddenAdvance) cancelHiddenAdvance();
       if (cancelTransientRetry) cancelTransientRetry();
