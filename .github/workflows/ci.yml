@@ -50,5 +50,17 @@ jobs:
       - name: Test Instagram authenticated gateway
         run: bun test src/lib/instagram-gateway.test.ts
 
+      - name: Test independent Instagram extraction
+        run: node --test infra/cobalt/yt-dlp.test.mjs
+
+      - name: Test public Instagram GraphQL media resolver
+        run: node --test infra/cobalt/ig-graphql.test.mjs
+
+      - name: Build Cobalt + yt-dlp container
+        run: docker build --file infra/cobalt/Dockerfile --tag music-chat-media:ci .
+
+      - name: Verify deployed module paths inside Docker
+        run: docker run --rm --entrypoint node music-chat-media:ci --input-type=module -e "await import('/app/yt-dlp.mjs'); await import('/app/music-chat-ig-graphql.mjs')"
+
       - name: Build production app
         run: bun run build

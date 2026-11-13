@@ -1,6 +1,8 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { Readable } from "node:stream";
+import { resolveInstagramWithYtDlp } from "./yt-dlp.mjs";
+import { resolvePublicInstagramGraphQL } from "./music-chat-ig-graphql.mjs";
 
 // The only public listener is this gateway. Cobalt itself is bound to
 // 127.0.0.1 and its API key never reaches a browser or GitHub.
@@ -13,6 +15,18 @@ const authApiKey = process.env.SUPABASE_PUBLISHABLE_KEY;
 const cobaltKey = process.env.COBALT_API_KEY;
 const quotas = new Map();
 let terminating = false;
+let activeYtDlp = 0;
+const MAX_YTDLP_CONCURRENT = 2;
+
+async function tryYtDlp(kind, trackId) {
+  if (activeYtDlp >= MAX_YTDLP_CONCURRENT) return null;
+  activeYtDlp++;
+  try {
+    return await resolveInstagramWithYtDlp(kind, trackId, 7200);
+  } finally {
+    activeYtDlp--;
+  }
+}
 
 if (!cobaltKey || !authBase || !authApiKey ||
     !/^https:\/\/[a-z0-9-]+\.(lovable\.cloud|supabase\.co)$/.test(authBase)) {
@@ -116,35 +130,81 @@ async function resolve(req, res) {
   }
 
   const url = `https://www.instagram.com/${kind}/${encodeURIComponent(trackId)}/`;
-  try {
-    const result = await fetch(upstream + "/", {
-      method: "POST",
-      redirect: "error",
-      signal: AbortSignal.timeout(9000),
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": "Api-Key " + cobaltKey,
-      },
-      body: JSON.stringify({
-        url,
-        downloadMode: "auto",
-        videoQuality: "720",
-        alwaysProxy: true,
-        localProcessing: "disabled",
-      }),
-    });
-    const type = result.headers.get("content-type") || "";
-    if (!result.ok || !type.includes("application/json")) {
-      return json(res, 200, { url: null, status: "unavailable" });
+
+  // Try two INDEPENDENT extractors. If either finds a public MP4 first,
+  // return without waiting for the other. Neither has account cookies.
+  // Failed probes remain bounded: the user receives a clean fallback.
+  const cobaltProbe = (async () => {
+    try {
+      const result = await fetch(upstream + "/", {
+        method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(6800),
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Api-Key " + cobaltKey,
+        },
+        body: JSON.stringify({
+          url,
+          downloadMode: "auto",
+          videoQuality: "720",
+          alwaysProxy: true,
+          localProcessing: "disabled",
+        }),
+      });
+      if (!result.ok || !(result.headers.get("content-type") || "").includes("application/json")) {
+        console.info("instagram_resolver=cobalt result=unavailable http=" + result.status);
+        return null;
+      }
+      const response = await result.json();
+      const playable = ["tunnel", "redirect"].includes(response?.status)
+        ? acceptableVideoUrl(response?.url) : null;
+      console.info("instagram_resolver=cobalt result=" + (playable ? "ready" : "unavailable") +
+        " status=" + String(response?.status || "unknown").slice(0, 28));
+      return playable;
+    } catch {
+      console.info("instagram_resolver=cobalt result=timeout_or_error");
+      return null;
     }
-    const response = await result.json();
-    const playable = ["tunnel", "redirect"].includes(response?.status)
-      ? acceptableVideoUrl(response?.url) : null;
-    return json(res, 200, { url: playable, status: playable ? "ready" : "unavailable" });
-  } catch {
-    return json(res, 200, { url: null, status: "unavailable" });
-  }
+  })();
+
+  const ytdlpProbe = tryYtDlp(kind, trackId).then((playable) => {
+    console.info("instagram_resolver=yt_dlp result=" + (playable ? "ready" : "unavailable"));
+    return playable;
+  }).catch(() => null);
+
+  const graphqlProbe = resolvePublicInstagramGraphQL(kind, trackId).then((playable) => {
+    console.info("instagram_resolver=public_graphql result=" + (playable ? "ready" : "unavailable"));
+    return playable;
+  }).catch(() => null);
+
+  let unfinished = 3;
+  let decided = false;
+  const answer = await new Promise((resolveFirst) => {
+    for (const probe of [cobaltProbe, ytdlpProbe, graphqlProbe]) {
+      void probe.then((playable) => {
+        if (decided) return;
+        if (playable) {
+          decided = true;
+          resolveFirst(playable);
+        } else if (--unfinished === 0) {
+          decided = true;
+          resolveFirst(null);
+        }
+      }).catch(() => {
+        if (!decided && --unfinished === 0) {
+          decided = true;
+          resolveFirst(null);
+        }
+      });
+    }
+  });
+  // Response is always one of: the private Cobalt tunnel or a Meta CDN URL.
+  return json(res, 200, {
+    url: answer,
+    status: answer ? "ready" : "unavailable",
+  });
 }
 
 async function tunnel(req, res) {
@@ -208,7 +268,81 @@ const server = http.createServer(async (req, res) => {
     else res.destroy();
   }
 });
-server.listen(port, "0.0.0.0", () => console.log("Media gateway ready on port", port));
+server.listen(port, "0.0.0.0", () => {
+  console.log("Media gateway ready on port", port);
+  const smokeId = process.env.SMOKE_TEST_REEL_ID;
+  if (smokeId && /^[A-Za-z0-9_-]{5,40}$/.test(smokeId)) {
+    // Optional single smoke test on startup, never exposes the video URL or
+    // API key. Render owners can enable it temporarily and then remove it.
+    void tryYtDlp("reel", smokeId).then((found) => {
+      console.info("instagram_smoke_test=yt_dlp result=" + (found ? "ready" : "unavailable"));
+    }).catch(() => console.info("instagram_smoke_test=yt_dlp result=error"));
+    void resolvePublicInstagramGraphQL("reel", smokeId).then((found) => {
+      console.info("instagram_smoke_test=public_graphql result=" + (found ? "ready" : "unavailable"));
+    }).catch(() => console.info("instagram_smoke_test=public_graphql result=error"));
+    // Probe Cobalt only after the subprocess is ready (it starts later than
+    // the public listener). Never emit the URL or API key in application logs.
+    setTimeout(async () => {
+      try {
+        const reelUrl = "https://www.instagram.com/reel/" + encodeURIComponent(smokeId) + "/";
+        const response = await fetch(upstream + "/", {
+          method: "POST",
+          headers: {
+            "Authorization": "Api-Key " + cobaltKey,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: reelUrl,
+            downloadMode: "auto",
+            videoQuality: "720",
+            alwaysProxy: true,
+            localProcessing: "disabled",
+          }),
+          redirect: "error",
+          signal: AbortSignal.timeout(9000),
+        });
+        if (!response.ok || !(response.headers.get("content-type") || "").includes("application/json")) {
+          console.info("instagram_smoke_test=cobalt result=unavailable http=" + response.status);
+          return;
+        }
+        const json = await response.json();
+        const validMedia = (json?.status === "tunnel" || json?.status === "redirect")
+          && Boolean(acceptableVideoUrl(json.url));
+        console.info("instagram_smoke_test=cobalt result=" + (validMedia ? "ready" : "unavailable")
+          + " api_status=" + String(json?.status || "missing").replace(/[^a-z_]/gi, "").slice(0, 30));
+        if (validMedia && json.status === "tunnel") {
+          try {
+            const external = new URL(json.url);
+            if (external.origin === publicOrigin && external.pathname === "/tunnel") {
+              // Verify that our OWN gateway forwards playable video bytes.
+              // Small range only; no actual video download and no URL in logs.
+              const probe = await fetch("http://127.0.0.1:" + port + external.pathname + external.search, {
+                method: "GET",
+                headers: { "Range": "bytes=0-1023" },
+                redirect: "manual",
+                signal: AbortSignal.timeout(6500),
+              });
+              const mediaType = String(probe.headers.get("content-type") || "unknown")
+                .split(";")[0].replace(/[^a-z0-9/.-]/gi, "").slice(0, 48);
+              const redirectAllowed = probe.status === 302
+                ? Boolean(acceptableVideoUrl(probe.headers.get("location")))
+                : false;
+              console.info("instagram_smoke_test=video_tunnel http=" + probe.status
+                + " media_type=" + mediaType
+                + " redirect_allowed=" + redirectAllowed);
+              if (probe.body) await probe.body.cancel().catch(() => {});
+            }
+          } catch {
+            console.info("instagram_smoke_test=video_tunnel result=timeout_or_error");
+          }
+        }
+      } catch {
+        console.info("instagram_smoke_test=cobalt result=error");
+      }
+    }, 18000).unref();
+  }
+});
 
 function shutdown() {
   if (terminating) return;
