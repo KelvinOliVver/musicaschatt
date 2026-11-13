@@ -59,5 +59,8 @@ jobs:
       - name: Build Cobalt + yt-dlp container
         run: docker build --file infra/cobalt/Dockerfile --tag music-chat-media:ci .
 
+      - name: Verify deployed module paths inside Docker
+        run: docker run --rm --entrypoint node music-chat-media:ci --input-type=module -e "await import('/app/yt-dlp.mjs'); await import('/app/music-chat-ig-graphql.mjs')"
+
       - name: Build production app
         run: bun run build
