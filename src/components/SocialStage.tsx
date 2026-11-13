@@ -3,6 +3,8 @@ import { Volume2 } from "lucide-react";
 import { createWorkerTicker, type StageControls } from "@/components/YouTubeStage";
 import { socialEmbedUrl, sourceLabel } from "@/lib/social-video";
 import { getInstagramPublicMedia } from "@/lib/instagram-video-fit.functions";
+import { resolveInstagramGateway } from "@/lib/instagram-gateway";
+import { supabase } from "@/integrations/supabase/client";
 import { getInstagramAutoCrop, type InstagramVideoSize } from "@/lib/instagram-video-fit";
 interface SocialStageProps {
   source: "instagram" | "tiktok";
@@ -74,31 +76,84 @@ export function SocialStage({
 
   useEffect(() => {
     if (source !== "instagram") return;
+
     let disposed = false;
+    let settled = false;
+    let backendDone = false;
+    let gatewayDone = false;
+    let backendVideo: string | null = null;
+    let gatewayVideo: string | null = null;
+    const controller = new AbortController();
+
     setAutoSize(null);
     setPublicVideoUrl(null);
     setInstagramLoading(true);
     setNativeFailed(false);
     setNativeNeedsGesture(false);
+
     const kind = originalUrl?.includes("/tv/") ? "tv"
       : originalUrl?.includes("/p/") ? "p" : "reel";
+
+    const finishResolution = () => {
+      if (disposed || settled) return;
+      const url = backendVideo || gatewayVideo;
+      if (url) {
+        settled = true;
+        clearTimeout(timeout);
+        controller.abort();
+        setPublicVideoUrl(url);
+        setInstagramLoading(false);
+        return;
+      }
+      if (backendDone && gatewayDone) {
+        settled = true;
+        clearTimeout(timeout);
+        setInstagramLoading(false);
+      }
+    };
+
+    // Do not wait indefinitely for a sleeping Render Free instance.
+    // After the deadline the official Instagram embed remains available.
+    const timeout = window.setTimeout(() => {
+      if (disposed || settled) return;
+      settled = true;
+      controller.abort();
+      setInstagramLoading(false);
+    }, 12_000);
+
     void getInstagramPublicMedia({ data: { trackId, kind } })
       .then((media) => {
-        if (disposed) return;
+        if (disposed || settled) return;
+        backendVideo = media.videoUrl;
         setAutoSize(media.size);
-        setPublicVideoUrl(media.videoUrl);
-        setInstagramLoading(false);
       })
-      .catch(() => {
-        // Instagram can block public metadata requests. Keep the native
-        // iframe as a fallback instead of breaking the live room.
-        if (!disposed) {
-          setAutoSize(null);
-          setPublicVideoUrl(null);
-          setInstagramLoading(false);
-        }
+      .catch(() => { /* Public Instagram metadata may be blocked. */ })
+      .finally(() => {
+        backendDone = true;
+        finishResolution();
       });
-    return () => { disposed = true; };
+
+    // The Render gateway verifies the existing Supabase login and holds the
+    // Cobalt API key internally. No secret is sent to the browser.
+    void supabase.auth.getSession()
+      .then(({ data }) => resolveInstagramGateway({
+        kind,
+        trackId,
+        accessToken: data.session?.access_token ?? null,
+        signal: controller.signal,
+      }))
+      .then((url) => { gatewayVideo = url; })
+      .catch(() => { /* The iframe is a safe fallback. */ })
+      .finally(() => {
+        gatewayDone = true;
+        finishResolution();
+      });
+
+    return () => {
+      disposed = true;
+      clearTimeout(timeout);
+      controller.abort();
+    };
   }, [source, trackId, originalUrl]);
 
   const autoCrop = getInstagramAutoCrop(stageSize.width, stageSize.height, autoSize);
