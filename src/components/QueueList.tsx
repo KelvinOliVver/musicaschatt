@@ -27,6 +27,7 @@ interface QueueListProps {
   onMove?: (id: string, toIndex: number) => void;
   accentColor?: string | null;
   isPlaying?: boolean;
+  canControl?: boolean;
 }
 
 function formatRelativeTime(timestampMs: number, now: number): string {
@@ -49,6 +50,7 @@ export function QueueList({
   onMove,
   accentColor,
   isPlaying = false,
+  canControl = true,
 }: QueueListProps) {
   const vipCount = items.filter((item) => item.priority).length;
   const [showHistory, setShowHistory] = useState(false);
@@ -87,7 +89,7 @@ export function QueueList({
   }, [items]);
 
   function handleRemove(id: string) {
-    if (exitingIds.has(id)) return;
+    if (!canControl || exitingIds.has(id)) return;
     setExitingIds((current) => new Set(current).add(id));
     window.setTimeout(() => {
       setExitingIds((current) => {
@@ -100,6 +102,7 @@ export function QueueList({
   }
 
   function handleClear() {
+    if (!canControl) return;
     if (!window.confirm(`Limpar as ${items.length} músicas da fila?`)) return;
     onClear();
   }
@@ -124,7 +127,7 @@ export function QueueList({
               </Badge>
             )}
           </div>
-          {items.length > 0 && (
+          {canControl && items.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -150,8 +153,8 @@ export function QueueList({
                 const isNext = index === 0;
                 // The database sorts VIP tracks ahead of normal tracks.
                 // Crossing the group boundary would not change their actual order.
-                const canMoveUp = Boolean(onMove) && index > 0 && items[index - 1]?.priority === item.priority;
-                const canMoveDown = Boolean(onMove) && index < items.length - 1 && items[index + 1]?.priority === item.priority;
+                const canMoveUp = canControl && Boolean(onMove) && index > 0 && items[index - 1]?.priority === item.priority;
+                const canMoveDown = canControl && Boolean(onMove) && index < items.length - 1 && items[index + 1]?.priority === item.priority;
                 const isOwnRequest = item.requestedBy.trim().toLowerCase() === "você";
                 const isExiting = exitingIds.has(item.id);
                 const isMounted = mountedIds.has(item.id);
@@ -250,7 +253,7 @@ export function QueueList({
                             size="icon"
                             variant="ghost"
                             className="size-4 transition-all duration-150 hover:bg-accent hover:text-foreground active:scale-90"
-                            disabled={!canMoveUp}
+                            disabled={!canMoveUp || !canControl}
                             onClick={() => onMove(item.id, index - 1)}
                             aria-label={`Subir na fila: ${item.title ?? item.trackId}`}
                           >
@@ -260,7 +263,7 @@ export function QueueList({
                             size="icon"
                             variant="ghost"
                             className="size-4 transition-all duration-150 hover:bg-accent hover:text-foreground active:scale-90"
-                            disabled={!canMoveDown}
+                            disabled={!canMoveDown || !canControl}
                             onClick={() => onMove(item.id, index + 1)}
                             aria-label={`Descer na fila: ${item.title ?? item.trackId}`}
                           >
@@ -273,6 +276,7 @@ export function QueueList({
                         variant="ghost"
                         className="size-8 transition-all duration-200 hover:-translate-y-px hover:bg-primary/10 hover:text-primary active:scale-90"
                         onClick={() => onPlayNow(item.id)}
+                        disabled={!canControl}
                         aria-label={`Tocar agora: ${item.title ?? item.trackId}`}
                       >
                         <Play className="size-4 transition-transform duration-150 group-hover:scale-105" aria-hidden />
@@ -282,6 +286,7 @@ export function QueueList({
                         variant="ghost"
                         className="size-8 text-muted-foreground transition-all duration-200 hover:-translate-y-px hover:bg-destructive/10 hover:text-destructive active:scale-90"
                         onClick={() => handleRemove(item.id)}
+                        disabled={!canControl}
                         aria-label={`Remover da fila: ${item.title ?? item.trackId}`}
                       >
                         <Trash2 className="size-4 transition-transform duration-150 group-hover:scale-105" aria-hidden />
