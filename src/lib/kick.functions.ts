@@ -101,3 +101,52 @@ export const getTrackMetadata = createServerFn({ method: "GET" })
       return { title: null, author: null, thumbnail: fallbackThumb };
     }
   });
+
+
+/** Best-effort public profile avatar lookup.
+ * Kick's website endpoints are not an official API and can be blocked by
+ * Cloudflare; callers must tolerate null without interrupting chat.
+ * Cache successful and failed lookups to avoid repeated external requests. */
+const kickAvatarLookupCache = new Map<string, { url: string | null; until: number }>();
+export const getKickUserAvatar = createServerFn({ method: "GET" })
+  .inputValidator((input: { username: string }) => ({
+    username: normalizeKickSlug(input.username),
+  }))
+  .handler(async ({ data }): Promise<string | null> => {
+    const cached = kickAvatarLookupCache.get(data.username);
+    if (cached && cached.until > Date.now()) return cached.url;
+
+    let avatar: string | null = null;
+    const timeout = AbortSignal.timeout(4500);
+    try {
+      const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(data.username)}`, {
+        headers: BROWSER_HEADERS, signal: timeout,
+      });
+      if (res.ok) {
+        const payload = await res.json() as {
+          user?: { profile_pic?: unknown; profile_picture?: unknown };
+          profile_picture?: unknown;
+        };
+        const image = payload.user?.profile_pic ?? payload.user?.profile_picture ?? payload.profile_picture;
+        if (typeof image === "string") {
+          const parsed = new URL(image);
+          const host = parsed.hostname.toLowerCase();
+          if (parsed.protocol === "https:" && !parsed.username && !parsed.password &&
+              (host === "kick.com" || host.endsWith(".kick.com") ||
+               host === "kickcdn.com" || host.endsWith(".kickcdn.com"))) {
+            avatar = parsed.href;
+          }
+        }
+      }
+    } catch { /* Cloudflare or network errors: keep initials */ }
+
+    kickAvatarLookupCache.set(data.username, {
+      url: avatar,
+      until: Date.now() + (avatar ? 30 * 60_000 : 7 * 60_000),
+    });
+    if (kickAvatarLookupCache.size > 1000) {
+      const oldest = kickAvatarLookupCache.keys().next().value;
+      if (oldest) kickAvatarLookupCache.delete(oldest);
+    }
+    return avatar;
+  });
