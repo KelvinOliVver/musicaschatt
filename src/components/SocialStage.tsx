@@ -52,7 +52,20 @@ export function SocialStage({
   // A Reel can contain a vertical OR horizontal video. Instagram's cross-origin
   // embed does not expose the underlying media dimensions, so let the viewer
   // switch framing without reloading the iframe or interrupting playback.
-  const [instagramLayout, setInstagramLayout] = useState<InstagramLayout>("portrait");
+  const [instagramLayout, setInstagramLayout] = useState<InstagramLayout>(() => {
+    if (typeof window === "undefined") return "portrait";
+    try {
+      const saved = window.sessionStorage.getItem(`music-chat-reel-layout:${trackId}`);
+      if (saved === "portrait" || saved === "landscape" || saved === "full") return saved;
+    } catch { /* Storage may be disabled. */ }
+    return "portrait";
+  });
+
+  function chooseInstagramLayout(layout: InstagramLayout) {
+    setInstagramLayout(layout);
+    try { window.sessionStorage.setItem(`music-chat-reel-layout:${trackId}`, layout); }
+    catch { /* Optional preference only. */ }
+  }
 
   pausedRef.current = paused;
   mutedRef.current = muted;
@@ -219,7 +232,7 @@ export function SocialStage({
               key={value}
               type="button"
               className={`instagram-layout-option rounded-sm px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${instagramLayout === value ? "bg-primary text-primary-foreground" : "text-white hover:bg-white/20"}`}
-              onClick={() => setInstagramLayout(value)}
+              onClick={() => chooseInstagramLayout(value)}
               aria-pressed={instagramLayout === value}
               title={value === "landscape"
                 ? "Mostrar o vídeo horizontal sem o zoom vertical"
