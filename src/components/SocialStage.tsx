@@ -3,6 +3,14 @@ import { Volume2 } from "lucide-react";
 import { createWorkerTicker, type StageControls } from "@/components/YouTubeStage";
 import { socialEmbedUrl, sourceLabel } from "@/lib/social-video";
 
+type InstagramLayout = "portrait" | "landscape" | "full";
+
+const instagramLayouts: { value: InstagramLayout; label: string }[] = [
+  { value: "portrait", label: "Vertical" },
+  { value: "landscape", label: "Horizontal" },
+  { value: "full", label: "Post completo" },
+];
+
 interface SocialStageProps {
   source: "instagram" | "tiktok";
   trackId: string;
@@ -41,7 +49,10 @@ export function SocialStage({
   const onMuteChangeRef = useRef(onMuteChange);
   const [tiktokActuallyMuted, setTiktokActuallyMuted] = useState<boolean | null>(null);
   const [playerError, setPlayerError] = useState(false);
-  const [showFullInstagramPost, setShowFullInstagramPost] = useState(false);
+  // A Reel can contain a vertical OR horizontal video. Instagram's cross-origin
+  // embed does not expose the underlying media dimensions, so let the viewer
+  // switch framing without reloading the iframe or interrupting playback.
+  const [instagramLayout, setInstagramLayout] = useState<InstagramLayout>("portrait");
 
   pausedRef.current = paused;
   mutedRef.current = muted;
@@ -176,7 +187,7 @@ export function SocialStage({
   return (
     <div className={`social-stage social-stage--${source} relative flex aspect-video w-full items-center justify-center overflow-hidden bg-media-background`}>
       {source === "instagram" ? (
-        <div className={`instagram-reel-window${showFullInstagramPost ? " is-full-post" : " is-video-only"}`}>
+        <div className={`instagram-reel-window is-${instagramLayout}`}>
           {embedFrame}
         </div>
       ) : embedFrame}
@@ -198,15 +209,28 @@ export function SocialStage({
         </button>
       )}
       {source === "instagram" && (
-        <button
-          type="button"
-          className="instagram-view-toggle absolute bottom-2 right-2 z-20 rounded-sm border border-white/20 bg-black/80 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-          onClick={() => setShowFullInstagramPost((full) => !full)}
-          aria-pressed={showFullInstagramPost}
-          title={showFullInstagramPost ? "Mostrar apenas o vídeo do Instagram" : "Mostrar a publicação inteira do Instagram"}
+        <div
+          className="instagram-layout-picker absolute bottom-2 right-2 z-20 flex max-w-[calc(100%-16px)] items-center gap-1 rounded-md border border-white/20 bg-black/85 p-1 shadow-lg"
+          role="group"
+          aria-label="Enquadramento do vídeo do Instagram"
         >
-          {showFullInstagramPost ? "Só vídeo" : "Ver post completo"}
-        </button>
+          {instagramLayouts.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              className={`instagram-layout-option rounded-sm px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${instagramLayout === value ? "bg-primary text-primary-foreground" : "text-white hover:bg-white/20"}`}
+              onClick={() => setInstagramLayout(value)}
+              aria-pressed={instagramLayout === value}
+              title={value === "landscape"
+                ? "Mostrar o vídeo horizontal sem o zoom vertical"
+                : value === "portrait"
+                  ? "Mostrar o Reel com corte vertical"
+                  : "Exibir a publicação original sem recorte"}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       )}
       {playerError && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-media-background/95 px-6 text-center">
