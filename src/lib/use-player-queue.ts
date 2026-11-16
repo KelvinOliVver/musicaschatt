@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getTrackMetadata } from "./kick.functions";
+import { inspectTrack } from "./track-inspection.functions";
+import { DEFAULT_ROOM, normalizeRoomSlug } from "./room-utils";
 import type { DetectedTrack } from "./link-parser";
 import type { QueueItem } from "./types";
 
@@ -19,6 +21,8 @@ interface QueueRow {
   requester_color: string | null;
   priority: boolean;
   status: string;
+  room_slug: string;
+  approval_status: string;
   added_at: string;
   played_at: string | null;
   position: number | null;
@@ -31,6 +35,8 @@ interface QueueRow {
 function toItem(row: QueueRow): QueueItem {
   return {
     id: row.id,
+    approvalStatus: row.approval_status === "pending" || row.approval_status === "rejected" ? row.approval_status : "approved",
+    roomSlug: row.room_slug,
     source: row.source === "instagram" || row.source === "tiktok" ? row.source : "youtube",
     trackId: row.track_id,
     url: row.url,
@@ -71,12 +77,14 @@ function isHeartbeatOnlyChange(oldRow: QueueRow, newRow: QueueRow): boolean {
 export interface PlayerQueue {
   current: QueueItem | null;
   queue: QueueItem[];
+  pending: QueueItem[];
+  reviewPending: (id: string, approve: boolean) => void;
   history: QueueItem[];
   addTrack: (
     track: DetectedTrack,
     requestedBy: string,
     requesterColor: string | null,
-    options?: { priority?: boolean },
+    options?: { priority?: boolean; requireApproval?: boolean },
   ) => Promise<boolean>;
   playNext: () => void;
   playPrevious: () => void;
@@ -92,9 +100,11 @@ export interface PlayerQueue {
   ) => void;
 }
 
-export function usePlayerQueue(): PlayerQueue {
+export function usePlayerQueue(room = DEFAULT_ROOM): PlayerQueue {
+  const roomSlug = normalizeRoomSlug(room) ?? DEFAULT_ROOM;
   const [current, setCurrent] = useState<QueueItem | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [pending, setPending] = useState<QueueItem[]>([]);
   const [history, setHistory] = useState<QueueItem[]>([]);
   const currentRef = useRef<QueueItem | null>(null);
   const queueRef = useRef<QueueItem[]>([]);
@@ -117,8 +127,9 @@ export function usePlayerQueue(): PlayerQueue {
       for (let start = 0; start <= 2000; start += pageSize) {
         const page = await supabase
           .from("player_queue")
-          .select("id,source,track_id,url,title,author,thumbnail,requested_by,requester_color,priority,status,added_at,played_at,position,playback_position,is_paused,state_updated_at,duration_seconds")
+          .select("id,source,track_id,url,title,author,thumbnail,requested_by,requester_color,priority,status,added_at,played_at,position,playback_position,is_paused,state_updated_at,duration_seconds,room_slug,approval_status")
           .in("status", ["queued", "playing"])
+          .eq("room_slug", roomSlug)
           .order("priority", { ascending: false })
           .order("position", { ascending: true })
           .order("id", { ascending: true })
@@ -133,8 +144,9 @@ export function usePlayerQueue(): PlayerQueue {
       fetchAllActiveRows(),
       supabase
         .from("player_queue")
-        .select("id,source,track_id,url,title,author,thumbnail,requested_by,requester_color,priority,status,added_at,played_at,position,playback_position,is_paused,state_updated_at,duration_seconds")
+        .select("id,source,track_id,url,title,author,thumbnail,requested_by,requester_color,priority,status,added_at,played_at,position,playback_position,is_paused,state_updated_at,duration_seconds,room_slug,approval_status")
         .eq("status", "played")
+        .eq("room_slug", roomSlug)
         .order("played_at", { ascending: false, nullsFirst: false })
         .limit(MAX_HISTORY),
     ]);
@@ -162,9 +174,10 @@ export function usePlayerQueue(): PlayerQueue {
     }
 
     setCurrent(playing ? toItem(playing) : null);
-    setQueue(activeRows.filter((row) => row.status === "queued").map(toItem));
+    setQueue(activeRows.filter((row) => row.status === "queued" && row.approval_status === "approved").map(toItem));
+    setPending(activeRows.filter((row) => row.status === "queued" && row.approval_status === "pending").map(toItem));
     setHistory((historyResult.data as unknown as QueueRow[]).map(toItem));
-  }, []);
+  }, [roomSlug]);
 
   useEffect(() => {
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -178,12 +191,14 @@ export function usePlayerQueue(): PlayerQueue {
     void refresh();
 
     const channel = supabase
-      .channel("player-queue-sync-v5")
+      .channel(`player-queue-sync-v6-${roomSlug}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "player_queue" },
         (payload) => {
           const eventType = (payload as any).eventType as string | undefined;
+          const changedRoom = ((payload as any).new?.room_slug ?? (payload as any).old?.room_slug) as string | undefined;
+          if (changedRoom && changedRoom !== roomSlug) return;
           const newRow = (payload as any).new as QueueRow | undefined;
           const oldRow = (payload as any).old as QueueRow | undefined;
           if (
@@ -225,83 +240,18 @@ export function usePlayerQueue(): PlayerQueue {
     };
   }, [refresh]);
 
-  // Navigation is one transaction in Postgres. Never fall back to a sequence
-  // of browser-side UPDATEs: concurrent stream tabs could leave playback broken.
+  // Every transition is atomic and scoped to the current Kick channel.
   const startPlaying = useCallback(async (id: string): Promise<boolean> => {
-    const { data, error } = await supabase.rpc("play_queue_item", { p_id: id });
-    if (!error && data === true) return true;
-
-    console.error(
-      "[PLAY QUEUE RPC ERROR]",
-      error?.message ?? "item was not started",
-    );
-
-    const { data: target, error: targetError } = await supabase
-      .from("player_queue")
-      .select("id,status")
-      .eq("id", id)
-      .maybeSingle();
-    if (
-      targetError ||
-      !target ||
-      !["queued", "played"].includes(target.status)
-    ) {
-      return false;
-    }
-
-    const { error: stopError } = await supabase
-      .from("player_queue")
-      .update({ status: "played", played_at: new Date().toISOString() })
-      .eq("status", "playing")
-      .neq("id", id);
-    if (stopError) return false;
-
-    const { error: startError } = await supabase
-      .from("player_queue")
-      .update({
-        status: "playing",
-        played_at: null,
-        playback_position: 0,
-        is_paused: false,
-        state_updated_at: new Date().toISOString(),
-        duration_seconds: null,
-      })
-      .eq("id", id)
-      .in("status", ["queued", "played"]);
-
-    return !startError;
-  }, []);
+    const { data, error } = await supabase.rpc("room_play_item", { p_id: id, p_room_slug: roomSlug });
+    if (error) console.error("[ROOM PLAY]", error.message);
+    return !error && data === true;
+  }, [roomSlug]);
 
   const advanceNext = useCallback(async () => {
-    // If the queue is genuinely empty, stop the current item first. This
-    // makes the frontend enter the explicit "Nenhuma música tocando" state
-    // even when the database function in a deployment is still stale.
-    const { data: queuedRows, error: queuedError } = await supabase
-      .from("player_queue")
-      .select("id")
-      .eq("status", "queued")
-      .order("priority", { ascending: false })
-      .order("position", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(1);
-
-    if (!queuedError && (!queuedRows || queuedRows.length === 0)) {
-      await supabase
-        .from("player_queue")
-        .update({ status: "played", played_at: new Date().toISOString() })
-        .eq("status", "playing");
-      return null;
-    }
-
-    const { data, error } = await supabase.rpc("advance_player_queue");
-    if (!error) return data ?? null;
-
-    console.error("[NEXT RPC ERROR]", error.message);
-    if (queuedError || !queuedRows?.[0]) return null;
-
-    const nextId = (queuedRows[0] as { id: string }).id;
-    return (await startPlaying(nextId)) ? nextId : null;
-  }, [startPlaying]);
+    const { data, error } = await supabase.rpc("room_next_item", { p_room_slug: roomSlug });
+    if (error) console.error("[ROOM NEXT]", error.message);
+    return data ?? null;
+  }, [roomSlug]);
 
   // Auto-start is deliberately owned by the elected host in the player route.
   // Otherwise every viewer tab could call advance_player_queue at once.
@@ -339,6 +289,11 @@ export function usePlayerQueue(): PlayerQueue {
       pendingAddsRef.current.add(trackId);
       try {
         const isVip = options?.priority ?? false;
+        const inspected = await inspectTrack({ data: { ...track } });
+        if (inspected.status === "unavailable") {
+          console.warn("[VIDEO REJECTED]", inspected.reason);
+          return false;
+        }
         const group = queueRef.current.filter((i) => i.priority === isVip);
         const position =
           group.length > 0
@@ -349,8 +304,12 @@ export function usePlayerQueue(): PlayerQueue {
           .insert({
             source: track.source,
             track_id: trackId,
+            room_slug: roomSlug,
+            approval_status: options?.requireApproval ? "pending" : "approved",
+            title: inspected.title,
+            author: inspected.author,
             url: track.url,
-            thumbnail: track.source === "youtube" ? `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg` : null,
+            thumbnail: inspected.thumbnail ?? (track.source === "youtube" ? `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg` : null),
             requested_by: requestedBy,
             requester_color: requesterColor,
             priority: isVip,
@@ -374,13 +333,13 @@ export function usePlayerQueue(): PlayerQueue {
         }
         if (!data) return false;
         await refresh();
-        applyMetadata((data as { id: string }).id, track);
+        if (inspected.status === "unverified") applyMetadata((data as { id: string }).id, track);
         return true;
       } finally {
         pendingAddsRef.current.delete(trackId);
       }
     },
-    [applyMetadata, refresh],
+    [applyMetadata, refresh, roomSlug],
   );
 
   const playNext = useCallback(() => {
@@ -399,106 +358,34 @@ export function usePlayerQueue(): PlayerQueue {
   const playPrevious = useCallback(() => {
     if (navigationBusyRef.current) return;
     navigationBusyRef.current = true;
-
     void (async () => {
       try {
-        const { data, error } = await supabase.rpc("play_previous_queue_item");
-        if (!error && data) {
-          await refresh();
-          return;
-        }
-
-        if (error) {
-          console.error("[PREVIOUS RPC ERROR]", error.message);
-        } else {
-          console.error("[PREVIOUS RPC ERROR] function returned no track");
-        }
-
-        const { data: playingRows, error: playingError } = await supabase
-          .from("player_queue")
-          .select("id,priority")
-          .eq("status", "playing")
-          .order("state_updated_at", { ascending: false })
-          .limit(1);
-        if (playingError) return;
-
-        const playing = playingRows?.[0] as
-          | { id: string; priority: boolean }
-          | undefined;
-        const currentId = playing?.id ?? currentRef.current?.id ?? null;
-
-        const { data: previousRows, error: previousError } = await supabase
-          .from("player_queue")
-          .select("id")
-          .eq("status", "played")
-          .neq("id", currentId ?? "00000000-0000-0000-0000-000000000000")
-          .order("played_at", { ascending: false, nullsFirst: false })
-          .order("state_updated_at", { ascending: false, nullsFirst: false })
-          .order("added_at", { ascending: false })
-          .order("id", { ascending: false })
-          .limit(1);
-        if (previousError || !previousRows?.[0]) return;
-
-        const previousId = (previousRows[0] as { id: string }).id;
-
-        if (playing) {
-          const { data: queuedRows, error: queuedError } = await supabase
-            .from("player_queue")
-            .select("position")
-            .eq("status", "queued")
-            .eq("priority", playing.priority)
-            .order("position", { ascending: true })
-            .limit(1);
-          if (queuedError) return;
-
-          const minPosition =
-            queuedRows?.[0] && typeof queuedRows[0].position === "number"
-              ? queuedRows[0].position
-              : 0;
-
-          const { error: queueError } = await supabase
-            .from("player_queue")
-            .update({
-              status: "queued",
-              played_at: null,
-              position: minPosition - 1000,
-              state_updated_at: new Date().toISOString(),
-            })
-            .eq("id", playing.id)
-            .eq("status", "playing");
-          if (queueError) return;
-        }
-
-        const { error: startError } = await supabase
-          .from("player_queue")
-          .update({
-            status: "playing",
-            played_at: null,
-            playback_position: 0,
-            is_paused: false,
-            state_updated_at: new Date().toISOString(),
-            duration_seconds: null,
-          })
-          .eq("id", previousId)
-          .eq("status", "played");
-
-        if (startError) return;
+        const { error } = await supabase.rpc("room_previous_item", { p_room_slug: roomSlug });
+        if (error) toast.error("Não foi possível voltar", { description: error.message });
         await refresh();
-      } finally {
-        navigationBusyRef.current = false;
-      }
+      } finally { navigationBusyRef.current = false; }
     })();
-  }, [refresh]);
+  }, [refresh, roomSlug]);
+
+  const reviewPending = useCallback((id: string, approve: boolean) => {
+    void (async () => {
+      const { error } = await supabase.from("player_queue")
+        .update({ approval_status: approve ? "approved" : "rejected" })
+        .eq("id", id).eq("room_slug", roomSlug).eq("approval_status", "pending");
+      if (error) toast.error("Falha ao moderar pedido", { description: error.message });
+      await refresh();
+    })();
+  }, [refresh, roomSlug]);
 
   const removeItem = useCallback(
     (id: string) => {
       void (async () => {
-        const { error } = await supabase.from("player_queue").delete().eq("id", id);
+        const { error } = await supabase.from("player_queue").delete().eq("id", id).eq("room_slug", roomSlug);
         if (error) toast.error("Não foi possível remover a música", { description: error.message });
         await refresh();
       })();
     },
-    [refresh],
+    [refresh, roomSlug],
   );
 
   const playNow = useCallback(
@@ -519,12 +406,12 @@ export function usePlayerQueue(): PlayerQueue {
 
   const clearQueue = useCallback(() => {
     void (async () => {
-      const { error } = await supabase.from("player_queue").delete().eq("status", "queued");
+      const { error } = await supabase.from("player_queue").delete().eq("status", "queued").eq("room_slug", roomSlug);
       if (error) toast.error("Erro ao limpar a fila", { description: error.message });
       else toast.success("Fila limpa");
       await refresh();
     })();
-  }, [refresh]);
+  }, [refresh, roomSlug]);
 
   const moveItem = useCallback(
     (id: string, toIndex: number) => {
@@ -558,12 +445,12 @@ export function usePlayerQueue(): PlayerQueue {
         const { error } = await supabase
           .from("player_queue")
           .update({ position: newPosition })
-          .eq("id", id);
+          .eq("id", id).eq("room_slug", roomSlug);
         if (error) toast.error("Não foi possível reorganizar a fila", { description: error.message });
         await refresh();
       })();
     },
-    [refresh],
+    [refresh, roomSlug],
   );
 
   const updatePlaybackHeartbeat = useCallback(
@@ -584,14 +471,16 @@ export function usePlayerQueue(): PlayerQueue {
             : {}),
         })
         .eq("id", itemId)
-        .eq("status", "playing");
+        .eq("status", "playing").eq("room_slug", roomSlug);
     },
-    [],
+    [roomSlug],
   );
 
   return {
     current,
     queue,
+    pending,
+    reviewPending,
     history,
     addTrack,
     playNext,
