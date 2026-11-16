@@ -108,14 +108,29 @@ export function usePlayerQueue(): PlayerQueue {
     const version = ++refreshVersionRef.current;
     // Fetch active requests and only the last 40 played items. The previous
     // select("*") downloaded the entire history on every realtime event.
+    // Paginate active items: Supabase/PostgREST may cap responses at 1,000
+    // rows even when a streamer sets the queue limit above 1,000.
+    const fetchAllActiveRows = async () => {
+      const rows: QueueRow[] = [];
+      const pageSize = 500;
+      // Up to 2,000 pending items plus one item currently playing.
+      for (let start = 0; start <= 2000; start += pageSize) {
+        const page = await supabase
+          .from("player_queue")
+          .select("id,source,track_id,url,title,author,thumbnail,requested_by,requester_color,priority,status,added_at,played_at,position,playback_position,is_paused,state_updated_at,duration_seconds")
+          .in("status", ["queued", "playing"])
+          .order("priority", { ascending: false })
+          .order("position", { ascending: true })
+          .order("id", { ascending: true })
+          .range(start, start + pageSize - 1);
+        if (page.error || !page.data) return { data: null as QueueRow[] | null, error: page.error };
+        rows.push(...(page.data as unknown as QueueRow[]));
+        if (page.data.length < pageSize) break;
+      }
+      return { data: rows, error: null };
+    };
     const [activeResult, historyResult] = await Promise.all([
-      supabase
-        .from("player_queue")
-        .select("id,source,track_id,url,title,author,thumbnail,requested_by,requester_color,priority,status,added_at,played_at,position,playback_position,is_paused,state_updated_at,duration_seconds")
-        .in("status", ["queued", "playing"])
-        .order("priority", { ascending: false })
-        .order("position", { ascending: true })
-        .order("id", { ascending: true }),
+      fetchAllActiveRows(),
       supabase
         .from("player_queue")
         .select("id,source,track_id,url,title,author,thumbnail,requested_by,requester_color,priority,status,added_at,played_at,position,playback_position,is_paused,state_updated_at,duration_seconds")
