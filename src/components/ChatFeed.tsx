@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Ban,
   CheckCircle2,
@@ -165,6 +165,7 @@ export function ChatFeed({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
+  const restoreFrameRef = useRef<number | null>(null);
 
   const [filter, setFilter] = useState<ChatFilter>("all");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -190,14 +191,10 @@ export function ChatFeed({
     });
   }, [messages, filter, search]);
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "instant") => {
+  const scrollToBottom = useCallback(() => {
     const element = scrollRef.current;
-    if (!element) return;
-    if (behavior === "smooth") {
-      element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
-    } else {
-      element.scrollTop = element.scrollHeight;
-    }
+    if (!element || !element.getClientRects().length) return;
+    element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
   }, []);
 
   const scheduleScroll = useCallback(() => {
@@ -210,11 +207,11 @@ export function ChatFeed({
     });
   }, [scrollToBottom]);
 
-  // The chat should remain live at all times. New messages, avatar updates,
-  // search results and filter changes can all increase its height.
-  useEffect(() => {
+  // Go to the latest message before paint whenever React renders a new list.
+  useLayoutEffect(() => {
+    scrollToBottom();
     scheduleScroll();
-  }, [visible, scheduleScroll]);
+  }, [visible, scrollToBottom, scheduleScroll]);
 
   useEffect(() => {
     setFilter("all");
@@ -227,11 +224,49 @@ export function ChatFeed({
     const content = contentRef.current;
     const viewport = scrollRef.current;
     if (!content || typeof ResizeObserver === "undefined") return;
+    // Covers image/emote loads, new message height and mobile tab reveal.
     const observer = new ResizeObserver(scheduleScroll);
     observer.observe(content);
     if (viewport) observer.observe(viewport);
     return () => observer.disconnect();
   }, [scheduleScroll]);
+
+  useEffect(() => {
+    let pendingTimers: number[] = [];
+    const followLatestAfterReturn = () => {
+      // The browser sometimes restores an old scrollTop after visibility or
+      // bfcache navigation. Re-anchor after paint and after restoration.
+      scrollToBottom();
+      scheduleScroll();
+      if (restoreFrameRef.current !== null) cancelAnimationFrame(restoreFrameRef.current);
+      restoreFrameRef.current = requestAnimationFrame(() => {
+        restoreFrameRef.current = requestAnimationFrame(() => {
+          restoreFrameRef.current = null;
+          scrollToBottom();
+        });
+      });
+      pendingTimers.forEach((timer) => clearTimeout(timer));
+      pendingTimers = [
+        window.setTimeout(scrollToBottom, 120),
+        window.setTimeout(scrollToBottom, 500),
+      ];
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") followLatestAfterReturn();
+    };
+    const onPageShow = () => followLatestAfterReturn();
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("focus", followLatestAfterReturn);
+    document.addEventListener("visibilitychange", onVisibility);
+    followLatestAfterReturn();
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("focus", followLatestAfterReturn);
+      document.removeEventListener("visibilitychange", onVisibility);
+      pendingTimers.forEach((timer) => clearTimeout(timer));
+      if (restoreFrameRef.current !== null) cancelAnimationFrame(restoreFrameRef.current);
+    };
+  }, [scrollToBottom, scheduleScroll]);
 
   useEffect(() => {
     return () => {
@@ -373,7 +408,7 @@ export function ChatFeed({
 
         <div
           ref={scrollRef}
-          className="scrollbar-slim min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2"
+          className="scrollbar-slim min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2 [overflow-anchor:none]"
           aria-label="Mensagens do chat da Kick"
           role="log"
           aria-live="off"
