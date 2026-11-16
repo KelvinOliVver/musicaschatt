@@ -47,7 +47,7 @@ export function StreamerSettingsPanel({ preferences, onUpdate, canManage, global
     </label>
     );
   };
-  const toggle = (label: string, field: "automaticRecovery" | "fairQueue" | "acceptingRequests" | "voteMode" | "showChat" | "obsAudio") => (
+  const toggle = (label: string, field: "automaticRecovery" | "fairQueue" | "acceptingRequests" | "voteMode" | "showChat" | "obsAudio" | "requireApproval") => (
     <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 text-xs">
       <span className="text-foreground/90">{label}</span>
       <input type="checkbox" checked={draft[field]} disabled={!canManage}
@@ -61,7 +61,7 @@ export function StreamerSettingsPanel({ preferences, onUpdate, canManage, global
       .catch(() => toast.error("Falha ao copiar link."));
   };
   const obsUrl = obsToken && typeof window !== "undefined"
-    ? `${window.location.origin}/obs?key=${encodeURIComponent(obsToken)}&audio=${draft.obsAudio ? 1 : 0}`
+    ? `${window.location.origin}/obs?key=${encodeURIComponent(obsToken)}&audio=${draft.obsAudio ? 1 : 0}&overlay=${draft.overlayMode}`
     : null;
   return (
     <Sheet>
@@ -82,6 +82,7 @@ export function StreamerSettingsPanel({ preferences, onUpdate, canManage, global
             <p className="text-[11px] text-muted-foreground">Limites ampliados: até 1.000 pedidos por usuário, 2.000 na fila e 50 links por mensagem. Os valores que você já salvou continuam iguais até você alterá-los.</p>
             {toggle("Aceitar novos pedidos do chat", "acceptingRequests")}
             {toggle("Votação para escolher o próximo", "voteMode")}
+            {toggle("Exigir aprovação antes de entrar na fila", "requireApproval")}
             {toggle("Alternar pedidos entre usuários", "fairQueue")}
             {numeric("Cooldown por nick (segundos)", "cooldownSeconds")}
             <p className="text-[11px] text-muted-foreground">O banco aplica no mínimo {globalCooldown}s, mesmo que você escolha um valor menor aqui.</p>
@@ -151,6 +152,11 @@ export function StreamerSettingsPanel({ preferences, onUpdate, canManage, global
           <section className="space-y-3 border-t border-border pt-5">
             <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider"><MonitorPlay className="size-4 text-primary"/> OBS e controle remoto</h3>
             {toggle("Enviar áudio na captura OBS", "obsAudio")}
+            <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">Overlay na transmissão
+              <select aria-label="Overlay do OBS" value={draft.overlayMode} onChange={e=>update({overlayMode:e.target.value as StreamerPreferences["overlayMode"]})} disabled={!canManage} className="h-9 rounded-md border border-border bg-background px-2 text-xs text-foreground">
+                <option value="none">Só vídeo</option><option value="now">Tocando agora</option><option value="next">Próximo pedido</option><option value="progress">Progresso</option><option value="all">Completo</option>
+              </select>
+            </label>
             <p className="text-[11px] text-muted-foreground">Desative se o áudio já entra por outra fonte do OBS. Vídeos incorporados podem exigir desbloqueio do navegador.</p>
             <Button variant="secondary" className="w-full justify-start gap-2 text-xs" size="sm"
               disabled={!obsUrl} onClick={() => { if (obsUrl) copy(obsUrl,"URL do OBS copiada."); }}>
