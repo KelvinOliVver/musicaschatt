@@ -1754,3 +1754,81 @@
   .music-sidebar-v2 .music-brand-v2 { gap: 5px; }
   .music-sidebar-v2 .music-nav .music-nav-link { width: 33px; height: 35px; }
 }
+
+
+/* Desktop wide-screen workspace (2026-11-16).
+ * Use the available browser width instead of centering a narrow player area.
+ * Scoped to the normal player, leaving cinematic mode, OBS and home untouched.
+ */
+@media (min-width: 1450px) {
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) > .music-page.music-player-page {
+    box-sizing: border-box;
+    width: calc(100% - 236px);
+    max-width: none;
+    margin-left: 236px;
+    margin-right: 0;
+    padding-left: clamp(18px, 1.65vw, 34px);
+    padding-right: clamp(18px, 1.65vw, 34px);
+  }
+  .music-shell.is-sidebar-collapsed:not(.is-theater-shell):not(.is-obs-shell) > .music-page.music-player-page {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid {
+    box-sizing: border-box;
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    grid-template-columns: minmax(0, 2.08fr) minmax(0, .80fr) minmax(0, .90fr);
+    gap: clamp(14px, 1vw, 22px);
+    align-items: stretch;
+  }
+  .music-shell.music-layout-player:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid {
+    grid-template-columns: minmax(0, 2.65fr) minmax(0, .75fr) minmax(0, .84fr);
+  }
+  .music-shell.music-layout-compact:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid {
+    grid-template-columns: minmax(0, 1.48fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .music-shell.music-chat-hidden:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid {
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, .9fr);
+  }
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid > .music-player-stage,
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid > .music-queue-column,
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-player-grid > .music-chat-column {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    margin-inline: 0;
+  }
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-queue-column,
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-chat-column,
+  .music-shell.music-layout-compact:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-queue-column,
+  .music-shell.music-layout-compact:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-chat-column {
+    height: auto;
+    min-height: clamp(620px, calc(100svh - 270px), 980px);
+    max-height: none;
+    align-self: stretch;
+  }
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-queue-column > *,
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) .music-player-page .music-chat-column > * {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+  }
+}
+/* Medium desktop/tablet: use the entire working width without changing
+ * the existing two-column responsive layout or mobile tab navigation. */
+@media (min-width: 768px) and (max-width: 1449px) {
+  .music-shell:not(.is-theater-shell):not(.is-obs-shell) > .music-page.music-player-page {
+    box-sizing: border-box;
+    max-width: none;
+    margin-right: 0;
+  }
+  .music-shell.is-sidebar-collapsed:not(.is-theater-shell):not(.is-obs-shell) > .music-page.music-player-page {
+    width: 100%;
+    margin-left: 0;
+  }
+}
