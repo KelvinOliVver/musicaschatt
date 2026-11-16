@@ -3,6 +3,8 @@ export type TrackSource = "youtube" | "instagram" | "tiktok";
 export interface QueueItem {
   /** Stable local id for React keys and queue operations. */
   id: string;
+  roomSlug?: string;
+  approvalStatus?: "approved" | "pending" | "rejected";
   source: TrackSource;
   /** YouTube video id. */
   trackId: string;
