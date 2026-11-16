@@ -6,7 +6,7 @@ import { ChannelBar } from "@/components/ChannelBar";
 import { RoomSelector } from "@/components/RoomSelector";
 import { TrackPreview } from "@/components/TrackPreview";
 import { PendingModerationPanel } from "@/components/PendingModerationPanel";
-import { roomFromSearch, normalizeRoomSlug } from "@/lib/room-utils";
+import { roomFromSearch, normalizeRoomSlug, displayWait, estimateWaitingSeconds } from "@/lib/room-utils";
 import { ChatFeed } from "@/components/ChatFeed";
 import { PlayerPanel } from "@/components/PlayerPanel";
 import { MusicSidebar } from "@/components/MusicSidebar";
@@ -406,6 +406,34 @@ function PlayerPage() {
           [messageId]: { status, reason },
         }));
       };
+      // Informational commands are available to every viewer; destructive
+      // commands are limited to Kick mods, allowlisted users or the channel.
+      const normalizedNick=normalizeKickUsername(username);
+      const own=queue.queue.filter((item)=>normalizeKickUsername(item.requestedBy)===normalizedNick);
+      if (command === "!fila") {
+        report("executed", `${queue.queue.length} vídeos na fila · ${queue.pending.length} aguardando aprovação`);
+        return;
+      }
+      if (command === "!agora") {
+        report("executed", queue.current ? `Tocando: ${queue.current.title??"Vídeo do "+queue.current.source}` : "Nenhuma música tocando");
+        return;
+      }
+      if (command === "!minhas") {
+        report("executed", own.length ? `Você tem ${own.length} pedido(s) na fila` : "Você não tem pedidos pendentes");
+        return;
+      }
+      if (command === "!tempo") {
+        const idx=queue.queue.findIndex(item=>normalizeKickUsername(item.requestedBy)===normalizedNick);
+        report("executed", idx<0?"Você não tem pedidos pendentes":`Seu próximo pedido: ${displayWait(estimateWaitingSeconds(queue.queue,idx))} (estimativa)`);
+        return;
+      }
+      if (command === "!remover") {
+        const target=[...queue.queue,...queue.pending].reverse().find(item=>normalizeKickUsername(item.requestedBy)===normalizedNick);
+        if(!target){report("ignored","Nenhum pedido seu para remover");return;}
+        queue.removeItem(target.id);
+        report("executed","Seu último pedido foi removido");
+        return;
+      }
       if (!allowed) {
         report("ignored", "Apenas o streamer ou um moderador da Kick pode controlar o player");
         return;
