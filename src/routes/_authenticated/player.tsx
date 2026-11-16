@@ -3,6 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle, Ban, Crown, ListMusic, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, ShieldBan, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { ChannelBar } from "@/components/ChannelBar";
+import { RoomSelector } from "@/components/RoomSelector";
+import { roomFromSearch, normalizeRoomSlug } from "@/lib/room-utils";
 import { ChatFeed } from "@/components/ChatFeed";
 import { PlayerPanel } from "@/components/PlayerPanel";
 import { MusicSidebar } from "@/components/MusicSidebar";
@@ -89,14 +91,29 @@ interface OnlineUser {
 function PlayerPage() {
   // Keep the navigation out of the streamer's way until explicitly requested.
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [slug, setSlug] = useState(DEFAULT_CHANNEL);
+  const [slug, setSlug] = useState(() => typeof window !== "undefined"
+    ? roomFromSearch(window.location.search) : DEFAULT_CHANNEL);
+  const changeRoom = useCallback((nextRaw: string) => {
+    const next=normalizeRoomSlug(nextRaw);
+    if(!next){toast.error("Nome de canal inválido");return;}
+    setSlug(next);
+    const url=new URL(window.location.href);
+    url.searchParams.set("channel",next);
+    window.history.replaceState(window.history.state,"",url.toString());
+  },[]);
+  useEffect(() => {
+    const onPop=()=>setSlug(roomFromSearch(window.location.search));
+    window.addEventListener("popstate",onPop);
+    return ()=>window.removeEventListener("popstate",onPop);
+  },[]);
+
   const [manual, setManual] = useState("");
   const [blockedNickInput, setBlockedNickInput] = useState("");
-  const { preferences, updatePreferences } = useStreamerPreferences();
+  const { preferences, updatePreferences } = useStreamerPreferences(slug);
   const preferencesRef = useRef(preferences);
   preferencesRef.current = preferences;
   const obsMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("obs") === "1";
-  const queue = usePlayerQueue();
+  const queue = usePlayerQueue(slug);
   const voteIds = useMemo(() => queue.queue.map((item) => item.id), [queue.queue]);
   const { counts: voteCounts, mine: myVotes, vote: voteFor } = useQueueVotes(voteIds);
   const [requestOutcomes, setRequestOutcomes] = useState<Record<string, { status: "accepted" | "rejected"; reason: string }>>({});
@@ -197,7 +214,7 @@ function PlayerPage() {
     queue.playNow(queuedHeadId);
   }, [isHost, queue.current?.id, queuedHeadId, queue.playNow]);
 
-  const { settings, loading: settingsLoading, blocklistLocalOnly, updateBlockedUsernames } = useAppSettings();
+  const { settings, loading: settingsLoading, blocklistLocalOnly, updateBlockedUsernames } = useAppSettings(slug);
   const blockedUsernamesRef = useRef<string[]>([]);
   blockedUsernamesRef.current = settings.blockedUsernames;
   const lastRequestByUserRef = useRef<Map<string, number>>(new Map());
@@ -360,7 +377,7 @@ function PlayerPage() {
     const slots = Math.max(0, Math.min(prefs.maxLinksPerMessage, prefs.maxPerUser - activeByUser, prefs.maxQueue - queue.queue.length - pendingTotal));
     if (!slots) { reject("Limite de pedidos atingido"); return; }
     pending.set(sender, alreadyPending + slots);
-    void Promise.all(tracks.slice(0, slots).map((track) => queue.addTrack(track, message.username, message.color)))
+    void Promise.all(tracks.slice(0, slots).map((track) => queue.addTrack(track, message.username, message.color, { requireApproval: prefs.requireApproval })))
       .then((results) => recordOutcome(message.id, results.some(Boolean) ? "accepted" : "rejected",
         results.some(Boolean) ? "Pedido adicionado à fila" : "Link duplicado ou recusado pelo banco"))
       .catch(() => reject("Não foi possível adicionar o pedido"))
@@ -473,7 +490,7 @@ function PlayerPage() {
       return;
     }
 
-    void queue.addTrack(track, "você", null, { priority: true }).then((added) => {
+    void queue.addTrack(track, "você", null, { priority: true, requireApproval: false }).then((added) => {
       toast[added ? "success" : "info"](
         added ? "Adicionado à fila" : "Esse vídeo já está na fila",
       );
@@ -603,9 +620,10 @@ function PlayerPage() {
               slug={slug}
               status={chat.status}
               channel={chat.channel}
-              onChangeChannel={setSlug}
+              onChangeChannel={changeRoom}
               onReconnect={chat.reconnect}
             />
+            {!obsMode && <div className="mt-2"><RoomSelector active={slug} onSelect={changeRoom} /></div>}
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
