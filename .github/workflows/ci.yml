@@ -29,6 +29,9 @@ jobs:
       - name: Test Kick avatar parsing and URL safety
         run: bun test src/lib/kick-avatars.test.ts
 
+      - name: Regression tests for rooms, queue waiting time, commands and link validation
+        run: bun test src/lib/room-utils.test.ts src/lib/track-inspection.test.ts src/lib/kick-commands.test.ts src/lib/player-sync.test.ts
+
       - name: Test social video embeds and captionless player URLs
         run: bun test src/lib/social-video.test.ts
 
