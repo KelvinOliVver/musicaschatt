@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import type { StreamerPreferences, MediaPlatform } from "@/hooks/use-streamer-preferences";
+import { REQUEST_LIMITS } from "@/lib/request-limits";
 
 interface Props {
   preferences: StreamerPreferences;
@@ -28,19 +29,24 @@ export function StreamerSettingsPanel({ preferences, onUpdate, canManage, global
       if (!ok) toast.error("Falha ao salvar no banco. Tente novamente.");
     }).finally(() => setSaving(false));
   };
-  const numeric = (label: string, field: "cooldownSeconds" | "maxPerUser" | "maxQueue" | "maxLinksPerMessage" | "maxDurationSeconds", min: number, max: number) => (
+  const numeric = (label: string, field: keyof typeof REQUEST_LIMITS) => {
+    const { min, max } = REQUEST_LIMITS[field];
+    return (
     <label className="flex min-h-10 items-center justify-between gap-3 text-xs">
       <span className="max-w-[65%] text-muted-foreground">{label}</span>
       <Input type="number" min={min} max={max} disabled={!canManage} aria-label={label}
-        value={draft[field]} className="h-8 w-20 text-right tabular-nums"
+        value={draft[field]} className="h-8 w-24 text-right tabular-nums"
+        title={`Permitido de ${min.toLocaleString("pt-BR")} até ${max.toLocaleString("pt-BR")}`}
         onChange={(e) => setDraft((v) => ({ ...v, [field]: e.target.value === "" ? min : Number(e.target.value) }))}
         onBlur={() => {
           const n = Math.max(min, Math.min(max, Number(draft[field]) || min));
           if (n !== preferences[field]) update({ [field]: n } as Partial<StreamerPreferences>);
         }}
+        onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
       />
     </label>
-  );
+    );
+  };
   const toggle = (label: string, field: "automaticRecovery" | "fairQueue" | "acceptingRequests" | "voteMode" | "showChat" | "obsAudio") => (
     <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 text-xs">
       <span className="text-foreground/90">{label}</span>
@@ -73,15 +79,16 @@ export function StreamerSettingsPanel({ preferences, onUpdate, canManage, global
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">
           <section className="space-y-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Pedidos e fila</h3>
+            <p className="text-[11px] text-muted-foreground">Limites ampliados: até 1.000 pedidos por usuário, 2.000 na fila e 50 links por mensagem. Os valores que você já salvou continuam iguais até você alterá-los.</p>
             {toggle("Aceitar novos pedidos do chat", "acceptingRequests")}
             {toggle("Votação para escolher o próximo", "voteMode")}
             {toggle("Alternar pedidos entre usuários", "fairQueue")}
-            {numeric("Cooldown por nick (segundos)", "cooldownSeconds", 0, 600)}
+            {numeric("Cooldown por nick (segundos)", "cooldownSeconds")}
             <p className="text-[11px] text-muted-foreground">O banco aplica no mínimo {globalCooldown}s, mesmo que você escolha um valor menor aqui.</p>
-            {numeric("Máximo de pedidos por usuário", "maxPerUser", 1, 25)}
-            {numeric("Limite de itens na fila", "maxQueue", 1, 200)}
-            {numeric("Links por mensagem", "maxLinksPerMessage", 1, 5)}
-            {numeric("Duração máxima (segundos; 0 = livre)", "maxDurationSeconds", 0, 14400)}
+            {numeric("Máximo de pedidos por usuário", "maxPerUser")}
+            {numeric("Limite de itens na fila", "maxQueue")}
+            {numeric("Links por mensagem", "maxLinksPerMessage")}
+            {numeric("Duração máxima (segundos; 0 = livre)", "maxDurationSeconds")}
           </section>
           <section className="space-y-3 border-t border-border pt-5">
             <h3 className="text-xs font-bold uppercase tracking-wider">Plataformas permitidas</h3>
