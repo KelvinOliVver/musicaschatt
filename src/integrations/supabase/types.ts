@@ -179,8 +179,8 @@ export type Database = {
           played_at?: string | null
           position?: number | null
           priority?: boolean
-          room_slug: string
-          approval_status: string
+          room_slug?: string
+          approval_status?: string
           requested_by: string
           requester_color?: string | null
           source?: string
