@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { REQUEST_LIMITS } from "@/lib/request-limits";
 
 export type MediaPlatform = "youtube" | "instagram" | "tiktok";
 export type LayoutPreset = "balanced" | "player" | "compact";
@@ -43,11 +44,11 @@ export function normalizeStreamerPreferences(raw: unknown): StreamerPreferences 
   const v = raw && typeof raw === "object" && !Array.isArray(raw)
     ? raw as Partial<StreamerPreferences> : {};
   return {
-    cooldownSeconds: clamp(v.cooldownSeconds, 0, 600, 20),
-    maxPerUser: clamp(v.maxPerUser, 1, 25, 2),
-    maxQueue: clamp(v.maxQueue, 1, 200, 40),
-    maxLinksPerMessage: clamp(v.maxLinksPerMessage, 1, 5, 1),
-    maxDurationSeconds: clamp(v.maxDurationSeconds, 0, 14400, 0),
+    cooldownSeconds: clamp(v.cooldownSeconds, REQUEST_LIMITS.cooldownSeconds.min, REQUEST_LIMITS.cooldownSeconds.max, 20),
+    maxPerUser: clamp(v.maxPerUser, REQUEST_LIMITS.maxPerUser.min, REQUEST_LIMITS.maxPerUser.max, 2),
+    maxQueue: clamp(v.maxQueue, REQUEST_LIMITS.maxQueue.min, REQUEST_LIMITS.maxQueue.max, 40),
+    maxLinksPerMessage: clamp(v.maxLinksPerMessage, REQUEST_LIMITS.maxLinksPerMessage.min, REQUEST_LIMITS.maxLinksPerMessage.max, 1),
+    maxDurationSeconds: clamp(v.maxDurationSeconds, REQUEST_LIMITS.maxDurationSeconds.min, REQUEST_LIMITS.maxDurationSeconds.max, 0),
     allowedPlatforms: Array.isArray(v.allowedPlatforms)
       ? (["youtube", "instagram", "tiktok"] as MediaPlatform[]).filter((p) => v.allowedPlatforms?.includes(p))
       : DEFAULT_STREAMER_PREFERENCES.allowedPlatforms,
