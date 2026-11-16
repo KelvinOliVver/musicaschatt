@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { Check, LoaderCircle, RefreshCw, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ export function ChannelBar({
   onReconnect,
 }: ChannelBarProps) {
   const [draft, setDraft] = useState(slug);
+  useEffect(()=>setDraft(slug),[slug]);
   const isBusy = status === "resolving" || status === "connecting" || status === "reconnecting";
 
   function handleSubmit(event: FormEvent) {
