@@ -113,6 +113,13 @@ export function usePlayerQueue(room = DEFAULT_ROOM): PlayerQueue {
   currentRef.current = current;
   queueRef.current = queue;
   const pendingAddsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    // Never show the previous streamer's pending/current track while the
+    // new room is fetching its own queue state.
+    refreshVersionRef.current++;
+    setCurrent(null); setQueue([]); setPending([]); setHistory([]);
+    pendingAddsRef.current.clear();
+  }, [roomSlug]);
 
   const refresh = useCallback(async () => {
     const version = ++refreshVersionRef.current;
@@ -289,7 +296,13 @@ export function usePlayerQueue(room = DEFAULT_ROOM): PlayerQueue {
       pendingAddsRef.current.add(trackId);
       try {
         const isVip = options?.priority ?? false;
-        const inspected = await inspectTrack({ data: { ...track } });
+        let inspected: Awaited<ReturnType<typeof inspectTrack>>;
+        try {
+          inspected = await inspectTrack({ data: { ...track } });
+        } catch {
+          // If the preflight provider is unavailable, do not block the queue.
+          inspected = { status: "unverified", title: null, author: null, thumbnail: null, reason: "Consulta indisponível" };
+        }
         if (inspected.status === "unavailable") {
           console.warn("[VIDEO REJECTED]", inspected.reason);
           return false;
@@ -477,11 +490,11 @@ export function usePlayerQueue(room = DEFAULT_ROOM): PlayerQueue {
   );
 
   return {
-    current,
-    queue,
-    pending,
+    current: current?.roomSlug === roomSlug ? current : null,
+    queue: queue.filter(item => item.roomSlug === roomSlug),
+    pending: pending.filter(item => item.roomSlug === roomSlug),
     reviewPending,
-    history,
+    history: history.filter(item => item.roomSlug === roomSlug),
     addTrack,
     playNext,
     playPrevious,
