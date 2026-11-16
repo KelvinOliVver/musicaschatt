@@ -9,6 +9,11 @@ describe("Kick player commands", () => {
     expect(parseKickPlayerCommand("!pause")).toBe("!pausar");
     expect(parseKickPlayerCommand("!resume")).toBe("!continuar");
     expect(parseKickPlayerCommand("!limparfila")).toBe("!limpar");
+    expect(parseKickPlayerCommand("!fila")).toBe("!fila");
+    expect(parseKickPlayerCommand("!agora")).toBe("!agora");
+    expect(parseKickPlayerCommand("!minhas")).toBe("!minhas");
+    expect(parseKickPlayerCommand("!tempo")).toBe("!tempo");
+    expect(parseKickPlayerCommand("!cancelar")).toBe("!remover");
     expect(parseKickPlayerCommand("!skip not now")).toBeNull();
     expect(parseKickPlayerCommand("hello")).toBeNull();
   });
