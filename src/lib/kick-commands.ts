@@ -24,9 +24,19 @@ const ALIASES: Record<string, KickPlayerCommand> = {
   "!clear": "!limpar",
   "!limparfila": "!limpar",
   "!limpar": "!limpar",
+  "!fila": "!fila",
+  "!queue": "!fila",
+  "!agora": "!agora",
+  "!tocando": "!agora",
+  "!minhas": "!minhas",
+  "!meuspedidos": "!minhas",
+  "!tempo": "!tempo",
+  "!espera": "!tempo",
+  "!remover": "!remover",
+  "!cancelar": "!remover",
 };
 
-export type KickPlayerCommand = "!skip" | "!back" | "!pausar" | "!continuar" | "!limpar";
+export type KickPlayerCommand = "!skip" | "!back" | "!pausar" | "!continuar" | "!limpar" | "!fila" | "!agora" | "!minhas" | "!tempo" | "!remover";
 
 export function parseKickPlayerCommand(content: string): KickPlayerCommand | null {
   const normalized = content.trim().toLocaleLowerCase("pt-BR").replace(/\s+/g, " ");
