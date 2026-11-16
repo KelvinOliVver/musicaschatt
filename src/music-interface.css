@@ -1731,3 +1731,26 @@
 @media (prefers-reduced-motion: reduce) {
   .music-home-v2 .music-session { transition: none; }
 }
+
+/* Keep the remote shortcut accessible on phones without crowding the header. */
+@media (max-width: 767px) {
+  .music-sidebar-v2 .music-nav-secondary {
+    display: flex;
+    flex-direction: row;
+    margin: 0;
+    gap: 0;
+  }
+  .music-sidebar-v2 .music-nav-secondary .music-nav-link:last-child { display: none; }
+  .music-sidebar-v2 .music-nav-secondary .music-nav-link:first-of-type {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .music-sidebar-v2 .music-nav-secondary .music-nav-suffix { display: none; }
+}
+@media (max-width: 390px) {
+  .music-sidebar-v2 .music-brand-text strong { font-size: 14px; }
+  .music-sidebar-v2 .music-brand-v2 { gap: 5px; }
+  .music-sidebar-v2 .music-nav .music-nav-link { width: 33px; height: 35px; }
+}
