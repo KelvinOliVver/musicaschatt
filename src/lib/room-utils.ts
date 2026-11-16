@@ -20,3 +20,16 @@ export function displayWait(seconds: number): string {
   const minutes = Math.ceil(seconds / 60);
   return minutes < 60 ? `~${minutes} min` : `~${Math.floor(minutes/60)}h${minutes%60 ? ` ${minutes%60}min` : ""}`;
 }
+
+/** Keep pending and rejected requests out of the active playback queue. */
+export function classifyRoomQueueRow(
+  row: { room_slug: string; status: string; approval_status: string },
+  selectedRoom: string,
+): "playing" | "queued" | "pending" | "history" | "ignore" {
+  if (row.room_slug !== selectedRoom || row.approval_status === "rejected") return "ignore";
+  if (row.status === "playing") return "playing";
+  if (row.status === "queued")
+    return row.approval_status === "pending" ? "pending" : "queued";
+  if (row.status === "played") return "history";
+  return "ignore";
+}
