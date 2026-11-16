@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           chat_cooldown_seconds: number
           streamer_preferences: Json
+          room_slug: string
           obs_token: string
           obs_volume: number
           obs_muted: boolean
@@ -28,6 +29,7 @@ export type Database = {
         Insert: {
           chat_cooldown_seconds?: number
           streamer_preferences?: Json
+          room_slug?: string
           obs_token?: string
           obs_volume?: number
           obs_muted?: boolean
@@ -38,6 +40,7 @@ export type Database = {
         Update: {
           chat_cooldown_seconds?: number
           streamer_preferences?: Json
+          room_slug?: string
           obs_token?: string
           obs_volume?: number
           obs_muted?: boolean
@@ -45,6 +48,12 @@ export type Database = {
           id?: number
           updated_at?: string
         }
+        Relationships: []
+      }
+      streamer_rooms: {
+        Row: { slug: string; created_by: string | null; created_at: string }
+        Insert: { slug: string; created_by?: string | null; created_at?: string }
+        Update: { slug?: string; created_by?: string | null; created_at?: string }
         Relationships: []
       }
       queue_votes: {
@@ -148,6 +157,8 @@ export type Database = {
           played_at: string | null
           position: number | null
           priority: boolean
+          room_slug: string
+          approval_status: string
           requested_by: string
           requester_color: string | null
           source: string
@@ -168,6 +179,8 @@ export type Database = {
           played_at?: string | null
           position?: number | null
           priority?: boolean
+          room_slug: string
+          approval_status: string
           requested_by: string
           requester_color?: string | null
           source?: string
@@ -188,6 +201,8 @@ export type Database = {
           played_at?: string | null
           position?: number | null
           priority?: boolean
+          room_slug?: string
+          approval_status?: string
           requested_by?: string
           requester_color?: string | null
           source?: string
@@ -247,6 +262,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_streamer_room: { Args: { p_slug: string }; Returns: string }
+      room_play_item: { Args: { p_id: string; p_room_slug: string }; Returns: boolean }
+      room_next_item: { Args: { p_room_slug: string }; Returns: string | null }
+      room_previous_item: { Args: { p_room_slug: string }; Returns: string | null }
       get_obs_player_state: { Args: { p_token: string }; Returns: Json }
       advance_player_queue: { Args: never; Returns: undefined }
       has_role: {
