@@ -24,6 +24,7 @@ export interface StreamerPreferences {
   accentPreset: AccentPreset;
   obsAudio: boolean;
   requireApproval: boolean;
+  overlayMode: "none" | "now" | "next" | "progress" | "all";
 }
 
 const KEY = "musicchat-streamer-preferences-v1";
@@ -33,7 +34,7 @@ export const DEFAULT_STREAMER_PREFERENCES: StreamerPreferences = {
   allowedPlatforms: ["youtube", "instagram", "tiktok"], moderatorNicks: [],
   automaticRecovery: true, fairQueue: true, acceptingRequests: true,
   voteMode: false, layoutPreset: "balanced", showChat: true,
-  accentPreset: "violet", obsAudio: true, requireApproval: false,
+  accentPreset: "violet", obsAudio: true, requireApproval: false, overlayMode: "none",
 };
 const clamp = (v: unknown, min: number, max: number, fallback: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.round(Math.max(min, Math.min(max, v))) : fallback;
@@ -64,6 +65,7 @@ export function normalizeStreamerPreferences(raw: unknown): StreamerPreferences 
     accentPreset: v.accentPreset === "cyan" || v.accentPreset === "green" ? v.accentPreset : "violet",
     obsAudio: v.obsAudio !== false,
     requireApproval: v.requireApproval === true,
+    overlayMode: ["now","next","progress","all"].includes(v.overlayMode ?? "") ? v.overlayMode! : "none",
   };
 }
 export const readStreamerPreferences = (): StreamerPreferences => {
@@ -78,7 +80,7 @@ export const readStreamerPreferences = (): StreamerPreferences => {
 export function useStreamerPreferences(channel = DEFAULT_ROOM) {
   const roomSlug = normalizeRoomSlug(channel) ?? DEFAULT_ROOM;
   const storageKey = `${KEY}:${roomSlug}`;
-  const [preferences, setPreferences] = useState(readStreamerPreferences);
+  const [preferences, setPreferences] = useState(() => DEFAULT_STREAMER_PREFERENCES);
   const [loading, setLoading] = useState(true);
   const saveChain = useRef<Promise<unknown>>(Promise.resolve());
   const refresh = useCallback(async () => {
