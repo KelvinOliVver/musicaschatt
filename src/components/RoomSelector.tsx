@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Radio } from "lucide-react";
+import { Plus, Radio, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeRoomSlug } from "@/lib/room-utils";
@@ -41,6 +41,8 @@ export function RoomSelector({active,onSelect}:Props){
        {rooms.map(room=><option key={room} value={room}>@{room}</option>)}
      </select>
    </label>
+   <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 text-xs" title="Copiar link desta sala"
+     onClick={()=>{const url=new URL("/player",window.location.origin);url.searchParams.set("channel",active);void navigator.clipboard.writeText(url.toString()).then(()=>toast.success("Link da sala copiado")).catch(()=>toast.error("Não foi possível copiar"));}}><Copy className="size-3.5" /> Link</Button>
    <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs"
      onClick={()=>setEditing(v=>!v)} aria-expanded={editing}>
      <Plus className="size-3.5" /> Nova sala
