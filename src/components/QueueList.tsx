@@ -23,6 +23,7 @@ import { SourceIcon } from "@/components/SourceIcon";
 import { isSocialSource, sourceLabel } from "@/lib/social-video";
 
 import type { QueueItem } from "@/lib/types";
+import { displayWait, estimateWaitingSeconds } from "@/lib/room-utils";
 
 interface QueueListProps {
   items: QueueItem[];
@@ -280,6 +281,7 @@ export function QueueList({
                         <span className="text-[11px] text-muted-foreground/60">
                           · {formatRelativeTime(item.addedAt, now)}
                         </span>
+                        <span className="shrink-0 text-[10px] text-primary/75" title="Estimativa; vídeos sem duração usam 3 minutos"> · {displayWait(estimateWaitingSeconds(items,index))}</span>
                       </div>
                     </div>
 
