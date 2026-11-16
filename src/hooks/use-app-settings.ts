@@ -70,6 +70,7 @@ export function useAppSettings(channel = DEFAULT_ROOM) {
 
   useEffect(() => {
     setLoading(true);
+    setSettings({ ...DEFAULT_SETTINGS, blockedUsernames: readLocalBlocklist(localKey) ?? [] });
     void refresh();
     const channel = supabase
       .channel(`app-settings-sync-${roomSlug}`)
