@@ -4,6 +4,8 @@ import { AlertTriangle, Ban, Crown, ListMusic, MessageSquare, PanelLeftClose, Pa
 import { toast } from "sonner";
 import { ChannelBar } from "@/components/ChannelBar";
 import { RoomSelector } from "@/components/RoomSelector";
+import { TrackPreview } from "@/components/TrackPreview";
+import { PendingModerationPanel } from "@/components/PendingModerationPanel";
 import { roomFromSearch, normalizeRoomSlug } from "@/lib/room-utils";
 import { ChatFeed } from "@/components/ChatFeed";
 import { PlayerPanel } from "@/components/PlayerPanel";
@@ -96,10 +98,14 @@ function PlayerPage() {
   const changeRoom = useCallback((nextRaw: string) => {
     const next=normalizeRoomSlug(nextRaw);
     if(!next){toast.error("Nome de canal inválido");return;}
-    setSlug(next);
-    const url=new URL(window.location.href);
-    url.searchParams.set("channel",next);
-    window.history.replaceState(window.history.state,"",url.toString());
+    void (async()=>{
+      const {error}=await supabase.rpc("create_streamer_room",{p_slug:next});
+      if(error){toast.error("Não foi possível abrir essa sala",{description:error.message});return;}
+      setSlug(next);
+      const url=new URL(window.location.href);
+      url.searchParams.set("channel",next);
+      window.history.replaceState(window.history.state,"",url.toString());
+    })();
   },[]);
   useEffect(() => {
     const onPop=()=>setSlug(roomFromSearch(window.location.search));
@@ -777,6 +783,8 @@ function PlayerPage() {
             <Plus className="size-3.5" /> Adicionar
           </Button>
         </form>
+        {manual.trim() && <TrackPreview url={manual} />}
+        {queue.pending.length>0 && isHost && <PendingModerationPanel items={queue.pending} onReview={queue.reviewPending} />}
 
         <div className={`music-player-grid${theaterMode ? " is-theater-mode" : ""}`}>
           <PlayerPanel
