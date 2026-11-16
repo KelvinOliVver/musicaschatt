@@ -143,6 +143,7 @@ function PlayerPage() {
   const remoteCommandRef = useRef<(action: string, value?: number) => void>(() => {});
   const [externalCommand, setExternalCommand] = useState<{ seq: number; action: "pause" | "resume" | "volume" | "mute"; value?: number } | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  useEffect(() => setOnlineUsers([]), [slug]);
   const [isAdministrator, setIsAdministrator] = useState(false);
   const [roleLoaded, setRoleLoaded] = useState(false);
   useEffect(() => {
