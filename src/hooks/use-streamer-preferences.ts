@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { REQUEST_LIMITS } from "@/lib/request-limits";
+import { normalizeRoomSlug, DEFAULT_ROOM } from "@/lib/room-utils";
 
 export type MediaPlatform = "youtube" | "instagram" | "tiktok";
 export type LayoutPreset = "balanced" | "player" | "compact";
@@ -22,6 +23,7 @@ export interface StreamerPreferences {
   showChat: boolean;
   accentPreset: AccentPreset;
   obsAudio: boolean;
+  requireApproval: boolean;
 }
 
 const KEY = "musicchat-streamer-preferences-v1";
@@ -31,7 +33,7 @@ export const DEFAULT_STREAMER_PREFERENCES: StreamerPreferences = {
   allowedPlatforms: ["youtube", "instagram", "tiktok"], moderatorNicks: [],
   automaticRecovery: true, fairQueue: true, acceptingRequests: true,
   voteMode: false, layoutPreset: "balanced", showChat: true,
-  accentPreset: "violet", obsAudio: true,
+  accentPreset: "violet", obsAudio: true, requireApproval: false,
 };
 const clamp = (v: unknown, min: number, max: number, fallback: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.round(Math.max(min, Math.min(max, v))) : fallback;
@@ -61,6 +63,7 @@ export function normalizeStreamerPreferences(raw: unknown): StreamerPreferences 
     showChat: v.showChat !== false,
     accentPreset: v.accentPreset === "cyan" || v.accentPreset === "green" ? v.accentPreset : "violet",
     obsAudio: v.obsAudio !== false,
+    requireApproval: v.requireApproval === true,
   };
 }
 export const readStreamerPreferences = (): StreamerPreferences => {
@@ -72,31 +75,35 @@ export const readStreamerPreferences = (): StreamerPreferences => {
 /** One shared configuration for the streamer, remote control, and host.
  * Realtime changes plus focus refresh keep multiple browsers consistent.
  */
-export function useStreamerPreferences() {
+export function useStreamerPreferences(channel = DEFAULT_ROOM) {
+  const roomSlug = normalizeRoomSlug(channel) ?? DEFAULT_ROOM;
+  const storageKey = `${KEY}:${roomSlug}`;
   const [preferences, setPreferences] = useState(readStreamerPreferences);
   const [loading, setLoading] = useState(true);
   const saveChain = useRef<Promise<unknown>>(Promise.resolve());
   const refresh = useCallback(async () => {
     const { data, error } = await supabase.from("app_settings")
-      .select("streamer_preferences").eq("id", 1).maybeSingle();
+      .select("streamer_preferences").eq("room_slug", roomSlug).maybeSingle();
     if (!error && data) {
       const raw = data.streamer_preferences;
       const shared = raw && typeof raw === "object" && !Array.isArray(raw) && Object.keys(raw).length;
-      const next = shared ? normalizeStreamerPreferences(raw) : readStreamerPreferences();
+      const next = shared ? normalizeStreamerPreferences(raw) : DEFAULT_STREAMER_PREFERENCES;
       setPreferences(next);
-      try { window.localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
     } else if (error) {
       console.error("[STREAMER PREFERENCES]", error.message);
     }
     setLoading(false);
-  }, []);
+  }, [roomSlug, storageKey]);
   useEffect(() => {
+    setPreferences(DEFAULT_STREAMER_PREFERENCES);
+    setLoading(true);
     void refresh();
-    const channel = supabase.channel("streamer-preferences-sync-v2")
+    const channel = supabase.channel(`streamer-preferences-sync-${roomSlug}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_settings" }, () => { void refresh(); })
       .subscribe();
     const onFocus = () => { if (document.visibilityState === "visible") void refresh(); };
-    const onLocal = (event: StorageEvent) => { if (event.key === KEY) void refresh(); };
+    const onLocal = (event: StorageEvent) => { if (event.key === storageKey) void refresh(); };
     document.addEventListener("visibilitychange", onFocus);
     window.addEventListener("storage", onLocal);
     return () => {
@@ -112,19 +119,19 @@ export function useStreamerPreferences() {
     const save = async () => {
       const { data, error } = await supabase.from("app_settings")
         .update({ streamer_preferences: validated as unknown as Json, updated_at: new Date().toISOString() })
-        .eq("id", 1).select("streamer_preferences").single();
+        .eq("room_slug", roomSlug).select("streamer_preferences").single();
       if (error || !data) {
         console.error("[STREAMER PREF SAVE]", error?.message ?? "empty result");
         void refresh();
         return false;
       }
-      try { window.localStorage.setItem(KEY, JSON.stringify(validated)); } catch {}
+      try { window.localStorage.setItem(storageKey, JSON.stringify(validated)); } catch {}
       setPreferences(normalizeStreamerPreferences(data.streamer_preferences));
       return true;
     };
     const promise = saveChain.current.then(save, save);
     saveChain.current = promise.then(() => undefined, () => undefined);
     return promise;
-  }, [refresh]);
+  }, [refresh, roomSlug, storageKey]);
   return { preferences, loading, updatePreferences };
 }
