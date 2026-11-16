@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppSettings } from "@/hooks/use-app-settings";
 import { supabase } from "@/integrations/supabase/client";
+import { roomFromSearch } from "@/lib/room-utils";
+import { REQUEST_LIMITS } from "@/lib/request-limits";
 
 import { MusicSidebar } from "@/components/MusicSidebar";
 
@@ -25,7 +27,8 @@ export const Route = createFileRoute("/_authenticated/admin")({
 });
 
 function AdminPage() {
-  const { settings, loading, updateCooldown } = useAppSettings();
+  const room=typeof window !== "undefined" ? roomFromSearch(window.location.search) : "roceiraplay";
+  const { settings, loading, updateCooldown } = useAppSettings(room);
   const [cooldown, setCooldown] = useState(settings.chatCooldownSeconds);
   const [saving, setSaving] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
@@ -53,7 +56,7 @@ function AdminPage() {
     setSaving(false);
 
     if (ok) {
-      toast.success("Configurações salvas — já valem pra todo mundo");
+      toast.success(`Cooldown de @${room} atualizado`);
     } else {
       toast.error("Não deu para salvar");
     }
@@ -61,13 +64,13 @@ function AdminPage() {
 
   return (
     <div className="music-shell"><MusicSidebar active="account" /><main className="music-page music-account-page flex min-h-screen flex-col gap-6">
-      <Link
-        to="/player"
+      <a
+        href={`/player?channel=${encodeURIComponent(room)}`}
         className="inline-flex w-fit items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" aria-hidden />
         Voltar ao player
-      </Link>
+      </a>
 
       <div>
         <h1 className="flex items-center gap-2 text-3xl font-bold">
@@ -75,7 +78,7 @@ function AdminPage() {
           Administração
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Essas configurações valem para todo o site e podem ser alteradas por contas logadas no painel.
+          Configurações da sala @{room}. Cada streamer tem seu cooldown independente.
         </p>
       </div>
 
@@ -86,7 +89,7 @@ function AdminPage() {
             id="cooldown"
             type="number"
             min={0}
-            max={600}
+            max={REQUEST_LIMITS.cooldownSeconds.max}
             value={cooldown}
             onChange={(event) => setCooldown(Number(event.target.value))}
             disabled={loading || !canEdit}
