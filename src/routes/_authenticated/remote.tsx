@@ -17,10 +17,10 @@ export const Route = createFileRoute("/_authenticated/remote")({
 });
 
 function RemotePage() {
-  const queue = usePlayerQueue();
   const channelSlug = typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("channel") ?? "roceiraplay").toLowerCase().replace(/[^a-z0-9_-]/g, "") : "roceiraplay";
-  const { settings, updateBlockedUsernames } = useAppSettings();
-  const { preferences, updatePreferences } = useStreamerPreferences();
+  const queue = usePlayerQueue(channelSlug);
+  const { settings, updateBlockedUsernames } = useAppSettings(channelSlug);
+  const { preferences, updatePreferences } = useStreamerPreferences(channelSlug);
   const [connected, setConnected] = useState(false);
   const [channel, setChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
   const [volume, setVolume] = useState(settings.obsVolume);
