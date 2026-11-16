@@ -93,8 +93,12 @@ interface OnlineUser {
 function PlayerPage() {
   // Keep the navigation out of the streamer's way until explicitly requested.
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [slug, setSlug] = useState(() => typeof window !== "undefined"
-    ? roomFromSearch(window.location.search) : DEFAULT_CHANNEL);
+  // Keep server and client initial render identical; select the bookmarked
+  // streamer room immediately after hydration.
+  const [slug, setSlug] = useState(DEFAULT_CHANNEL);
+  useEffect(() => {
+    setSlug(roomFromSearch(window.location.search));
+  }, []);
   const changeRoom = useCallback((nextRaw: string) => {
     const next=normalizeRoomSlug(nextRaw);
     if(!next){toast.error("Nome de canal inválido");return;}
