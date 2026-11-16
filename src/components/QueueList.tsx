@@ -81,6 +81,7 @@ export function QueueList({
     });
   }, [history, historySearch, historySource]);
   const [now, setNow] = useState(() => Date.now());
+  const [visibleQueueCount, setVisibleQueueCount] = useState(75);
   const [exitingIds, setExitingIds] = useState<Set<string>>(() => new Set());
   const [mountedIds, setMountedIds] = useState<Set<string>>(() => new Set());
 
@@ -90,7 +91,7 @@ export function QueueList({
   }, []);
 
   useEffect(() => {
-    const nextIds = new Set(items.map((item) => item.id));
+    const nextIds = new Set(items.slice(0, visibleQueueCount).map((item) => item.id));
     setMountedIds((current) => {
       const existing = new Set([...current].filter((id) => nextIds.has(id)));
       const newIds = [...nextIds].filter((id) => !current.has(id));
@@ -112,7 +113,7 @@ export function QueueList({
       for (const id of nextIds) next.delete(id);
       return next;
     });
-  }, [items]);
+  }, [items, visibleQueueCount]);
 
   function handleRemove(id: string) {
     if (exitingIds.has(id)) return;
@@ -174,7 +175,7 @@ export function QueueList({
         ) : (
           <ScrollArea className="min-h-0 flex-1">
             <ol className="space-y-1 p-2">
-              {items.map((item, index) => {
+              {items.slice(0, visibleQueueCount).map((item, index) => {
                 const isNext = index === 0;
                 // The database sorts VIP tracks ahead of normal tracks.
                 // Crossing the group boundary would not change their actual order.
@@ -340,6 +341,14 @@ export function QueueList({
                 );
               })}
             </ol>
+            {items.length > visibleQueueCount && (
+              <div className="px-3 pb-3 pt-1">
+                <Button type="button" variant="secondary" size="sm" className="h-8 w-full text-xs"
+                  onClick={() => setVisibleQueueCount((count) => count + 75)}>
+                  Mostrar mais {Math.min(75, items.length - visibleQueueCount)} de {items.length} pedidos
+                </Button>
+              </div>
+            )}
           </ScrollArea>
         )}
 
