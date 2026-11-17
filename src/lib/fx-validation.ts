@@ -85,15 +85,29 @@ export function classifyFxAfter(events: FxEvent[], lastId: number): FxEvent[] {
 
 /** On the first OBS load, replay only events that are still within their
  * display lifetime; never replay old sounds when Browser Source reconnects. */
+/** Load only effects still alive after the latest STOP_ALL. An older PLAY
+ * must never reappear after OBS refreshes, even if it had 30s remaining. */
 export function fxEventsForInitialOverlay(events: FxEvent[], nowMs: number): FxEvent[] {
-  return classifyFxAfter(events, 0).filter((event) => {
+  const ordered=classifyFxAfter(events,0);
+  const lastStopId=ordered.filter(event=>event.command==="STOP_ALL").reduce((id,event)=>Math.max(id,event.id),0);
+  return ordered.filter(event=>{
+    if(event.id<=lastStopId || event.command==="STOP_ALL")return false;
     const at=event.createdAt?Date.parse(event.createdAt):NaN;
     if(!Number.isFinite(at))return false;
     const age=nowMs-at;
-    if(age < -10_000)return false;
+    if(age< -10_000)return false;
     const lifetime=event.command==="PLAY"
       ? fxSeconds(event.payload?.seconds??5)*1000
-      : event.command==="TEST" ? 6000 : 15_000;
-    return age <= lifetime;
+      : event.command==="TEST" ? 6000 : 0;
+    return age<=lifetime;
   });
+}
+/** Database returns at most 30 effect events in one poll. If we jump straight
+ * to the global latest ID, all remaining events are silently dropped. */
+export function nextFxOverlayCursor(previous: number | null, latest: number, events: FxEvent[], batchLimit=30): number {
+  const last=Math.max(previous??0,0);
+  const fresh=classifyFxAfter(events,last);
+  const maxId=fresh.length?fresh[fresh.length-1].id:last;
+  if(fresh.length>=batchLimit && maxId<latest)return maxId;
+  return Math.max(last,latest);
 }
