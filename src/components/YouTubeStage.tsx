@@ -94,6 +94,9 @@ interface YouTubeStageProps {
   onEnded: () => void;
   onPlayingChange: (playing: boolean) => void;
   onProgress: (currentTime: number, duration: number) => void;
+  /** Optional: custom UI for embed errors; normal music player still advances on errors. */
+  onPlayerError?: (code: number) => void;
+  onAutoplayBlocked?: () => void;
   controlsRef?: React.MutableRefObject<StageControls | null>;
 }
 
@@ -107,6 +110,8 @@ export function YouTubeStage({
   onEnded,
   onPlayingChange,
   onProgress,
+  onPlayerError,
+  onAutoplayBlocked,
   controlsRef,
 }: YouTubeStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -120,6 +125,8 @@ export function YouTubeStage({
   const onEndedRef = useRef(onEnded);
   const onPlayingChangeRef = useRef(onPlayingChange);
   const onProgressRef = useRef(onProgress);
+  const onPlayerErrorRef = useRef(onPlayerError);
+  const onAutoplayBlockedRef = useRef(onAutoplayBlocked);
   const remoteSeekRef = useRef(remoteSeek);
   const initialSeekRef = useRef(initialSeek);
   const pausedRef = useRef(paused);
@@ -129,6 +136,8 @@ export function YouTubeStage({
   onEndedRef.current = onEnded;
   onPlayingChangeRef.current = onPlayingChange;
   onProgressRef.current = onProgress;
+  onPlayerErrorRef.current = onPlayerError;
+  onAutoplayBlockedRef.current = onAutoplayBlocked;
   remoteSeekRef.current = remoteSeek;
   initialSeekRef.current = initialSeek;
   pausedRef.current = paused;
@@ -330,10 +339,16 @@ export function YouTubeStage({
               return;
             }
 
+            if(onPlayerErrorRef.current){
+              onPlayerErrorRef.current(event.data);
+              return;
+            }
             triggerEndedOnce();
           },
           onAutoplayBlocked: () => {
-            if (isMounted) onPlayingChangeRef.current(false);
+            if(!isMounted)return;
+            onPlayingChangeRef.current(false);
+            onAutoplayBlockedRef.current?.();
           },
         },
       });
