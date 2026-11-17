@@ -3,15 +3,36 @@
 -- Signed-in music.chat administrators and a single invited second account can manage FX.
 -- The public Browser Source can only read recent effects with a revocable random token.
 
+CREATE TABLE IF NOT EXISTS public.fx_owner(
+  id integer PRIMARY KEY DEFAULT 1 CHECK (id=1),
+  user_id uuid NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.fx_owner ENABLE ROW LEVEL SECURITY;
+
 CREATE OR REPLACE FUNCTION public.fx_is_admin()
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
-AS $$
+AS $
   SELECT (SELECT auth.uid()) IS NOT NULL AND EXISTS (
-    SELECT 1 FROM public.user_roles WHERE user_id = (SELECT auth.uid()) AND role = 'admin'
+    SELECT 1 FROM public.fx_owner WHERE user_id = (SELECT auth.uid())
   )
-$$;
+$;
 REVOKE ALL ON FUNCTION public.fx_is_admin() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.fx_is_admin() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.fx_claim_owner()
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $
+BEGIN
+ IF auth.uid() IS NULL THEN RETURN false; END IF;
+ IF NOT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id=auth.uid() AND role='admin')
+ THEN RAISE EXCEPTION 'Somente o administrador original do music.chat pode ativar o RoceiraFX'; END IF;
+ PERFORM pg_advisory_xact_lock(hashtext('musicchat_fx_owner'));
+ INSERT INTO public.fx_owner(id,user_id) VALUES (1,auth.uid()) ON CONFLICT(id) DO NOTHING;
+ RETURN EXISTS(SELECT 1 FROM public.fx_owner WHERE user_id=auth.uid());
+END $;
+REVOKE ALL ON FUNCTION public.fx_claim_owner() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.fx_claim_owner() TO authenticated;
 
 CREATE TABLE IF NOT EXISTS public.fx_members(
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -47,7 +68,7 @@ BEGIN
   END IF;
   SELECT id INTO new_id FROM auth.users WHERE lower(email) = clean_email LIMIT 1;
   IF new_id IS NULL THEN RAISE EXCEPTION 'A Roceira precisa criar uma conta no music.chat antes de receber acesso'; END IF;
-  IF EXISTS(SELECT 1 FROM public.user_roles WHERE user_id = new_id AND role = 'admin') THEN
+  IF EXISTS(SELECT 1 FROM public.fx_owner WHERE user_id = new_id) THEN
     RAISE EXCEPTION 'Esta conta já é administradora';
   END IF;
   PERFORM pg_advisory_xact_lock(hashtext('musicchat_fx_one_member'));
