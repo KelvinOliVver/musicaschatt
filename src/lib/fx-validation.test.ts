@@ -61,6 +61,15 @@ describe("RoceiraFX media and event safety",()=>{
     ];
     expect(fxEventsForInitialOverlay(events,now).map(event=>event.id)).toEqual([23]);
   });
+  it("keeps a long-running image visible after OBS reconnects",()=>{
+    const now=Date.parse("2026-11-17T12:00:00Z");
+    const events=[
+      {id:101,command:"PLAY" as const,createdAt:new Date(now-9*60_000).toISOString(),payload:{seconds:600}},
+      {id:102,command:"PLAY" as const,createdAt:new Date(now-9*60_000).toISOString(),payload:{seconds:30}},
+    ];
+    expect(fxEventsForInitialOverlay(events,now).map(e=>e.id)).toEqual([101]);
+    expect(fxEventsForInitialOverlay(events,now+2*60_000)).toEqual([]);
+  });
   it("paginates bursts instead of skipping events after 30 results",()=>{
     const batch=Array.from({length:30},(_,i)=>({id:i+1,command:"PLAY" as const}));
     expect(nextFxOverlayCursor(null,65,batch)).toBe(30);
@@ -72,7 +81,9 @@ describe("RoceiraFX media and event safety",()=>{
     expect(normalizeFxVolume(150)).toBe(100);
     expect(normalizeFxVolume(-1)).toBe(0);
     expect(fxSeconds(0)).toBe(1);
-    expect(fxSeconds(50)).toBe(30);
+    expect(fxSeconds(50)).toBe(50);
+    expect(fxSeconds(600)).toBe(600);
+    expect(fxSeconds(999)).toBe(600);
   });
   it("ignores replayed or duplicate events",()=>{
     const events=[{id:5,command:"PLAY" as const},{id:6,command:"STOP_ALL" as const},{id:6,command:"STOP_ALL" as const},{id:4,command:"PLAY" as const}];
