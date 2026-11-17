@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { MusicSidebar } from "@/components/MusicSidebar";
 import { FxMediaCanvas } from "@/components/FxMediaCanvas";
 import { fxCheckAccess, fxDb, fxMediaUrl } from "@/lib/fx-api";
-import { FX_MEDIA_BUCKET, fxSeconds, identifyFxFile, normalizeFxVolume, validFxUrl, parseFxYouTubeId, looksLikeFxYouTubeUrl, type FxEffect, type FxKind, type FxPosition, type FxSettings, type FxSize } from "@/lib/fx-validation";
+import { FX_MEDIA_BUCKET, fxSeconds, identifyFxFile, normalizeFxVolume, FX_MAX_DISPLAY_SECONDS, validFxUrl, parseFxYouTubeId, looksLikeFxYouTubeUrl, type FxEffect, type FxKind, type FxPosition, type FxSettings, type FxSize } from "@/lib/fx-validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -361,7 +361,7 @@ function FxStudioPage(){
       <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Configurar efeito</h2><button aria-label="Fechar editor" onClick={()=>setSelected(null)}><X className="size-5"/></button></div>
       <label className="block text-xs text-muted-foreground">Nome<Input className="mt-2" maxLength={100} value={selected.title} onChange={e=>setSelected({...selected,title:e.target.value})}/></label>
       <label className="block text-xs text-muted-foreground">Volume: {selected.volume}%<input type="range" min={0} max={100} value={selected.volume} className="mt-2 w-full accent-violet-300" onChange={e=>setSelected({...selected,volume:Number(e.target.value)})}/></label>
-      <label className="block text-xs text-muted-foreground">Duração para imagens e GIFs (1–30 s)<Input type="number" min={1} max={30} className="mt-2" value={selected.display_seconds} onChange={e=>setSelected({...selected,display_seconds:Number(e.target.value)})}/></label>
+      <label className="block text-xs text-muted-foreground">Duração na tela (1–{FX_MAX_DISPLAY_SECONDS} segundos / até 10 minutos)<Input type="number" min={1} max={FX_MAX_DISPLAY_SECONDS} className="mt-2" value={selected.display_seconds} onChange={e=>setSelected({...selected,display_seconds:Number(e.target.value)})}/></label>
       <label className="block text-xs text-muted-foreground">Tamanho<select className="mt-2 h-10 w-full rounded-md border border-border bg-background px-3" value={selected.size} onChange={e=>setSelected({...selected,size:e.target.value as FxSize})}>
         <option value="small">Pequeno</option><option value="medium">Médio</option><option value="large">Grande</option>
       </select></label>
