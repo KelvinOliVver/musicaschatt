@@ -34,6 +34,8 @@ declare global {
 export interface StageControls {
   seekTo: (seconds: number) => void;
   getCurrentTime: () => number;
+  play: () => void;
+  unmute: () => void;
 }
 
 /**
@@ -160,6 +162,11 @@ export function YouTubeStage({
           playerRef.current?.seekTo?.(seconds, true);
         },
         getCurrentTime: () => playerRef.current?.getCurrentTime?.() ?? 0,
+        play: () => playerRef.current?.playVideo?.(),
+        unmute: () => {
+          playerRef.current?.unMute?.();
+          playerRef.current?.setVolume?.(Math.max(0, Math.min(100, volumeRef.current)));
+        },
       };
     }
 
