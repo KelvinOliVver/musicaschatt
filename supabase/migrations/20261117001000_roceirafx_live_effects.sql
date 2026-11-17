@@ -12,17 +12,17 @@ ALTER TABLE public.fx_owner ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION public.fx_is_admin()
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
-AS $
+AS $$
   SELECT (SELECT auth.uid()) IS NOT NULL AND EXISTS (
     SELECT 1 FROM public.fx_owner WHERE user_id = (SELECT auth.uid())
   )
-$;
+$$;
 REVOKE ALL ON FUNCTION public.fx_is_admin() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.fx_is_admin() TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.fx_claim_owner()
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
-AS $
+AS $$
 BEGIN
  IF auth.uid() IS NULL THEN RETURN false; END IF;
  IF NOT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id=auth.uid() AND role='admin')
@@ -30,7 +30,7 @@ BEGIN
  PERFORM pg_advisory_xact_lock(hashtext('musicchat_fx_owner'));
  INSERT INTO public.fx_owner(id,user_id) VALUES (1,auth.uid()) ON CONFLICT(id) DO NOTHING;
  RETURN EXISTS(SELECT 1 FROM public.fx_owner WHERE user_id=auth.uid());
-END $;
+END $$;
 REVOKE ALL ON FUNCTION public.fx_claim_owner() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.fx_claim_owner() TO authenticated;
 
