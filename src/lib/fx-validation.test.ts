@@ -1,5 +1,5 @@
 import {describe,expect,it} from "bun:test";
-import {FX_MAX_DISPLAY_SECONDS,FX_SIZES,identifyFxFile,validFxUrl,parseFxYouTubeId,looksLikeFxYouTubeUrl,normalizeFxVolume,fxSeconds,classifyFxAfter,fxEventsForInitialOverlay,nextFxOverlayCursor} from "./fx-validation";
+import {FX_MAX_DISPLAY_SECONDS,FX_SIZES,fxMediaFit,identifyFxFile,validFxUrl,parseFxYouTubeId,looksLikeFxYouTubeUrl,normalizeFxVolume,fxSeconds,classifyFxAfter,fxEventsForInitialOverlay,nextFxOverlayCursor} from "./fx-validation";
 describe("RoceiraFX media and event safety",()=>{
   it("requires correct MIME+extension and size",()=>{
     expect(identifyFxFile({name:"som.mp3",size:1200,type:"audio/mpeg"}).kind).toBe("audio");
@@ -76,6 +76,13 @@ describe("RoceiraFX media and event safety",()=>{
     expect(nextFxOverlayCursor(30,65,batch.map(x=>({...x,id:x.id+30})))).toBe(60);
     expect(nextFxOverlayCursor(60,65,[{id:65,command:"STOP_ALL"}])).toBe(65);
     expect(nextFxOverlayCursor(null,999,[])).toBe(999);
+  });
+  it("fills the OBS canvas for extra-large and fullscreen media",()=>{
+    expect(fxMediaFit("small")).toBe("contain");
+    expect(fxMediaFit("medium")).toBe("contain");
+    expect(fxMediaFit("large")).toBe("contain");
+    expect(fxMediaFit("extra-large")).toBe("cover");
+    expect(fxMediaFit("fullscreen")).toBe("cover");
   });
   it("allows full-screen sizes and 30-minute FX while clamping inputs",()=>{
     expect(FX_SIZES).toEqual(["small","medium","large","extra-large","fullscreen"]);
