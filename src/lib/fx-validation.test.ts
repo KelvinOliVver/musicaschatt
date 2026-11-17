@@ -1,5 +1,5 @@
 import {describe,expect,it} from "bun:test";
-import {identifyFxFile,validFxUrl,parseFxYouTubeId,looksLikeFxYouTubeUrl,normalizeFxVolume,fxSeconds,classifyFxAfter,fxEventsForInitialOverlay} from "./fx-validation";
+import {identifyFxFile,validFxUrl,parseFxYouTubeId,looksLikeFxYouTubeUrl,normalizeFxVolume,fxSeconds,classifyFxAfter,fxEventsForInitialOverlay,nextFxOverlayCursor} from "./fx-validation";
 describe("RoceiraFX media and event safety",()=>{
   it("requires correct MIME+extension and size",()=>{
     expect(identifyFxFile({name:"som.mp3",size:1200,type:"audio/mpeg"}).kind).toBe("audio");
@@ -51,6 +51,22 @@ describe("RoceiraFX media and event safety",()=>{
     ];
     expect(fxEventsForInitialOverlay(events,now).map(event=>event.id)).toEqual([12,14]);
     expect(fxEventsForInitialOverlay(events,now+35_000)).toEqual([]);
+  });
+  it("does not resurrect media killed by STOP_ALL on OBS restart",()=>{
+    const now=Date.parse("2026-11-17T12:00:00Z");
+    const events=[
+      {id:21,command:"PLAY" as const,createdAt:new Date(now-20_000).toISOString(),payload:{seconds:30}},
+      {id:22,command:"STOP_ALL" as const,createdAt:new Date(now-19_000).toISOString()},
+      {id:23,command:"PLAY" as const,createdAt:new Date(now-1000).toISOString(),payload:{seconds:6}},
+    ];
+    expect(fxEventsForInitialOverlay(events,now).map(event=>event.id)).toEqual([23]);
+  });
+  it("paginates bursts instead of skipping events after 30 results",()=>{
+    const batch=Array.from({length:30},(_,i)=>({id:i+1,command:"PLAY" as const}));
+    expect(nextFxOverlayCursor(null,65,batch)).toBe(30);
+    expect(nextFxOverlayCursor(30,65,batch.map(x=>({...x,id:x.id+30})))).toBe(60);
+    expect(nextFxOverlayCursor(60,65,[{id:65,command:"STOP_ALL"}])).toBe(65);
+    expect(nextFxOverlayCursor(null,999,[])).toBe(999);
   });
   it("clamps settings",()=>{
     expect(normalizeFxVolume(150)).toBe(100);
