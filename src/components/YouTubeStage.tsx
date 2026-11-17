@@ -97,6 +97,8 @@ interface YouTubeStageProps {
   /** Optional: custom UI for embed errors; normal music player still advances on errors. */
   onPlayerError?: (code: number) => void;
   onAutoplayBlocked?: () => void;
+  /** Pre-create an identified iframe for OBS: YouTube requires a HTTP Referer. */
+  useIdentifiedEmbed?: boolean;
   controlsRef?: React.MutableRefObject<StageControls | null>;
 }
 
@@ -112,6 +114,7 @@ export function YouTubeStage({
   onProgress,
   onPlayerError,
   onAutoplayBlocked,
+  useIdentifiedEmbed = false,
   controlsRef,
 }: YouTubeStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -233,7 +236,35 @@ export function YouTubeStage({
       }
 
       const targetId = `youtube-player-${Math.random().toString(36).substring(2, 9)}`;
-      containerRef.current.innerHTML = `<div id="${targetId}" class="size-full"></div>`;
+      if (useIdentifiedEmbed) {
+        // An iframe made by YT.Player from a DIV cannot have its referrer policy
+        // set until AFTER its initial YouTube request. Create it first instead.
+        // YouTube officially supports binding YT.Player to an existing iframe.
+        const embed = document.createElement("iframe");
+        const params = new URLSearchParams({
+          enablejsapi: "1",
+          autoplay: "1",
+          controls: "0",
+          playsinline: "1",
+          rel: "0",
+          origin: window.location.origin,
+        });
+        embed.id = targetId;
+        embed.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
+        embed.referrerPolicy = "strict-origin-when-cross-origin";
+        embed.allow = "autoplay; encrypted-media; picture-in-picture";
+        embed.title = "Vídeo do YouTube para RoceiraFX";
+        embed.style.width = "100%";
+        embed.style.height = "100%";
+        embed.style.border = "0";
+        containerRef.current.replaceChildren(embed);
+      } else {
+        // Keep the proven shared player path unchanged for music.chat.
+        const target = document.createElement("div");
+        target.id = targetId;
+        target.className = "size-full";
+        containerRef.current.replaceChildren(target);
+      }
 
       playerRef.current = new window.YT.Player(targetId, {
         height: "100%",
@@ -407,7 +438,7 @@ export function YouTubeStage({
         playerRef.current = null;
       }
     };
-  }, [videoId]);
+  }, [videoId, useIdentifiedEmbed]);
 
   useEffect(() => {
     if (!playerRef.current?.setVolume) return;
