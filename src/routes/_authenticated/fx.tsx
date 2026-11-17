@@ -83,24 +83,27 @@ function FxStudioPage(){
    const result=await fxCheckAccess();
    if(!live)return;
    setConfigured(result.configured);setAllowed(result.allowed);setAdmin(result.admin);setEligible(result.eligible);setReady(true);
-   if(result.allowed)await refresh();
+   if(result.allowed&&result.configured)await refresh();
   })();
   return()=>{live=false;};
  },[refresh]);
 
  const submitEffect=async(id:string)=>{
+  if(!configured){toast.error("Ative o banco do RoceiraFX antes de enviar efeitos.");return;}
   const {error:emitError}=await fxDb.rpc("fx_fire",{p_effect_id:id});
   if(emitError){toast.error("Não foi possível tocar",{description:emitError.message});return;}
   toast.success("Enviado para a fonte do OBS");
   void refresh();
  };
  const command=async(value:"STOP_ALL"|"TEST")=>{
+  if(!configured){toast.error("A comunicação com o OBS depende da migração do banco.");return;}
   const {error:emitError}=await fxDb.rpc("fx_command",{p_command:value});
   if(emitError){toast.error("Erro no comando",{description:emitError.message});return;}
   toast.success(value==="STOP_ALL"?"Todos os efeitos foram interrompidos":"Teste enviado à fonte do OBS");
   void refresh();
  };
  const handleUpload=async(file:File)=>{
+  if(!configured){toast.error("Upload remoto indisponível até ativar o banco do RoceiraFX.");return;}
   const inspected=identifyFxFile(file);
   if(inspected.error){toast.error(inspected.error);return;}
   setUploading(true);
@@ -127,6 +130,7 @@ function FxStudioPage(){
  };
  const handleUrl=async(e:FormEvent)=>{
   e.preventDefault();
+  if(!configured){toast.error("Biblioteca remota ainda não ativada.");return;}
   if(!validFxUrl(newUrl)){toast.error("Informe um link direto HTTPS válido.");return;}
   if(!newTitle.trim()){toast.error("Digite o nome do efeito.");return;}
   setSaving(true);
@@ -176,7 +180,7 @@ function FxStudioPage(){
  const copy=async(text:string)=>{try{await navigator.clipboard.writeText(text);toast.success("Link copiado");}catch{toast.error("Não foi possível copiar");}};
  const filtered=effects.filter(x=>x.title.toLowerCase().includes(filter.trim().toLowerCase()));
  if(!ready)return <main className="flex min-h-screen items-center justify-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-5 animate-spin"/>Carregando RoceiraFX...</main>;
- if(!configured||!allowed)return <div className="music-shell"><MusicSidebar active="fx"/><main className="music-page min-h-screen px-6 py-16">
+ if(!allowed)return <div className="music-shell"><MusicSidebar active="fx"/><main className="music-page min-h-screen px-6 py-16">
   <div className="mx-auto max-w-xl rounded-2xl border border-border bg-card p-8">
    <LockKeyhole className="mb-4 size-8 text-primary"/>
    <h1 className="text-2xl font-bold">{configured?"Acesso restrito":"RoceiraFX em configuração"}</h1>
@@ -205,7 +209,10 @@ function FxStudioPage(){
       <Button variant="destructive" onClick={()=>void command("STOP_ALL")} className="gap-2"><Ban className="size-4"/> PARAR TUDO</Button>
     </div>
    </div>
-   {error&&<div role="alert" className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">{error}</div>}
+   {!configured&&<div role="status" className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+  <b>Prévia do Studio.</b> A nova página está disponível, mas o banco de efeitos ainda aguarda a migração do Lovable. Uploads, disparos e a fonte OBS estarão bloqueados até a ativação. A sala de música continua funcionando normalmente.
+ </div>}
+ {error&&<div role="alert" className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">{error}</div>}
    <nav aria-label="Seções do RoceiraFX" className="flex flex-wrap gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1">
     {([["soundboard","Soundboard",AudioLines],["library","Biblioteca",HardDriveUpload],["obs","Fonte OBS",Radio],["settings","Configurações",Settings2]] as const).map(([id,label,Icon])=>
       <button key={id} type="button" onClick={()=>setTab(id)} aria-current={tab===id?"page":undefined}
