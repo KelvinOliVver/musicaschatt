@@ -314,16 +314,18 @@ function FxStudioPage(){
        <Button variant="outline" size="sm" onClick={()=>void copy(overlayUrl)} disabled={!overlayUrl}><Copy className="mr-2 size-4"/> Copiar URL do OBS</Button>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-       <Button variant="secondary" disabled={sendingCommand} onClick={()=>void command("TEST")}><CheckCircle2 className="mr-2 size-4"/> Testar imagem + som</Button>
+       <Button variant="secondary" disabled={sendingCommand} onClick={()=>void command("TEST")}><CheckCircle2 className="mr-2 size-4"/> Testar tela inteira + som</Button>
        {admin&&<Button variant="outline" onClick={async()=>{if(!confirm("O link antigo deixará de funcionar no OBS. Continuar?"))return;const result=await fxDb.rpc("fx_rotate_token");if(result.error){toast.error(result.error.message);return;}toast.success("URL renovada. Atualize no OBS.");void refresh();}}>Gerar nova URL</Button>}
       </div>
       <div className="mt-5 rounded-lg border border-violet-300/20 bg-violet-300/[0.045] p-4 text-xs leading-6 text-violet-100/90">
         <p className="font-semibold">Para vídeos e sons funcionarem na transmissão:</p>
         <p>1. Nas propriedades da Fonte de Navegador no OBS, marque <b>Controlar áudio pelo OBS</b>.</p>
         <p>2. No Mixer de Áudio, deixe a fonte desmutada. Em Propriedades avançadas de áudio, ative monitoração se a Roceira quiser ouvir também.</p>
-        <p className="text-violet-200">Use <b>Testar imagem + som</b>: a fonte deve exibir “RoceiraFX conectado” e produzir um beep curto. Se só aparecer a imagem, confira o áudio da Fonte de Navegador.</p>
-        <p>3. Mantenha a fonte ativa na cena. Se o YouTube bloquear autoplay, use <b>Interagir</b> na fonte e clique em reproduzir ou ativar áudio.</p>
-        <p>4. Se o YouTube recusar incorporação, envie um vídeo permitido em MP4 H.264/AAC pela Biblioteca.</p>
+        <p className="text-violet-200"><b>Teste de tela inteira:</b> uma borda violeta aparecerá nos 4 cantos da fonte e um som curto será reproduzido. Se a borda estiver pequena na cena, o tamanho do efeito não é o problema: é o tamanho da fonte no OBS.</p>
+        <p>3. Para corrigir fonte pequena no OBS: clique na <b>Fonte de Navegador</b> do RoceiraFX, vá em <b>Transformar → Ajustar à tela</b> (<b>Ctrl+F</b>), e confira <b>1920 × 1080</b> nas propriedades. Não deixe a fonte reduzida no canto da cena.</p>
+        <p>4. Depois de publicar uma atualização, clique com botão direito na fonte → <b>Atualizar</b> para carregar o código novo.</p>
+        <p>5. Mantenha a fonte ativa na cena. Se o YouTube bloquear autoplay, use <b>Interagir</b> na fonte e clique em reproduzir ou ativar áudio.</p>
+        <p>6. Se o YouTube recusar incorporação, envie um vídeo permitido em MP4 H.264/AAC pela Biblioteca.</p>
        </div>
        <p className="mt-3 text-xs text-muted-foreground"><b>Importante:</b> o botão Tocar registra o pedido, mas não comprova que o OBS reproduziu a mídia. Imagens funcionando não garantem que o navegador aceite vídeo ou som.</p>
        <p className="mt-4 text-xs text-muted-foreground">A URL é uma chave de leitura da fonte OBS. Não compartilhe publicamente. A fonte precisa estar aberta para receber efeitos.</p>
@@ -395,6 +397,7 @@ function FxStudioPage(){
             onClick={()=>setSelected({...selected,size:value})}
             className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${selected.size===value?"border-violet-300 bg-violet-300/15 font-semibold text-violet-100":"border-white/10 bg-white/[0.03] text-white/70 hover:border-white/30"}`}>{label}</button>)}
         </div>
+        <p className="mt-2 text-xs leading-5 text-violet-200/80"><b>Extra grande</b> preenche quase toda a tela e <b>Tela inteira</b> ocupa toda a fonte OBS. Os dois modos ampliam a imagem e podem cortar as bordas. Use <b>Grande</b> para mostrar a mídia inteira, sem cortes.</p>
       </div>
       <div><p className="mb-2 text-xs text-muted-foreground">Posição na transmissão</p><div className="grid w-40 grid-cols-3 gap-1">
        {positions.map(pos=><button key={pos} type="button" onClick={()=>setSelected({...selected,position:pos})} title={pos} aria-label={pos} aria-pressed={selected.position===pos}
