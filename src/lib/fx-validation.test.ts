@@ -1,5 +1,5 @@
 import {describe,expect,it} from "bun:test";
-import {identifyFxFile,validFxUrl,parseFxYouTubeId,looksLikeFxYouTubeUrl,normalizeFxVolume,fxSeconds,classifyFxAfter} from "./fx-validation";
+import {identifyFxFile,validFxUrl,parseFxYouTubeId,looksLikeFxYouTubeUrl,normalizeFxVolume,fxSeconds,classifyFxAfter,fxEventsForInitialOverlay} from "./fx-validation";
 describe("RoceiraFX media and event safety",()=>{
   it("requires correct MIME+extension and size",()=>{
     expect(identifyFxFile({name:"som.mp3",size:1200,type:"audio/mpeg"}).kind).toBe("audio");
@@ -35,6 +35,22 @@ describe("RoceiraFX media and event safety",()=>{
     expect(validFxUrl("https://www.youtube.com/watch?v=wrong")).toBe(false);
     expect(looksLikeFxYouTubeUrl("https://www.youtube.com/playlist?list=foo")).toBe(true);
     expect(looksLikeFxYouTubeUrl("https://youtube.com.evil.test/watch?v="+id)).toBe(false);
+  });
+  it("recovers a freshly played effect when the OBS source loads late",()=>{
+    const now=Date.parse("2026-11-17T12:00:00.000Z");
+    const events=[
+      {id:11,command:"PLAY" as const,createdAt:new Date(now-31_000).toISOString(),
+        payload:{seconds:30}},
+      {id:12,command:"PLAY" as const,createdAt:new Date(now-3500).toISOString(),
+        payload:{seconds:5}},
+      {id:13,command:"STOP_ALL" as const,createdAt:new Date(now-70000).toISOString()},
+      {id:14,command:"PLAY" as const,createdAt:new Date(now-3000).toISOString(),
+        payload:{seconds:30}},
+      {id:14,command:"PLAY" as const,createdAt:new Date(now-3000).toISOString(),
+        payload:{seconds:30}},
+    ];
+    expect(fxEventsForInitialOverlay(events,now).map(event=>event.id)).toEqual([12,14]);
+    expect(fxEventsForInitialOverlay(events,now+35_000)).toEqual([]);
   });
   it("clamps settings",()=>{
     expect(normalizeFxVolume(150)).toBe(100);
