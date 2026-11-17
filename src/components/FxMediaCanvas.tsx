@@ -22,6 +22,8 @@ interface Props { effect: FxPlayable; onDone?: () => void; onStarted?: () => voi
 
 export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Props) {
   const mediaRef = useRef<HTMLMediaElement | null>(null);
+  const onDoneRef=useRef(onDone);
+  onDoneRef.current=onDone;
   const youtubeControlsRef = useRef<StageControls | null>(null);
   const [mediaIssue, setMediaIssue] = useState<string | null>(null);
   const [youtubeIssue, setYoutubeIssue] = useState<string | null>(null);
@@ -57,9 +59,9 @@ export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Pr
 
   useEffect(() => {
     if (youtubeId || effect.mediaType === "audio" || effect.mediaType === "video") return;
-    const timeout = window.setTimeout(() => onDone?.(), Math.max(1, Math.min(30, effect.seconds)) * 1000);
+    const timeout = window.setTimeout(() => onDoneRef.current?.(), Math.max(1, Math.min(30, effect.seconds)) * 1000);
     return () => window.clearTimeout(timeout);
-  }, [effect.mediaType, effect.seconds, onDone, youtubeId]);
+  }, [effect.mediaType, effect.seconds, youtubeId]);
 
   const reportMediaError = () => {
     const code = mediaRef.current?.error?.code;
@@ -77,10 +79,11 @@ export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Pr
 
   const canInteract = preview || Boolean(youtubeId) || isNativeMedia;
   return <div className={`${canInteract ? "pointer-events-auto" : "pointer-events-none"} absolute inset-0 flex p-[3%] ${fxPositionClass(effect.position)}`}>
-    {youtubeId && <div className={`aspect-video max-h-[80%] overflow-hidden rounded-md bg-black ${
+    {youtubeId && <div className={`relative aspect-video max-h-[80%] overflow-hidden rounded-md bg-black ${
       effect.size === "small" ? "w-[35%] max-w-[480px]" :
       effect.size === "large" ? "w-[85%] max-w-[1440px]" : "w-[60%] max-w-[960px]"
     }`}>
+      <div className={`size-full ${youtubeStarted ? "" : "pointer-events-none opacity-0"}`}>
       <YouTubeStage
         videoId={youtubeId}
         volume={Math.round(volume * 100)}
@@ -120,6 +123,12 @@ export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Pr
           window.setTimeout(() => youtubeControlsRef.current?.play(), 350);
         }}
       />
+      </div>
+      {!youtubeStarted && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#100e16] px-5 text-center">
+        <span className="size-6 animate-spin rounded-full border-2 border-violet-300/20 border-t-violet-300" aria-hidden="true"/>
+        <span className="text-xs font-medium text-white/90">{youtubeIssue ? "Reprodução do YouTube indisponível" : "Preparando vídeo do YouTube…"}</span>
+        <span className="max-w-sm text-[11px] leading-relaxed text-white/60">O YouTube pode exigir login ou confirmação antibot no navegador do OBS. Use MP4 autorizado para maior confiabilidade.</span>
+      </div>}
     </div>}
 
     {youtubeId && youtubeIssue && <div role="alert" className="pointer-events-auto absolute inset-x-[6%] bottom-[5%] z-20 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-amber-400/40 bg-black/90 px-4 py-3 text-center text-sm text-amber-100 shadow-lg">
