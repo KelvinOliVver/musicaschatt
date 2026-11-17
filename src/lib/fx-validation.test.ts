@@ -1,5 +1,5 @@
 import {describe,expect,it} from "bun:test";
-import {identifyFxFile,validFxUrl,parseFxYouTubeId,looksLikeFxYouTubeUrl,normalizeFxVolume,fxSeconds,classifyFxAfter,fxEventsForInitialOverlay,nextFxOverlayCursor} from "./fx-validation";
+import {FX_MAX_DISPLAY_SECONDS,FX_SIZES,identifyFxFile,validFxUrl,parseFxYouTubeId,looksLikeFxYouTubeUrl,normalizeFxVolume,fxSeconds,classifyFxAfter,fxEventsForInitialOverlay,nextFxOverlayCursor} from "./fx-validation";
 describe("RoceiraFX media and event safety",()=>{
   it("requires correct MIME+extension and size",()=>{
     expect(identifyFxFile({name:"som.mp3",size:1200,type:"audio/mpeg"}).kind).toBe("audio");
@@ -77,13 +77,25 @@ describe("RoceiraFX media and event safety",()=>{
     expect(nextFxOverlayCursor(60,65,[{id:65,command:"STOP_ALL"}])).toBe(65);
     expect(nextFxOverlayCursor(null,999,[])).toBe(999);
   });
+  it("allows full-screen sizes and 30-minute FX while clamping inputs",()=>{
+    expect(FX_SIZES).toEqual(["small","medium","large","extra-large","fullscreen"]);
+    expect(FX_MAX_DISPLAY_SECONDS).toBe(1800);
+    expect(fxSeconds(1800)).toBe(1800);
+    expect(fxSeconds(9999)).toBe(1800);
+  });
+  it("replays a long effect after OBS reconnect until it expires",()=>{
+    const now=Date.parse("2026-11-17T12:00:00Z");
+    const e={id:501,command:"PLAY" as const,createdAt:new Date(now-29*60_000).toISOString(),payload:{seconds:1800}};
+    expect(fxEventsForInitialOverlay([e],now).map(x=>x.id)).toEqual([501]);
+    expect(fxEventsForInitialOverlay([e],now+2*60_000)).toEqual([]);
+  });
   it("clamps settings",()=>{
     expect(normalizeFxVolume(150)).toBe(100);
     expect(normalizeFxVolume(-1)).toBe(0);
     expect(fxSeconds(0)).toBe(1);
     expect(fxSeconds(50)).toBe(50);
     expect(fxSeconds(600)).toBe(600);
-    expect(fxSeconds(999)).toBe(600);
+    expect(fxSeconds(999)).toBe(999);
   });
   it("ignores replayed or duplicate events",()=>{
     const events=[{id:5,command:"PLAY" as const},{id:6,command:"STOP_ALL" as const},{id:6,command:"STOP_ALL" as const},{id:4,command:"PLAY" as const}];

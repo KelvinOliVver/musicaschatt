@@ -19,6 +19,11 @@ const DEFAULT_SETTINGS:FxSettings = {overlay_token:"",master_volume:80,cooldown_
 const positions:FxPosition[] = ["top-left","top","top-right","left","center","right","bottom-left","bottom","bottom-right"];
 const icons: Record<FxKind,typeof AudioLines> = {audio:AudioLines,image:FileImage,gif:FileImage,video:Film};
 const typeLabels:Record<FxKind,string>={audio:"Som",image:"Imagem",gif:"GIF",video:"Vídeo"};
+const durationPresets = [5,15,30,60,120,300,600,900,1800] as const;
+const sizeLabels: Record<FxSize,string> = {
+ small:"Pequeno",medium:"Médio",large:"Grande",
+ "extra-large":"Extra grande",fullscreen:"Tela inteira",
+};
 function playback(effect:FxEffect, masterVolume:number) {
  return {title:effect.title,mediaType:effect.media_type,mediaPath:effect.media_path,
   externalUrl:effect.external_url,volume:effect.volume,masterVolume,
@@ -55,6 +60,7 @@ function FxStudioPage(){
  const [preview,setPreview]=useState<FxEffect|null>(null);
  const [previewCount,setPreviewCount]=useState(0);
  const [filter,setFilter]=useState("");
+ const [kindFilter,setKindFilter]=useState<"all"|FxKind>("all");
  const [uploading,setUploading]=useState(false);
  const [saving,setSaving]=useState(false);
  const [dispatchingId,setDispatchingId]=useState<string|null>(null);
@@ -194,7 +200,7 @@ function FxStudioPage(){
  const overlayUrl=typeof window!=="undefined"&&settings.overlay_token
   ? `${window.location.origin}/fx-overlay?key=${encodeURIComponent(settings.overlay_token)}`:"";
  const copy=async(text:string)=>{try{await navigator.clipboard.writeText(text);toast.success("Link copiado");}catch{toast.error("Não foi possível copiar");}};
- const filtered=effects.filter(x=>x.title.toLowerCase().includes(filter.trim().toLowerCase()));
+ const filtered=effects.filter(x=>(kindFilter==="all"||x.media_type===kindFilter) && x.title.toLowerCase().includes(filter.trim().toLowerCase()));
  if(!ready)return <main className="flex min-h-screen items-center justify-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-5 animate-spin"/>Carregando RoceiraFX...</main>;
  if(!allowed)return <div className="music-shell"><MusicSidebar active="fx"/><main className="music-page min-h-screen px-6 py-16">
   <div className="mx-auto max-w-xl rounded-2xl border border-border bg-card p-8">
@@ -241,9 +247,16 @@ function FxStudioPage(){
       <div><h2 className="text-xl font-semibold">Soundboard</h2><p className="mt-1 text-xs text-muted-foreground">{effects.length} efeitos disponíveis · pressione para enviar à live</p></div>
       <Input aria-label="Buscar efeito" placeholder="Buscar efeito..." className="w-full max-w-[260px] bg-card" value={filter} onChange={e=>setFilter(e.target.value)}/>
     </div>
+    <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por mídia">
+      {(["all","audio","image","gif","video"] as const).map(kind=><button key={kind} type="button"
+        aria-pressed={kindFilter===kind} onClick={()=>setKindFilter(kind)}
+        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${kindFilter===kind?"border-violet-300/70 bg-violet-300/15 text-violet-100":"border-white/10 bg-white/[0.025] text-white/60 hover:border-white/30"}`}>
+        {kind==="all"?"Todos":typeLabels[kind]}
+      </button>)}
+    </div>
     {filtered.length===0?<div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.025] p-12 text-center">
       <Headphones className="mx-auto size-10 text-violet-300"/><h3 className="mt-4 font-semibold">Nenhum efeito encontrado</h3>
-      <p className="mt-2 text-sm text-muted-foreground">Adicione sons ou imagens na Biblioteca e eles aparecerão aqui.</p>
+      <p className="mt-2 text-sm text-muted-foreground">{effects.length?"Nenhum resultado para esses filtros. Tente outra busca.":"Adicione sons ou imagens na Biblioteca e eles aparecerão aqui."}</p>
       <Button className="mt-5" onClick={()=>setTab("library")}><Plus className="mr-2 size-4"/> Adicionar efeito</Button>
     </div>:<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
       {filtered.map(effect=>{const Icon=icons[effect.media_type];const ytId=effect.external_url?parseFxYouTubeId(effect.external_url):null;return <div key={effect.id} className="group rounded-xl border border-white/10 bg-[#17151f] p-3 transition-colors hover:border-violet-300/45">
@@ -252,7 +265,7 @@ function FxStudioPage(){
            (effect.media_type==="image"||effect.media_type==="gif")?<img src={fxMediaUrl(effect)} alt="" loading="lazy" className="size-full object-contain"/>:<Icon className="size-10 text-violet-300/75"/>}
         </div>
         <p title={effect.title} className="truncate text-sm font-semibold">{effect.title}</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">{ytId?"YouTube · Pode exigir login":typeLabels[effect.media_type]} · {effect.volume}% vol.</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{ytId?"YouTube · Pode exigir login":typeLabels[effect.media_type]} · {effect.volume}% vol. · {effect.display_seconds}s</p>
         <div className="mt-3 flex items-center gap-1">
          <Button size="sm" className="h-8 flex-1 bg-violet-300 text-xs text-black hover:bg-violet-200" disabled={dispatchingId!==null} onClick={()=>void submitEffect(effect.id)}>{dispatchingId===effect.id?"Enviando...":"Tocar"}</Button>
          <Button size="icon" variant="ghost" className="size-8" aria-label={"Prévia de "+effect.title} title="Prévia" onClick={()=>{setPreview(effect);setPreviewCount(n=>n+1);}}><Clapperboard className="size-4"/></Button>
@@ -352,7 +365,8 @@ function FxStudioPage(){
    </section>}
    {preview&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-5" role="dialog" aria-modal="true" aria-label="Prévia do efeito">
      <div className="w-full max-w-3xl"><div className="mb-2 flex justify-between text-sm"><span>Prévia: {preview.title}</span><button aria-label="Fechar prévia" onClick={()=>setPreview(null)}><X className="size-5"/></button></div>
-       <div className="relative aspect-video overflow-hidden rounded-xl border border-white/10 bg-black" key={previewCount}>
+       <div className="relative aspect-video overflow-hidden rounded-xl border border-white/15" key={previewCount}
+          style={{backgroundColor:"#16151b",backgroundImage:"linear-gradient(45deg, #26252d 25%, transparent 25%),linear-gradient(-45deg, #26252d 25%, transparent 25%),linear-gradient(45deg, transparent 75%, #26252d 75%),linear-gradient(-45deg, transparent 75%, #26252d 75%)",backgroundSize:"24px 24px",backgroundPosition:"0 0,0 12px,12px -12px,-12px 0"}}>
         <FxMediaCanvas effect={playback(preview,settings.master_volume)} preview onDone={()=>setPreview(null)}/>
        </div>
      </div></div>}
@@ -361,10 +375,27 @@ function FxStudioPage(){
       <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Configurar efeito</h2><button aria-label="Fechar editor" onClick={()=>setSelected(null)}><X className="size-5"/></button></div>
       <label className="block text-xs text-muted-foreground">Nome<Input className="mt-2" maxLength={100} value={selected.title} onChange={e=>setSelected({...selected,title:e.target.value})}/></label>
       <label className="block text-xs text-muted-foreground">Volume: {selected.volume}%<input type="range" min={0} max={100} value={selected.volume} className="mt-2 w-full accent-violet-300" onChange={e=>setSelected({...selected,volume:Number(e.target.value)})}/></label>
-      <label className="block text-xs text-muted-foreground">Duração na tela (1–{FX_MAX_DISPLAY_SECONDS} segundos / até 10 minutos)<Input type="number" min={1} max={FX_MAX_DISPLAY_SECONDS} className="mt-2" value={selected.display_seconds} onChange={e=>setSelected({...selected,display_seconds:Number(e.target.value)})}/></label>
-      <label className="block text-xs text-muted-foreground">Tamanho<select className="mt-2 h-10 w-full rounded-md border border-border bg-background px-3" value={selected.size} onChange={e=>setSelected({...selected,size:e.target.value as FxSize})}>
-        <option value="small">Pequeno</option><option value="medium">Médio</option><option value="large">Grande</option>
-      </select></label>
+      <div className="space-y-2">
+        <label className="block text-xs text-muted-foreground" htmlFor="fx-duration">Duração na tela (1–{FX_MAX_DISPLAY_SECONDS} segundos, até 30 minutos)</label>
+        <Input id="fx-duration" type="number" min={1} max={FX_MAX_DISPLAY_SECONDS} className="mt-2" value={selected.display_seconds}
+          onChange={e=>setSelected({...selected,display_seconds:Number(e.target.value)})}/>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Duração rápida">
+          {durationPresets.map(seconds=><button type="button" key={seconds}
+            aria-pressed={selected.display_seconds===seconds}
+            onClick={()=>setSelected({...selected,display_seconds:seconds})}
+            className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors ${selected.display_seconds===seconds?"border-violet-300/70 bg-violet-300/20 text-white":"border-white/10 text-white/60 hover:border-white/30"}`}>
+              {seconds>=60?`${seconds/60} min`:`${seconds}s`}
+          </button>)}
+        </div>
+        <p className="text-[11px] text-muted-foreground">Áudios e vídeos podem terminar antes do tempo escolhido se o arquivo acabar.</p>
+      </div>
+      <div><p className="mb-2 text-xs text-muted-foreground">Tamanho na live</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="group" aria-label="Tamanho do efeito">
+          {(Object.entries(sizeLabels) as [FxSize,string][]).map(([value,label])=><button key={value} type="button" aria-pressed={selected.size===value}
+            onClick={()=>setSelected({...selected,size:value})}
+            className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${selected.size===value?"border-violet-300 bg-violet-300/15 font-semibold text-violet-100":"border-white/10 bg-white/[0.03] text-white/70 hover:border-white/30"}`}>{label}</button>)}
+        </div>
+      </div>
       <div><p className="mb-2 text-xs text-muted-foreground">Posição na transmissão</p><div className="grid w-40 grid-cols-3 gap-1">
        {positions.map(pos=><button key={pos} type="button" onClick={()=>setSelected({...selected,position:pos})} title={pos} aria-label={pos} aria-pressed={selected.position===pos}
          className={`size-11 rounded border ${selected.position===pos?"border-violet-300 bg-violet-300/20":"border-white/10 bg-white/5 hover:bg-white/10"}`}>
