@@ -65,5 +65,8 @@ jobs:
       - name: Verify deployed module paths inside Docker
         run: docker run --rm --entrypoint node music-chat-media:ci --input-type=module -e "await import('/app/yt-dlp.mjs'); await import('/app/music-chat-ig-graphql.mjs')"
 
+      - name: Test RoceiraFX media and event safeguards
+        run: bun test src/lib/fx-validation.test.ts
+
       - name: Build production app
         run: bun run build
