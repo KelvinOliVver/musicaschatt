@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { fxMediaUrl } from "@/lib/fx-api";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
 import {
-  fxPositionClass, fxSeconds, normalizeFxVolume, parseFxYouTubeId,
+  fxMediaFit, fxPositionClass, fxSeconds, normalizeFxVolume, parseFxYouTubeId,
   type FxKind, type FxPosition, type FxSize,
 } from "@/lib/fx-validation";
 
@@ -31,21 +31,23 @@ export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Pr
   const [youtubeStarted, setYoutubeStarted] = useState(false);
   const url = fxMediaUrl({ media_path: effect.mediaPath ?? null, external_url: effect.externalUrl ?? null });
   const youtubeId = effect.externalUrl ? parseFxYouTubeId(effect.externalUrl) : null;
-  // Width and height are explicit so small source images can scale up on a 1920x1080 canvas.
-  // object-contain keeps portrait GIFs and landscape videos from being cropped.
+  // A <video>/<img> can have a fullscreen box while its artwork remains small
+  // due to object-contain letterboxing. XL/fullscreen intentionally fill and crop.
+  // Keep the "large" preset for the entire uncropped media.
   const sizes: Record<FxSize,string> = {
     small: "w-[32%] h-[38%]",
     medium: "w-[60%] h-[65%]",
     large: "w-[88%] h-[88%]",
-    "extra-large": "w-[96%] h-[96%]",
+    "extra-large": "w-full h-full",
     fullscreen: "w-full h-full",
   };
   const size = sizes[effect.size] ?? sizes.medium;
+  const fit = fxMediaFit(effect.size) === "cover" ? "object-cover" : "object-contain";
   const youtubeSizes: Record<FxSize,string> = {
     small: "w-[38%] max-h-[40%]",
     medium: "w-[65%] max-h-[75%]",
     large: "w-[88%] max-h-[90%]",
-    "extra-large": "w-[96%] max-h-[98%]",
+    "extra-large": "w-full max-h-full",
     fullscreen: "w-full max-h-full",
   };
   const volume = normalizeFxVolume(effect.volume) * normalizeFxVolume(effect.masterVolume) / 10000;
@@ -93,7 +95,7 @@ export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Pr
   };
 
   const canInteract = preview || Boolean(youtubeId) || isNativeMedia;
-  return <div className={`${canInteract ? "pointer-events-auto" : "pointer-events-none"} absolute inset-0 flex ${effect.size === "fullscreen" ? "p-0" : "p-[1.5%]"} ${fxPositionClass(effect.position)}`}>
+  return <div className={`${canInteract ? "pointer-events-auto" : "pointer-events-none"} absolute inset-0 flex ${effect.size === "fullscreen" ? "p-0" : effect.size === "extra-large" ? "p-[1%]" : "p-[1.5%]"} ${fxPositionClass(effect.position)}`}>
     {youtubeId && <div className={`relative aspect-video overflow-hidden bg-black ${youtubeSizes[effect.size] ?? youtubeSizes.medium}`}>
       <div className={`size-full ${youtubeStarted ? "" : "pointer-events-none opacity-0"}`}>
       <YouTubeStage
@@ -159,11 +161,11 @@ export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Pr
     </div>}
 
     {!youtubeId && url && (effect.mediaType === "image" || effect.mediaType === "gif") &&
-      <img alt={effect.title} src={url} className={`${size} object-contain drop-shadow-[0_12px_32px_rgba(0,0,0,.45)]`} />}
+      <img alt={effect.title} src={url} className={`${size} ${fit} object-center drop-shadow-[0_12px_32px_rgba(0,0,0,.45)]`} />}
 
     {!youtubeId && url && effect.mediaType === "video" &&
       <video ref={mediaRef as React.RefObject<HTMLVideoElement>} src={url} autoPlay playsInline preload="auto"
-        className={`${size} object-contain`} onPlaying={()=>{setMediaIssue(null);onStarted?.();}} onEnded={onDone} onError={reportMediaError} />}
+        className={`${size} ${fit} object-center`} onPlaying={()=>{setMediaIssue(null);onStarted?.();}} onEnded={onDone} onError={reportMediaError} />}
 
     {!youtubeId && url && effect.mediaType === "audio" &&
       <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={url} autoPlay preload="auto"

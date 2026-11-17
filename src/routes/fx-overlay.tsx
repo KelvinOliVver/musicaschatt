@@ -158,8 +158,18 @@ function FxOverlay(){
  return <main className="fixed inset-0 isolate overflow-hidden bg-transparent" aria-label="RoceiraFX overlay">
   {active.map(item=>item.effect.mediaPath||item.effect.externalUrl
    ? <FxMediaCanvas key={item.id} effect={item.effect} onDone={()=>dismiss(item.id)} onStarted={()=>handleMediaStarted(item.id,item.effect.seconds)}/>
-   : <div key={item.id} className="pointer-events-none absolute inset-0 flex items-center justify-center">
-      <span className="rounded-2xl border border-violet-300/50 bg-black/75 px-9 py-7 text-4xl font-bold text-white shadow-2xl">RoceiraFX conectado ✓</span>
+   : <div key={item.id} className="pointer-events-none absolute inset-0 z-50 overflow-hidden border-[10px] border-violet-300 shadow-[inset_0_0_40px_rgba(167,139,250,.3)]" aria-label="Teste da área completa do OBS">
+      <span className="absolute left-5 top-5 rounded-lg bg-black/85 px-3 py-2 text-lg font-bold text-white">↖ CANTO 1</span>
+      <span className="absolute right-5 top-5 rounded-lg bg-black/85 px-3 py-2 text-lg font-bold text-white">CANTO 2 ↗</span>
+      <span className="absolute bottom-5 left-5 rounded-lg bg-black/85 px-3 py-2 text-lg font-bold text-white">↙ CANTO 3</span>
+      <span className="absolute bottom-5 right-5 rounded-lg bg-black/85 px-3 py-2 text-lg font-bold text-white">CANTO 4 ↘</span>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="max-w-[85%] rounded-2xl border border-violet-300/70 bg-black/90 p-7 text-center text-white shadow-2xl">
+          <p className="text-3xl font-black sm:text-6xl">TESTE DE ÁREA OBS</p>
+          <p className="mt-3 text-base font-semibold text-violet-200 sm:text-2xl">A borda violeta precisa alcançar os 4 cantos da cena.</p>
+          <p className="mt-2 text-sm text-white/75 sm:text-lg">Se este quadro aparece pequeno, ajuste o tamanho da fonte de navegador no OBS (Ctrl+F).</p>
+        </div>
+      </div>
     </div>)}
   {audioWarning&&<div role="status" className="pointer-events-none absolute inset-x-[10%] bottom-[10%] rounded-lg bg-black/85 px-4 py-3 text-center text-sm text-amber-200">{audioWarning}</div>}
   {(invalid||error)&&<div className="pointer-events-none absolute left-5 top-5 flex items-center gap-2 rounded-md bg-black/65 px-3 py-2 text-xs text-white/80">
