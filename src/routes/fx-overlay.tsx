@@ -20,10 +20,14 @@ function FxOverlay(){
  const busyRef=useRef(false);
  const effectTimers=useRef(new Map<number,number>());
  const startedIdsRef=useRef(new Set<number>());
+ const testAudioRef=useRef<AudioContext|null>(null);
+ const [audioWarning,setAudioWarning]=useState("");
  const token=typeof window!=="undefined"?new URLSearchParams(window.location.search).get("key"):"";
  const stopAll=useCallback(()=>{
   effectTimers.current.forEach(timer=>window.clearTimeout(timer));
   effectTimers.current.clear();startedIdsRef.current.clear();setActive([]);
+  if(testAudioRef.current){void testAudioRef.current.close().catch(()=>{});testAudioRef.current=null;}
+  setAudioWarning("");
  },[]);
  const dismiss=useCallback((id:number)=>{
   const timeout=effectTimers.current.get(id);
@@ -31,6 +35,27 @@ function FxOverlay(){
   effectTimers.current.delete(id);
   startedIdsRef.current.delete(id);
   setActive(curr=>curr.filter(item=>item.id!==id));
+ },[]);
+ const playTestBeep=useCallback(()=>{
+   if(!window.AudioContext){setAudioWarning("Este navegador não oferece saída de áudio para o teste.");return;}
+   try{
+     if(testAudioRef.current){void testAudioRef.current.close().catch(()=>{});}
+     const audio=new AudioContext();
+     testAudioRef.current=audio;
+     if(audio.state!=="running"){
+       void audio.resume().catch(()=>{});
+       setAudioWarning("Som bloqueado pelo navegador do OBS. Clique em Interagir na fonte e confira o Mixer de Áudio.");
+     }else setAudioWarning("");
+     const tone=audio.createOscillator();
+     const gain=audio.createGain();
+     tone.type="sine";tone.frequency.value=620;
+     gain.gain.setValueAtTime(0.0001,audio.currentTime);
+     gain.gain.exponentialRampToValueAtTime(0.065,audio.currentTime+0.025);
+     gain.gain.exponentialRampToValueAtTime(0.0001,audio.currentTime+0.32);
+     tone.connect(gain);gain.connect(audio.destination);
+     tone.start();tone.stop(audio.currentTime+0.33);
+     tone.onended=()=>{if(testAudioRef.current===audio)testAudioRef.current=null;void audio.close().catch(()=>{});};
+   }catch{setAudioWarning("O teste de som foi bloqueado pelo navegador do OBS.");}
  },[]);
  const handleMediaStarted=useCallback((id:number,seconds:number)=>{
   if(startedIdsRef.current.has(id))return;
@@ -75,6 +100,7 @@ function FxOverlay(){
       for(const event of incoming){
         if(event.command==="STOP_ALL"){stopAll();continue;}
         if(event.command==="TEST"){
+          playTestBeep();
           const info:FxPlayable={title:"Conexão ativa",mediaType:"image",
             externalUrl:null,mediaPath:null,volume:0,masterVolume:0,seconds:2,
             position:"center",size:"small"};
@@ -118,13 +144,14 @@ function FxOverlay(){
   const onFocus=()=>void poll();
   window.addEventListener("pageshow",onFocus);
   return()=>{mounted=false;if(tick)window.clearInterval(tick);window.removeEventListener("pageshow",onFocus);stopAll();};
- },[token,stopAll,dismiss]);
+ },[token,stopAll,dismiss,playTestBeep]);
  return <main className="fixed inset-0 isolate overflow-hidden bg-transparent" aria-label="RoceiraFX overlay">
   {active.map(item=>item.effect.mediaPath||item.effect.externalUrl
    ? <FxMediaCanvas key={item.id} effect={item.effect} onDone={()=>dismiss(item.id)} onStarted={()=>handleMediaStarted(item.id,item.effect.seconds)}/>
    : <div key={item.id} className="pointer-events-none absolute inset-0 flex items-center justify-center">
       <span className="rounded-2xl border border-violet-300/50 bg-black/75 px-9 py-7 text-4xl font-bold text-white shadow-2xl">RoceiraFX conectado ✓</span>
     </div>)}
+  {audioWarning&&<div role="status" className="pointer-events-none absolute inset-x-[10%] bottom-[10%] rounded-lg bg-black/85 px-4 py-3 text-center text-sm text-amber-200">{audioWarning}</div>}
   {(invalid||error)&&<div className="pointer-events-none absolute left-5 top-5 flex items-center gap-2 rounded-md bg-black/65 px-3 py-2 text-xs text-white/80">
    <AlertTriangle className="size-4 text-amber-300"/>{invalid?"Chave OBS inválida ou revogada":error}
   </div>}
