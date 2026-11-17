@@ -19,13 +19,14 @@ function FxOverlay(){
  const lastRef=useRef<number|null>(null);
  const busyRef=useRef(false);
  const effectTimers=useRef(new Map<number,number>());
+ const effectExpiryRef=useRef(new Map<number,number>());
  const startedIdsRef=useRef(new Set<number>());
  const testAudioRef=useRef<AudioContext|null>(null);
  const [audioWarning,setAudioWarning]=useState("");
  const token=typeof window!=="undefined"?new URLSearchParams(window.location.search).get("key"):"";
  const stopAll=useCallback(()=>{
   effectTimers.current.forEach(timer=>window.clearTimeout(timer));
-  effectTimers.current.clear();startedIdsRef.current.clear();setActive([]);
+  effectTimers.current.clear();effectExpiryRef.current.clear();startedIdsRef.current.clear();setActive([]);
   if(testAudioRef.current){void testAudioRef.current.close().catch(()=>{});testAudioRef.current=null;}
   setAudioWarning("");
  },[]);
@@ -33,6 +34,7 @@ function FxOverlay(){
   const timeout=effectTimers.current.get(id);
   if(timeout)window.clearTimeout(timeout);
   effectTimers.current.delete(id);
+  effectExpiryRef.current.delete(id);
   startedIdsRef.current.delete(id);
   setActive(curr=>curr.filter(item=>item.id!==id));
  },[]);
@@ -62,9 +64,12 @@ function FxOverlay(){
   startedIdsRef.current.add(id);
   const previous=effectTimers.current.get(id);
   if(previous!==undefined)window.clearTimeout(previous);
-  // Start the requested effect duration only after playback actually starts.
-  const duration=fxSeconds(seconds);
-  const timer=window.setTimeout(()=>dismiss(id),duration*1000);
+  // Preserve original expiry even if OBS reconnects mid-effect.
+  // The startup watchdog is replaced only once media has actually started.
+  const expiresAt=effectExpiryRef.current.get(id);
+  const remainingMs=expiresAt ? Math.max(0,expiresAt-Date.now()) : fxSeconds(seconds)*1000;
+  if(remainingMs<=0){dismiss(id);return;}
+  const timer=window.setTimeout(()=>dismiss(id),remainingMs);
   effectTimers.current.set(id,timer);
  },[dismiss]);
  useEffect(()=>{
@@ -128,9 +133,14 @@ function FxOverlay(){
         // YouTube's iframe needs time to initialize in OBS/CEF. Do not close
         // five-second legacy links before the first video frame starts.
         const isYouTube=Boolean(p.externalUrl&&parseFxYouTubeId(p.externalUrl));
-        const startupAllowanceMs=isYouTube?12000:0;
-        setActive(items=>[...items.slice(-3),{id:event.id,effect,expiresAt:Date.now()+remainingMs+startupAllowanceMs}]);
-        const timer=window.setTimeout(()=>dismiss(event.id),remainingMs+startupAllowanceMs);
+        const needsPlaybackStart=isYouTube||effect.mediaType==="video"||effect.mediaType==="audio";
+        const expiresAt=Date.now()+remainingMs;
+        effectExpiryRef.current.set(event.id,expiresAt);
+        setActive(items=>[...items.slice(-3),{id:event.id,effect,expiresAt}]);
+        // Native media and YouTube that never start should not remain invisible for 30 minutes.
+        // onPlaying replaces the startup watchdog with the true remaining lifetime.
+        const startupMs=needsPlaybackStart?Math.min(18000,remainingMs+8000):remainingMs;
+        const timer=window.setTimeout(()=>dismiss(event.id),startupMs);
         effectTimers.current.set(event.id,timer);
       }
       // Respect the RPC batch size (30). Otherwise a fast burst can make the
