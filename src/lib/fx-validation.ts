@@ -1,7 +1,8 @@
 export const FX_MEDIA_BUCKET = "fx-media";
 export type FxKind = "audio" | "image" | "gif" | "video";
 export type FxPosition = "top-left" | "top" | "top-right" | "left" | "center" | "right" | "bottom-left" | "bottom" | "bottom-right";
-export type FxSize = "small" | "medium" | "large";
+export const FX_SIZES = ["small", "medium", "large", "extra-large", "fullscreen"] as const;
+export type FxSize = (typeof FX_SIZES)[number];
 export interface FxEffect {
   id: string; title: string; media_type: FxKind;
   media_path: string | null; external_url: string | null;
@@ -69,7 +70,7 @@ export function validFxUrl(value: string): boolean {
   } catch { return false; }
 }
 export function normalizeFxVolume(value: number): number { return Number.isFinite(value) ? Math.min(100,Math.max(0,Math.round(value))) : 80; }
-export const FX_MAX_DISPLAY_SECONDS = 600;
+export const FX_MAX_DISPLAY_SECONDS = 1800;
 export function fxSeconds(value: number): number { return Number.isFinite(value) ? Math.min(FX_MAX_DISPLAY_SECONDS,Math.max(1,Math.round(value))) : 5; }
 export function fxPositionClass(position: FxPosition): string {
   const map:Record<FxPosition,string> = {
