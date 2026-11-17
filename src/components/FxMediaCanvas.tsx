@@ -18,20 +18,29 @@ export interface FxPlayable {
   size: FxSize;
 }
 
-interface Props { effect: FxPlayable; onDone?: () => void; preview?: boolean; }
+interface Props { effect: FxPlayable; onDone?: () => void; onStarted?: () => void; preview?: boolean; }
 
-export function FxMediaCanvas({ effect, onDone, preview = false }: Props) {
+export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Props) {
   const mediaRef = useRef<HTMLMediaElement | null>(null);
   const youtubeControlsRef = useRef<StageControls | null>(null);
   const [mediaIssue, setMediaIssue] = useState<string | null>(null);
   const [youtubeIssue, setYoutubeIssue] = useState<string | null>(null);
   const [mutedRetry, setMutedRetry] = useState(false);
+  const [youtubeStarted, setYoutubeStarted] = useState(false);
   const url = fxMediaUrl({ media_path: effect.mediaPath ?? null, external_url: effect.externalUrl ?? null });
   const youtubeId = effect.externalUrl ? parseFxYouTubeId(effect.externalUrl) : null;
   const size = effect.size === "small" ? "max-w-[24%] max-h-[30%]" :
     effect.size === "large" ? "max-w-[80%] max-h-[80%]" : "max-w-[55%] max-h-[60%]";
   const volume = normalizeFxVolume(effect.volume) * normalizeFxVolume(effect.masterVolume) / 10000;
   const isNativeMedia = !youtubeId && (effect.mediaType === "audio" || effect.mediaType === "video");
+
+  useEffect(() => {
+    if (!youtubeId || youtubeStarted) return;
+    const timer=window.setTimeout(()=>{
+      setYoutubeIssue(previous=>previous??"O vídeo do YouTube não iniciou no OBS. Use Interagir na Fonte de Navegador para conferir o erro.");
+    }, 7000);
+    return () => window.clearTimeout(timer);
+  }, [youtubeId,youtubeStarted]);
 
   useEffect(() => {
     const element = mediaRef.current;
@@ -81,6 +90,10 @@ export function FxMediaCanvas({ effect, onDone, preview = false }: Props) {
         controlsRef={youtubeControlsRef}
         onEnded={() => onDone?.()}
         onPlayingChange={playing => {
+          if (playing) {
+            if (!youtubeStarted) onStarted?.();
+            setYoutubeStarted(true);
+          }
           if (playing && mutedRetry) {
             setYoutubeIssue("Vídeo iniciado sem som. Use Interagir no OBS e clique em Ativar áudio.");
           } else if (playing) {
@@ -111,10 +124,17 @@ export function FxMediaCanvas({ effect, onDone, preview = false }: Props) {
 
     {youtubeId && youtubeIssue && <div role="alert" className="pointer-events-auto absolute inset-x-[6%] bottom-[5%] z-20 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-amber-400/40 bg-black/90 px-4 py-3 text-center text-sm text-amber-100 shadow-lg">
       <span>{youtubeIssue}</span>
-      {mutedRetry && <button type="button" className="rounded bg-violet-300 px-3 py-1.5 font-semibold text-black"
-        onClick={() => {setMutedRetry(false);youtubeControlsRef.current?.unmute();youtubeControlsRef.current?.play();setYoutubeIssue(null);}}>
-        Ativar áudio
-      </button>}
+      <button type="button" className="rounded bg-violet-300 px-3 py-1.5 font-semibold text-black"
+        onClick={() => {
+          if (mutedRetry) {
+            setMutedRetry(false);
+            youtubeControlsRef.current?.unmute();
+          }
+          youtubeControlsRef.current?.play();
+          setYoutubeIssue(null);
+        }}>
+        {mutedRetry ? "Ativar áudio" : "Tentar reproduzir"}
+      </button>
     </div>}
 
     {!youtubeId && url && (effect.mediaType === "image" || effect.mediaType === "gif") &&
@@ -122,11 +142,11 @@ export function FxMediaCanvas({ effect, onDone, preview = false }: Props) {
 
     {!youtubeId && url && effect.mediaType === "video" &&
       <video ref={mediaRef as React.RefObject<HTMLVideoElement>} src={url} autoPlay playsInline preload="auto"
-        className={`${size} object-contain`} onEnded={onDone} onError={reportMediaError} />}
+        className={`${size} object-contain`} onPlaying={onStarted} onEnded={onDone} onError={reportMediaError} />}
 
     {!youtubeId && url && effect.mediaType === "audio" &&
       <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={url} autoPlay preload="auto"
-        onEnded={onDone} onError={reportMediaError} />}
+        onPlaying={onStarted} onEnded={onDone} onError={reportMediaError} />}
 
     {isNativeMedia && mediaIssue && <div role="alert" className="pointer-events-auto absolute inset-x-[6%] bottom-[7%] z-20 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-amber-400/40 bg-black/90 px-4 py-3 text-center text-sm text-amber-100">
       <span>{mediaIssue}</span>
