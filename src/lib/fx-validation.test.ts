@@ -1,5 +1,5 @@
 import {describe,expect,it} from "bun:test";
-import {identifyFxFile,validFxUrl,normalizeFxVolume,fxSeconds,classifyFxAfter} from "./fx-validation";
+import {identifyFxFile,validFxUrl,parseFxYouTubeId,looksLikeFxYouTubeUrl,normalizeFxVolume,fxSeconds,classifyFxAfter} from "./fx-validation";
 describe("RoceiraFX media and event safety",()=>{
   it("requires correct MIME+extension and size",()=>{
     expect(identifyFxFile({name:"som.mp3",size:1200,type:"audio/mpeg"}).kind).toBe("audio");
@@ -12,6 +12,29 @@ describe("RoceiraFX media and event safety",()=>{
     expect(validFxUrl("javascript:alert(1)")).toBe(false);
     expect(validFxUrl("http://private.invalid/a.mp4")).toBe(false);
     expect(validFxUrl("https://user:password@example.com/a")).toBe(false);
+  });
+  it("recognizes official YouTube video, share, live, embed and Shorts URLs",()=>{
+    const id="dQw4w9WgXcQ";
+    const valid=[
+      "https://www.youtube.com/watch?v="+id+"&t=20",
+      "https://music.youtube.com/watch?v="+id,
+      "https://m.youtube.com/watch?v="+id,
+      "https://youtu.be/"+id+"?si=abc",
+      "https://www.youtube.com/shorts/"+id,
+      "https://www.youtube.com/live/"+id+"?feature=share",
+      "https://www.youtube-nocookie.com/embed/"+id,
+    ];
+    for(const link of valid){
+      expect(parseFxYouTubeId(link)).toBe(id);
+      expect(validFxUrl(link)).toBe(true);
+    }
+    expect(parseFxYouTubeId("https://youtube.com.evil.test/watch?v="+id)).toBeNull();
+    expect(parseFxYouTubeId("https://www.youtube.com/playlist?list=123")).toBeNull();
+    expect(parseFxYouTubeId("https://youtu.be/bad")).toBeNull();
+    expect(parseFxYouTubeId("http://youtu.be/"+id)).toBeNull();
+    expect(validFxUrl("https://www.youtube.com/watch?v=wrong")).toBe(false);
+    expect(looksLikeFxYouTubeUrl("https://www.youtube.com/playlist?list=foo")).toBe(true);
+    expect(looksLikeFxYouTubeUrl("https://youtube.com.evil.test/watch?v="+id)).toBe(false);
   });
   it("clamps settings",()=>{
     expect(normalizeFxVolume(150)).toBe(100);
