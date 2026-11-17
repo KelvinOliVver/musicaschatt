@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle } from "lucide-react";
 import { FxMediaCanvas, type FxPlayable } from "@/components/FxMediaCanvas";
 import { fxDb } from "@/lib/fx-api";
-import { classifyFxAfter, type FxEvent } from "@/lib/fx-validation";
+import { classifyFxAfter, fxEventsForInitialOverlay, type FxEvent } from "@/lib/fx-validation";
 
 export const Route = createFileRoute("/fx-overlay")({
  ssr:false,
@@ -47,15 +47,19 @@ function FxOverlay(){
     if(busyRef.current||!mounted)return;
     busyRef.current=true;
     try {
-      const {data,error:pollError}=await fxDb.rpc("fx_overlay_poll",{p_key:token,p_after:lastRef.current});
+      // Passing NULL returns only a cursor. A fresh OBS Browser Source could
+      // miss a PLAY fired seconds earlier, so fetch recent events on first load.
+      const firstLoad=lastRef.current===null;
+      const {data,error:pollError}=await fxDb.rpc("fx_overlay_poll",{p_key:token,p_after:firstLoad?0:lastRef.current});
       if(!mounted)return;
       if(pollError){setError("Sem conexão com a fonte RoceiraFX");return;}
       if(!data){setInvalid(true);stopAll();return;}
       setInvalid(false);setError("");
       const payload=data as OverlayResult;
       if(!Number.isSafeInteger(payload.latest))return;
-      if(lastRef.current===null){lastRef.current=payload.latest;return;}
-      const incoming=classifyFxAfter(payload.events??[],lastRef.current);
+      const incoming=firstLoad
+        ? fxEventsForInitialOverlay(payload.events??[],Date.now())
+        : classifyFxAfter(payload.events??[],lastRef.current??0);
       for(const event of incoming){
         if(event.command==="STOP_ALL"){stopAll();continue;}
         if(event.command==="TEST"){
@@ -79,9 +83,12 @@ function FxOverlay(){
           seconds:p.seconds??5,position:p.position??"center",size:p.size??"medium",
         };
         // Never replay old media after reconnect, and never keep stale timers.
+        const ageMs=event.createdAt?Math.max(0,Date.now()-Date.parse(event.createdAt)||0):0;
         const duration=Math.max(1,Math.min(30,effect.seconds));
+        const remainingMs=duration*1000-ageMs;
+        if(remainingMs<=0)continue;
         setActive(items=>[...items.slice(-3),{id:event.id,effect,expiresAt:Date.now()+duration*1000}]);
-        const timer=window.setTimeout(()=>dismiss(event.id),duration*1000);
+        const timer=window.setTimeout(()=>dismiss(event.id),remainingMs);
         effectTimers.current.set(event.id,timer);
       }
       lastRef.current=Math.max(payload.latest,lastRef.current??0);
