@@ -69,7 +69,8 @@ export function validFxUrl(value: string): boolean {
   } catch { return false; }
 }
 export function normalizeFxVolume(value: number): number { return Number.isFinite(value) ? Math.min(100,Math.max(0,Math.round(value))) : 80; }
-export function fxSeconds(value: number): number { return Number.isFinite(value) ? Math.min(30,Math.max(1,Math.round(value))) : 5; }
+export const FX_MAX_DISPLAY_SECONDS = 600;
+export function fxSeconds(value: number): number { return Number.isFinite(value) ? Math.min(FX_MAX_DISPLAY_SECONDS,Math.max(1,Math.round(value))) : 5; }
 export function fxPositionClass(position: FxPosition): string {
   const map:Record<FxPosition,string> = {
     "top-left":"items-start justify-start",top:"items-start justify-center","top-right":"items-start justify-end",
