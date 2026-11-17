@@ -66,8 +66,8 @@ function FxOverlay(){
           const info:FxPlayable={title:"Conexão ativa",mediaType:"image",
             externalUrl:null,mediaPath:null,volume:0,masterVolume:0,seconds:2,
             position:"center",size:"small"};
-          setActive(items=>[...items.slice(-3),{id:event.id,effect:info,expiresAt:Date.now()+2000}]);
-          const timeout=window.setTimeout(()=>dismiss(event.id),2000);
+          setActive(items=>[...items.slice(-3),{id:event.id,effect:info,expiresAt:Date.now()+5000}]);
+          const timeout=window.setTimeout(()=>dismiss(event.id),5000);
           effectTimers.current.set(event.id,timeout);
           continue;
         }
