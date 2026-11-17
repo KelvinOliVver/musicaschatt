@@ -634,7 +634,7 @@ function PlayerPage() {
   );
 
   return (
-    <div className={`music-shell${theaterMode ? " is-theater-shell" : ""}${sidebarOpen ? "" : " is-sidebar-collapsed"}${obsMode ? " is-obs-shell" : ""} music-layout-${preferences.layoutPreset} music-accent-${preferences.accentPreset}${preferences.showChat ? "" : " music-chat-hidden"}`}>
+    <div className={`music-shell music-fit-viewport${theaterMode ? " is-theater-shell" : ""}${sidebarOpen ? "" : " is-sidebar-collapsed"}${obsMode ? " is-obs-shell" : ""} music-layout-${preferences.layoutPreset} music-accent-${preferences.accentPreset}${preferences.showChat ? "" : " music-chat-hidden"}`}>
       <MusicSidebar active="player" />
       <main className="music-page music-player-page">
         <div className="music-topbar">
