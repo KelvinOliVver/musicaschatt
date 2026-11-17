@@ -1,11 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import {
   Activity, ArrowUpRight, AudioLines, CircleUserRound, Headphones,
-  Home, Radio, Smartphone, ExternalLink,
+  Home, Radio, Smartphone, ExternalLink, Clapperboard,
 } from "lucide-react";
 
 interface MusicSidebarProps {
-  active: "home" | "player" | "account";
+  active: "home" | "player" | "account" | "fx";
   signedIn?: boolean;
 }
 
@@ -45,6 +45,10 @@ export function MusicSidebar({ active, signedIn = true }: MusicSidebarProps) {
 
         <nav className="music-nav music-nav-v2 music-nav-secondary" aria-label="Ferramentas">
           <span className="music-nav-label">FERRAMENTAS</span>
+          <Link to={signedIn ? "/fx" : "/auth"} className={`music-nav-link ${active === "fx" ? "is-active" : ""}`} aria-current={active === "fx" ? "page" : undefined} title="RoceiraFX — sons e imagens para OBS">
+            <Clapperboard size={18} aria-hidden="true" /><span>RoceiraFX</span>
+            {active === "fx" && <span className="music-nav-current" aria-hidden="true" />}
+          </Link>
           <Link to={signedIn ? "/remote" : "/auth"} className="music-nav-link" title="Controle remoto">
             <Smartphone size={18} aria-hidden="true" /><span>Controle remoto</span>
             <ArrowUpRight size={13} className="music-nav-suffix" aria-hidden="true" />
