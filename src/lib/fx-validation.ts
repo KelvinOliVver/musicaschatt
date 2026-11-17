@@ -10,7 +10,7 @@ export interface FxEffect {
 }
 export interface FxSettings { overlay_token: string; master_volume: number; cooldown_ms: number; }
 export interface FxEvent {
-  id: number; command: "PLAY" | "STOP_ALL" | "TEST"; payload?: {
+  id: number; command: "PLAY" | "STOP_ALL" | "TEST"; createdAt?: string; payload?: {
     title?: string; mediaType?: FxKind; mediaPath?: string | null; externalUrl?: string | null;
     volume?: number; masterVolume?: number; seconds?: number;
     position?: FxPosition; size?: FxSize;
@@ -81,4 +81,19 @@ export function fxPositionClass(position: FxPosition): string {
 export function classifyFxAfter(events: FxEvent[], lastId: number): FxEvent[] {
   return events.filter(event=>Number.isSafeInteger(event.id)&&event.id>lastId)
     .sort((a,b)=>a.id-b.id).filter((event,index,items)=>index===0||event.id!==items[index-1]?.id);
+}
+
+/** On the first OBS load, replay only events that are still within their
+ * display lifetime; never replay old sounds when Browser Source reconnects. */
+export function fxEventsForInitialOverlay(events: FxEvent[], nowMs: number): FxEvent[] {
+  return classifyFxAfter(events, 0).filter((event) => {
+    const at=event.createdAt?Date.parse(event.createdAt):NaN;
+    if(!Number.isFinite(at))return false;
+    const age=nowMs-at;
+    if(age < -10_000)return false;
+    const lifetime=event.command==="PLAY"
+      ? fxSeconds(event.payload?.seconds??5)*1000
+      : event.command==="TEST" ? 2500 : 15_000;
+    return age <= lifetime;
+  });
 }
