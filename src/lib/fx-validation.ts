@@ -93,7 +93,7 @@ export function fxEventsForInitialOverlay(events: FxEvent[], nowMs: number): FxE
     if(age < -10_000)return false;
     const lifetime=event.command==="PLAY"
       ? fxSeconds(event.payload?.seconds??5)*1000
-      : event.command==="TEST" ? 2500 : 15_000;
+      : event.command==="TEST" ? 6000 : 15_000;
     return age <= lifetime;
   });
 }
