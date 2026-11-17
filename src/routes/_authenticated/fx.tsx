@@ -222,7 +222,7 @@ function FxStudioPage(){
     <p className="mt-2 text-sm text-muted-foreground">Sons, imagens, GIFs e vídeos direto para o OBS da Roceira.</p></div>
     <div className="flex flex-wrap items-center gap-2">
       <Button variant="outline" onClick={()=>void refresh()} className="gap-2"><RefreshCw className="size-4"/> Atualizar</Button>
-      <Button variant="destructive" onClick={()=>void command("STOP_ALL")} className="gap-2"><Ban className="size-4"/> PARAR TUDO</Button>
+      <Button variant="destructive" disabled={sendingCommand} onClick={()=>void command("STOP_ALL")} className="gap-2"><Ban className="size-4"/> PARAR TUDO</Button>
     </div>
    </div>
    {!configured&&<div role="status" className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
@@ -252,9 +252,9 @@ function FxStudioPage(){
            (effect.media_type==="image"||effect.media_type==="gif")?<img src={fxMediaUrl(effect)} alt="" loading="lazy" className="size-full object-contain"/>:<Icon className="size-10 text-violet-300/75"/>}
         </div>
         <p title={effect.title} className="truncate text-sm font-semibold">{effect.title}</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">{ytId?"YouTube":typeLabels[effect.media_type]} · {effect.volume}% vol.</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{ytId?"YouTube · Pode exigir login":typeLabels[effect.media_type]} · {effect.volume}% vol.</p>
         <div className="mt-3 flex items-center gap-1">
-         <Button size="sm" className="h-8 flex-1 bg-violet-300 text-xs text-black hover:bg-violet-200" onClick={()=>void submitEffect(effect.id)}>Tocar</Button>
+         <Button size="sm" className="h-8 flex-1 bg-violet-300 text-xs text-black hover:bg-violet-200" disabled={dispatchingId!==null} onClick={()=>void submitEffect(effect.id)}>{dispatchingId===effect.id?"Enviando...":"Tocar"}</Button>
          <Button size="icon" variant="ghost" className="size-8" aria-label={"Prévia de "+effect.title} title="Prévia" onClick={()=>{setPreview(effect);setPreviewCount(n=>n+1);}}><Clapperboard className="size-4"/></Button>
          <Button size="icon" variant="ghost" className="size-8" aria-label={"Editar "+effect.title} title="Editar" onClick={()=>setSelected({...effect})}><SlidersHorizontal className="size-4"/></Button>
         </div>
@@ -264,7 +264,7 @@ function FxStudioPage(){
    {tab==="library"&&<section className="grid gap-4 xl:grid-cols-2">
     <div className="rounded-2xl border border-white/10 bg-[#15141b] p-5">
       <HardDriveUpload className="size-7 text-violet-300"/><h2 className="mt-3 text-lg font-semibold">Enviar mídia</h2>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">MP3, WAV, OGG, PNG, JPG, GIF, WebP, MP4 ou WebM. Vídeos de até 30 s. Arquivos ficam na biblioteca compartilhada.</p>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">MP3, WAV, OGG, PNG, JPG, GIF, WebP, MP4 ou WebM. Vídeos de até 30 s. Para OBS, prefira MP4 H.264/AAC e áudios MP3: não dependem do YouTube.</p>
       <div className="mt-4 flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-violet-300/25 bg-violet-300/5 p-5 text-center"
         onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(e.dataTransfer.files[0])void handleUpload(e.dataTransfer.files[0]);}}>
         <input ref={fileRef} type="file" className="sr-only" id="fx-upload-file" accept=".mp3,.wav,.ogg,.png,.jpg,.jpeg,.gif,.webp,.mp4,.webm" onChange={e=>{if(e.target.files?.[0])void handleUpload(e.target.files[0]);}}/>
@@ -277,7 +277,9 @@ function FxStudioPage(){
       <p className="mt-2 text-xs text-muted-foreground">Cole um link normal do YouTube (incluindo Shorts) ou um link HTTPS direto de áudio, imagem ou vídeo.</p>
       <label className="mt-5 block text-xs text-muted-foreground">Nome<Input className="mt-2" required maxLength={100} placeholder="Risada da Roceira" value={newTitle} onChange={e=>setNewTitle(e.target.value)}/></label>
       <label className="mt-3 block text-xs text-muted-foreground">URL da mídia<Input className="mt-2" required type="url" placeholder="https://youtu.be/... ou https://exemplo.com/efeito.mp3" value={newUrl} onChange={e=>setNewUrl(e.target.value)}/></label>
-      {parseFxYouTubeId(newUrl) && <p className="mt-2 text-[11px] text-violet-300">YouTube detectado. O vídeo será incorporado ao OBS como clipe de até 30 segundos. Alguns vídeos impedem incorporação ou autoplay.</p>}
+      {parseFxYouTubeId(newUrl) && <div role="status" className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-3 text-xs leading-5 text-amber-100">
+        <b>Modo experimental: YouTube.</b> O OBS pode solicitar login ou confirmação antibot mesmo que o link funcione no seu navegador. Se for importante para a live, use o vídeo autorizado como arquivo MP4 enviado na Biblioteca.
+       </div>}
       <label className="mt-3 block text-xs text-muted-foreground">Tipo<select className="mt-2 block h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={parseFxYouTubeId(newUrl)?"video":newType} disabled={Boolean(parseFxYouTubeId(newUrl))} onChange={e=>setNewType(e.target.value as FxKind)}>
        {(["audio","image","gif","video"] as FxKind[]).map(x=><option value={x} key={x}>{typeLabels[x]}</option>)}
       </select></label>
@@ -299,7 +301,7 @@ function FxStudioPage(){
        <Button variant="outline" size="sm" onClick={()=>void copy(overlayUrl)} disabled={!overlayUrl}><Copy className="mr-2 size-4"/> Copiar URL do OBS</Button>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-       <Button variant="secondary" onClick={()=>void command("TEST")}><CheckCircle2 className="mr-2 size-4"/> Testar a fonte</Button>
+       <Button variant="secondary" disabled={sendingCommand} onClick={()=>void command("TEST")}><CheckCircle2 className="mr-2 size-4"/> Testar a fonte</Button>
        {admin&&<Button variant="outline" onClick={async()=>{if(!confirm("O link antigo deixará de funcionar no OBS. Continuar?"))return;const result=await fxDb.rpc("fx_rotate_token");if(result.error){toast.error(result.error.message);return;}toast.success("URL renovada. Atualize no OBS.");void refresh();}}>Gerar nova URL</Button>}
       </div>
       <div className="mt-5 rounded-lg border border-violet-300/20 bg-violet-300/[0.045] p-4 text-xs leading-6 text-violet-100/90">
@@ -309,6 +311,7 @@ function FxStudioPage(){
         <p>3. Mantenha a fonte ativa na cena. Se o YouTube bloquear autoplay, use <b>Interagir</b> na fonte e clique em reproduzir ou ativar áudio.</p>
         <p>4. Se o YouTube recusar incorporação, envie um vídeo permitido em MP4 H.264/AAC pela Biblioteca.</p>
        </div>
+       <p className="mt-3 text-xs text-muted-foreground"><b>Importante:</b> o botão Tocar registra o pedido, mas não comprova que o OBS reproduziu a mídia. Imagens funcionando não garantem que o navegador aceite vídeo ou som.</p>
        <p className="mt-4 text-xs text-muted-foreground">A URL é uma chave de leitura da fonte OBS. Não compartilhe publicamente. A fonte precisa estar aberta para receber efeitos.</p>
     </div>
    </section>}
@@ -341,7 +344,7 @@ function FxStudioPage(){
      <div className="rounded-2xl border border-white/10 bg-[#15141b] p-5 lg:col-span-2">
       <h3 className="flex items-center gap-2 text-sm font-semibold"><Clock3 className="size-4 text-primary"/> Últimos comandos</h3>
       <div className="mt-3 space-y-2">{history.map(event=><div className="flex justify-between gap-3 border-b border-border/50 py-1 text-xs" key={event.id}>
-       <span>{event.command==="PLAY"?"Efeito disparado":event.command==="STOP_ALL"?"Parar tudo":"Teste de conexão"}</span>
+       <span>{event.command==="PLAY"?"Efeito solicitado":event.command==="STOP_ALL"?"Parar tudo":"Teste de conexão"}</span>
        <span className="text-muted-foreground">{new Date(event.created_at).toLocaleString("pt-BR")}</span>
       </div>)}{history.length===0&&<p className="text-xs text-muted-foreground">Nenhum comando enviado ainda.</p>}</div>
      </div>
