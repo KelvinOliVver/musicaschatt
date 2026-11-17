@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle } from "lucide-react";
 import { FxMediaCanvas, type FxPlayable } from "@/components/FxMediaCanvas";
 import { fxDb } from "@/lib/fx-api";
-import { classifyFxAfter, fxEventsForInitialOverlay, parseFxYouTubeId, type FxEvent } from "@/lib/fx-validation";
+import { classifyFxAfter, fxEventsForInitialOverlay, nextFxOverlayCursor, parseFxYouTubeId, type FxEvent } from "@/lib/fx-validation";
 
 export const Route = createFileRoute("/fx-overlay")({
  ssr:false,
@@ -107,7 +107,9 @@ function FxOverlay(){
         const timer=window.setTimeout(()=>dismiss(event.id),remainingMs+startupAllowanceMs);
         effectTimers.current.set(event.id,timer);
       }
-      lastRef.current=Math.max(payload.latest,lastRef.current??0);
+      // Respect the RPC batch size (30). Otherwise a fast burst can make the
+      // cursor leap over unprocessed events.
+      lastRef.current=nextFxOverlayCursor(lastRef.current,payload.latest,payload.events??[]);
     }catch{if(mounted)setError("Não foi possível alcançar o serviço de efeitos");}
     finally{busyRef.current=false;}
   }
