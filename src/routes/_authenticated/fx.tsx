@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { MusicSidebar } from "@/components/MusicSidebar";
 import { FxMediaCanvas } from "@/components/FxMediaCanvas";
 import { fxCheckAccess, fxDb, fxMediaUrl } from "@/lib/fx-api";
-import { FX_MEDIA_BUCKET, fxSeconds, identifyFxFile, normalizeFxVolume, validFxUrl, type FxEffect, type FxKind, type FxPosition, type FxSettings, type FxSize } from "@/lib/fx-validation";
+import { FX_MEDIA_BUCKET, fxSeconds, identifyFxFile, normalizeFxVolume, validFxUrl, parseFxYouTubeId, looksLikeFxYouTubeUrl, type FxEffect, type FxKind, type FxPosition, type FxSettings, type FxSize } from "@/lib/fx-validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -131,13 +131,14 @@ function FxStudioPage(){
  const handleUrl=async(e:FormEvent)=>{
   e.preventDefault();
   if(!configured){toast.error("Biblioteca remota ainda não ativada.");return;}
-  if(!validFxUrl(newUrl)){toast.error("Informe um link direto HTTPS válido.");return;}
+  if(!validFxUrl(newUrl)){toast.error(looksLikeFxYouTubeUrl(newUrl)?"Link do YouTube inválido. Cole o endereço de um vídeo ou Shorts.":"Informe um link HTTPS válido.");return;}
+  const youtubeId=parseFxYouTubeId(newUrl);
   if(!newTitle.trim()){toast.error("Digite o nome do efeito.");return;}
   setSaving(true);
   const {data:auth}=await fxDb.auth.getUser();
   const result=await fxDb.from("fx_effects").insert({
-   title:newTitle.trim().slice(0,100),media_type:newType,external_url:newUrl.trim(),
-   created_by:auth.user?.id,volume:80,display_seconds:5,position:"center",size:"medium"
+   title:newTitle.trim().slice(0,100),media_type:youtubeId?"video":newType,external_url:newUrl.trim(),
+   created_by:auth.user?.id,volume:80,display_seconds:youtubeId?30:5,position:"center",size:"medium"
   });
   setSaving(false);
   if(result.error){toast.error("Não foi possível salvar",{description:result.error.message});return;}
@@ -230,12 +231,13 @@ function FxStudioPage(){
       <p className="mt-2 text-sm text-muted-foreground">Adicione sons ou imagens na Biblioteca e eles aparecerão aqui.</p>
       <Button className="mt-5" onClick={()=>setTab("library")}><Plus className="mr-2 size-4"/> Adicionar efeito</Button>
     </div>:<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-      {filtered.map(effect=>{const Icon=icons[effect.media_type];return <div key={effect.id} className="group rounded-xl border border-white/10 bg-[#17151f] p-3 transition-colors hover:border-violet-300/45">
+      {filtered.map(effect=>{const Icon=icons[effect.media_type];const ytId=effect.external_url?parseFxYouTubeId(effect.external_url):null;return <div key={effect.id} className="group rounded-xl border border-white/10 bg-[#17151f] p-3 transition-colors hover:border-violet-300/45">
         <div className="relative mb-3 flex aspect-[5/3] items-center justify-center overflow-hidden rounded-lg bg-black/45">
-          {(effect.media_type==="image"||effect.media_type==="gif")?<img src={fxMediaUrl(effect)} alt="" loading="lazy" className="size-full object-contain"/>:<Icon className="size-10 text-violet-300/75"/>}
+          {ytId?<img src={`https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`} alt="" loading="lazy" className="size-full object-cover"/>:
+           (effect.media_type==="image"||effect.media_type==="gif")?<img src={fxMediaUrl(effect)} alt="" loading="lazy" className="size-full object-contain"/>:<Icon className="size-10 text-violet-300/75"/>}
         </div>
         <p title={effect.title} className="truncate text-sm font-semibold">{effect.title}</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">{typeLabels[effect.media_type]} · {effect.volume}% vol.</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{ytId?"YouTube":typeLabels[effect.media_type]} · {effect.volume}% vol.</p>
         <div className="mt-3 flex items-center gap-1">
          <Button size="sm" className="h-8 flex-1 bg-violet-300 text-xs text-black hover:bg-violet-200" onClick={()=>void submitEffect(effect.id)}>Tocar</Button>
          <Button size="icon" variant="ghost" className="size-8" aria-label={"Prévia de "+effect.title} title="Prévia" onClick={()=>{setPreview(effect);setPreviewCount(n=>n+1);}}><Clapperboard className="size-4"/></Button>
@@ -256,18 +258,19 @@ function FxStudioPage(){
       </div>
     </div>
     <form onSubmit={e=>void handleUrl(e)} className="rounded-2xl border border-white/10 bg-[#15141b] p-5">
-      <ExternalLink className="size-7 text-violet-300"/><h2 className="mt-3 text-lg font-semibold">Adicionar link direto</h2>
-      <p className="mt-2 text-xs text-muted-foreground">Use um endereço HTTPS direto para o arquivo de áudio, imagem ou vídeo.</p>
+      <ExternalLink className="size-7 text-violet-300"/><h2 className="mt-3 text-lg font-semibold">Adicionar link ou YouTube</h2>
+      <p className="mt-2 text-xs text-muted-foreground">Cole um link normal do YouTube (incluindo Shorts) ou um link HTTPS direto de áudio, imagem ou vídeo.</p>
       <label className="mt-5 block text-xs text-muted-foreground">Nome<Input className="mt-2" required maxLength={100} placeholder="Risada da Roceira" value={newTitle} onChange={e=>setNewTitle(e.target.value)}/></label>
-      <label className="mt-3 block text-xs text-muted-foreground">URL da mídia<Input className="mt-2" required type="url" placeholder="https://exemplo.com/efeito.mp3" value={newUrl} onChange={e=>setNewUrl(e.target.value)}/></label>
-      <label className="mt-3 block text-xs text-muted-foreground">Tipo<select className="mt-2 block h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={newType} onChange={e=>setNewType(e.target.value as FxKind)}>
+      <label className="mt-3 block text-xs text-muted-foreground">URL da mídia<Input className="mt-2" required type="url" placeholder="https://youtu.be/... ou https://exemplo.com/efeito.mp3" value={newUrl} onChange={e=>setNewUrl(e.target.value)}/></label>
+      {parseFxYouTubeId(newUrl) && <p className="mt-2 text-[11px] text-violet-300">YouTube detectado. O vídeo será incorporado ao OBS como clipe de até 30 segundos. Alguns vídeos impedem incorporação ou autoplay.</p>}
+      <label className="mt-3 block text-xs text-muted-foreground">Tipo<select className="mt-2 block h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={parseFxYouTubeId(newUrl)?"video":newType} disabled={Boolean(parseFxYouTubeId(newUrl))} onChange={e=>setNewType(e.target.value as FxKind)}>
        {(["audio","image","gif","video"] as FxKind[]).map(x=><option value={x} key={x}>{typeLabels[x]}</option>)}
       </select></label>
       <Button className="mt-5 w-full" disabled={saving}><Plus className="mr-2 size-4"/> Adicionar à biblioteca</Button>
     </form>
     {effects.length>0&&<div className="xl:col-span-2 rounded-xl border border-white/10 bg-card/50 p-4"><h3 className="mb-3 text-sm font-semibold">Biblioteca existente</h3>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{effects.map(e=><button key={e.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-border/50 p-2 text-left hover:bg-muted/50" onClick={()=>setSelected({...e})}>
-        {e.media_type==="audio"?<Volume2 className="size-5 text-primary"/>:e.media_type==="video"?<Film className="size-5 text-primary"/>:<FileImage className="size-5 text-primary"/>}
+        {e.external_url&&parseFxYouTubeId(e.external_url)?<Film className="size-5 text-red-400"/>:e.media_type==="audio"?<Volume2 className="size-5 text-primary"/>:e.media_type==="video"?<Film className="size-5 text-primary"/>:<FileImage className="size-5 text-primary"/>}
         <span className="min-w-0 flex-1 truncate text-xs">{e.title}</span><SlidersHorizontal className="size-3 text-muted-foreground"/>
       </button>)}</div>
     </div>}
