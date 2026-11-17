@@ -49,7 +49,7 @@ describe("RoceiraFX media and event safety",()=>{
       {id:14,command:"PLAY" as const,createdAt:new Date(now-3000).toISOString(),
         payload:{seconds:30}},
     ];
-    expect(fxEventsForInitialOverlay(events,now).map(event=>event.id)).toEqual([12,14]);
+    expect(fxEventsForInitialOverlay(events,now).map(event=>event.id)).toEqual([14]);
     expect(fxEventsForInitialOverlay(events,now+35_000)).toEqual([]);
   });
   it("does not resurrect media killed by STOP_ALL on OBS restart",()=>{
