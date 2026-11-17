@@ -36,10 +36,36 @@ export function identifyFxFile(file: Pick<File,"name"|"size"|"type">): { kind: F
   if (file.size === 0 || file.size > max) return { error: "Arquivo vazio ou maior que o limite permitido." };
   return {kind};
 }
+/** YouTube links are webpages, not direct video files. Accept only official video hosts. */
+export function parseFxYouTubeId(value: string): string | null {
+  try {
+    const url=new URL(value.trim());
+    if(url.protocol!=="https:" || url.username || url.password) return null;
+    const host=url.hostname.toLowerCase();
+    const isYoutube=["youtube.com","www.youtube.com","m.youtube.com","music.youtube.com"].includes(host);
+    const isShort=["youtu.be","www.youtu.be"].includes(host);
+    const isNoCookie=["youtube-nocookie.com","www.youtube-nocookie.com"].includes(host);
+    if(!isYoutube&&!isShort&&!isNoCookie)return null;
+    const path=url.pathname.split("/").filter(Boolean);
+    const id=isShort ? path.length===1 ? path[0] : null :
+      path[0]==="watch" ? url.searchParams.get("v") :
+      (["shorts","live","embed"].includes(path[0]??"") && path.length===2) ? path[1] : null;
+    return id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null;
+  }catch{return null;}
+}
+export function looksLikeFxYouTubeUrl(value: string): boolean {
+  try {
+    const url=new URL(value.trim());
+    return ["youtube.com","www.youtube.com","m.youtube.com","music.youtube.com",
+      "youtu.be","www.youtu.be","youtube-nocookie.com","www.youtube-nocookie.com"]
+      .includes(url.hostname.toLowerCase());
+  }catch{return false;}
+}
 export function validFxUrl(value: string): boolean {
   try {
     const url = new URL(value.trim());
-    return url.protocol === "https:" && !url.username && !url.password && url.href.length <= 1800;
+    return url.protocol === "https:" && !url.username && !url.password && url.href.length <= 1800
+      && (!looksLikeFxYouTubeUrl(url.href) || parseFxYouTubeId(url.href)!==null);
   } catch { return false; }
 }
 export function normalizeFxVolume(value: number): number { return Number.isFinite(value) ? Math.min(100,Math.max(0,Math.round(value))) : 80; }
