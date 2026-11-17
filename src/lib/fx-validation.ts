@@ -3,6 +3,11 @@ export type FxKind = "audio" | "image" | "gif" | "video";
 export type FxPosition = "top-left" | "top" | "top-right" | "left" | "center" | "right" | "bottom-left" | "bottom" | "bottom-right";
 export const FX_SIZES = ["small", "medium", "large", "extra-large", "fullscreen"] as const;
 export type FxSize = (typeof FX_SIZES)[number];
+/** Cover fills the OBS canvas, while contain keeps the full asset visible.
+ * Portrait/landscape media will inevitably be cropped in fill modes. */
+export function fxMediaFit(size: FxSize): "contain" | "cover" {
+  return size === "extra-large" || size === "fullscreen" ? "cover" : "contain";
+}
 export interface FxEffect {
   id: string; title: string; media_type: FxKind;
   media_path: string | null; external_url: string | null;
