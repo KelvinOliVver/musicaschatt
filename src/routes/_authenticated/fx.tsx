@@ -24,18 +24,20 @@ function playback(effect:FxEffect, masterVolume:number) {
   externalUrl:effect.external_url,volume:effect.volume,masterVolume,
   seconds:effect.display_seconds,position:effect.position,size:effect.size};
 }
-async function inspectLocalVideo(file:File):Promise<void>{
- const url=URL.createObjectURL(file);
- try {
-  const duration=await new Promise<number>((resolve,reject)=>{
-    const video=document.createElement("video");
-    video.preload="metadata";video.src=url;
-    video.onloadedmetadata=()=>resolve(video.duration);
-    video.onerror=()=>reject(new Error("Vídeo não pôde ser analisado"));
-    window.setTimeout(()=>reject(new Error("Tempo excedido ao analisar o vídeo")),9000);
-  });
-  if(!Number.isFinite(duration)||duration>30)throw new Error("Vídeo deve ter até 30 segundos");
- } finally {URL.revokeObjectURL(url);}
+async function inspectLocalVideo(file: File): Promise<void> {
+  const video=document.createElement("video");
+  if(!video.canPlayType(file.type))throw new Error("Este tipo de vídeo não é reconhecido. Prefira MP4 H.264/AAC.");
+  const url=URL.createObjectURL(file);
+  try {
+    const duration=await new Promise<number>((resolve,reject)=>{
+      const timer=window.setTimeout(()=>reject(new Error("O vídeo demorou demais para ser analisado. Experimente MP4 H.264/AAC.")),9000);
+      video.preload="metadata";
+      video.onloadedmetadata=()=>{window.clearTimeout(timer);resolve(video.duration);};
+      video.onerror=()=>{window.clearTimeout(timer);reject(new Error("Não foi possível ler o vídeo. Verifique o codec."));};
+      video.src=url;video.load();
+    });
+    if(!Number.isFinite(duration)||duration<=0||duration>30)throw new Error("O vídeo deve durar entre 1 e 30 segundos.");
+  } finally { video.pause();video.removeAttribute("src");URL.revokeObjectURL(url); }
 }
 
 function FxStudioPage(){
@@ -55,6 +57,8 @@ function FxStudioPage(){
  const [filter,setFilter]=useState("");
  const [uploading,setUploading]=useState(false);
  const [saving,setSaving]=useState(false);
+ const [dispatchingId,setDispatchingId]=useState<string|null>(null);
+ const [sendingCommand,setSendingCommand]=useState(false);
  const [newUrl,setNewUrl]=useState("");
  const [newTitle,setNewTitle]=useState("");
  const [newType,setNewType]=useState<FxKind>("audio");
@@ -89,21 +93,32 @@ function FxStudioPage(){
  },[refresh]);
 
  const submitEffect=async(id:string)=>{
-  if(!configured){toast.error("Ative o banco do RoceiraFX antes de enviar efeitos.");return;}
-  const {error:emitError}=await fxDb.rpc("fx_fire",{p_effect_id:id});
-  if(emitError){toast.error("Não foi possível tocar",{description:emitError.message});return;}
-  toast.success("Enviado para a fonte do OBS");
-  void refresh();
+  if(!configured){toast.error("Banco do RoceiraFX ainda não ativado.");return;}
+  if(dispatchingId!==null)return;
+  setDispatchingId(id);
+  try{
+    const {error:emitError}=await fxDb.rpc("fx_fire",{p_effect_id:id});
+    if(emitError){toast.error("Não foi possível registrar o efeito",{description:emitError.message});return;}
+    toast.success("Comando registrado",{description:"Confira na fonte OBS se a mídia foi reproduzida."});
+    void refresh();
+  }catch{toast.error("Sem conexão para enviar o efeito.");}
+  finally{setDispatchingId(null);}
  };
  const command=async(value:"STOP_ALL"|"TEST")=>{
   if(!configured){toast.error("A comunicação com o OBS depende da migração do banco.");return;}
-  const {error:emitError}=await fxDb.rpc("fx_command",{p_command:value});
-  if(emitError){toast.error("Erro no comando",{description:emitError.message});return;}
-  toast.success(value==="STOP_ALL"?"Todos os efeitos foram interrompidos":"Teste enviado à fonte do OBS");
-  void refresh();
+  if(sendingCommand)return;
+  setSendingCommand(true);
+  try{
+    const {error:emitError}=await fxDb.rpc("fx_command",{p_command:value});
+    if(emitError){toast.error("Erro ao registrar comando",{description:emitError.message});return;}
+    toast.success(value==="STOP_ALL"?"Parada solicitada":"Teste registrado",{description:"Confirme o resultado no OBS da Roceira."});
+    void refresh();
+  }catch{toast.error("Não foi possível conectar ao servidor de efeitos.");}
+  finally{setSendingCommand(false);}
  };
  const handleUpload=async(file:File)=>{
   if(!configured){toast.error("Upload remoto indisponível até ativar o banco do RoceiraFX.");return;}
+  if(uploading)return;
   const inspected=identifyFxFile(file);
   if(inspected.error){toast.error(inspected.error);return;}
   setUploading(true);
@@ -115,7 +130,7 @@ function FxStudioPage(){
    const upload=await fxDb.storage.from(FX_MEDIA_BUCKET).upload(path,file,{contentType:file.type,upsert:false});
    if(upload.error)throw new Error(upload.error.message);
    const result=await fxDb.from("fx_effects").insert({
-    title:file.name.replace(/\.[^.]+$/,"").slice(0,100),
+    title:file.name.replace(/\.[^.]+$/,"").trim().slice(0,100)||"Efeito",
     media_type:inspected.kind,media_path:path,created_by:auth.user.id,
     volume:80,display_seconds:5,position:"center",size:"medium"
    });
