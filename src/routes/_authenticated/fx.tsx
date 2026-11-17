@@ -301,13 +301,14 @@ function FxStudioPage(){
        <Button variant="outline" size="sm" onClick={()=>void copy(overlayUrl)} disabled={!overlayUrl}><Copy className="mr-2 size-4"/> Copiar URL do OBS</Button>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-       <Button variant="secondary" disabled={sendingCommand} onClick={()=>void command("TEST")}><CheckCircle2 className="mr-2 size-4"/> Testar a fonte</Button>
+       <Button variant="secondary" disabled={sendingCommand} onClick={()=>void command("TEST")}><CheckCircle2 className="mr-2 size-4"/> Testar imagem + som</Button>
        {admin&&<Button variant="outline" onClick={async()=>{if(!confirm("O link antigo deixará de funcionar no OBS. Continuar?"))return;const result=await fxDb.rpc("fx_rotate_token");if(result.error){toast.error(result.error.message);return;}toast.success("URL renovada. Atualize no OBS.");void refresh();}}>Gerar nova URL</Button>}
       </div>
       <div className="mt-5 rounded-lg border border-violet-300/20 bg-violet-300/[0.045] p-4 text-xs leading-6 text-violet-100/90">
         <p className="font-semibold">Para vídeos e sons funcionarem na transmissão:</p>
         <p>1. Nas propriedades da Fonte de Navegador no OBS, marque <b>Controlar áudio pelo OBS</b>.</p>
         <p>2. No Mixer de Áudio, deixe a fonte desmutada. Em Propriedades avançadas de áudio, ative monitoração se a Roceira quiser ouvir também.</p>
+        <p className="text-violet-200">Use <b>Testar imagem + som</b>: a fonte deve exibir “RoceiraFX conectado” e produzir um beep curto. Se só aparecer a imagem, confira o áudio da Fonte de Navegador.</p>
         <p>3. Mantenha a fonte ativa na cena. Se o YouTube bloquear autoplay, use <b>Interagir</b> na fonte e clique em reproduzir ou ativar áudio.</p>
         <p>4. Se o YouTube recusar incorporação, envie um vídeo permitido em MP4 H.264/AAC pela Biblioteca.</p>
        </div>
