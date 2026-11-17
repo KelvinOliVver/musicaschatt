@@ -12,7 +12,14 @@ export function fxMediaUrl(effect: Pick<FxEffect,"media_path"|"external_url">): 
 }
 export async function fxCheckAccess(): Promise<{allowed:boolean;admin:boolean;configured:boolean;eligible:boolean}> {
   const [member,admin] = await Promise.all([fxDb.rpc("fx_is_allowed"),fxDb.rpc("fx_is_admin")]);
-  if (member.error || admin.error) return {allowed:false,admin:false,configured:false,eligible:false};
+  if (member.error || admin.error) {
+    // The new backend migration may not be applied yet. Existing music.chat
+    // administrators can inspect the studio interface, but actions stay disabled.
+    const {data:auth}=await fxDb.auth.getUser();
+    if(!auth.user)return {allowed:false,admin:false,configured:false,eligible:false};
+    const {data:role}=await fxDb.rpc("has_role",{_role:"admin",_user_id:auth.user.id});
+    return {allowed:role===true,admin:role===true,configured:false,eligible:false};
+  }
   const {data:auth}=await fxDb.auth.getUser();
   const candidate=auth.user && member.data!==true ? await fxDb.rpc("has_role",{_role:"admin",_user_id:auth.user.id}) : null;
   return {allowed:member.data===true,admin:admin.data===true,configured:true,eligible:candidate?.data===true};
