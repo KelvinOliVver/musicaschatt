@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { fxMediaUrl } from "@/lib/fx-api";
 import { YouTubeStage, type StageControls } from "@/components/YouTubeStage";
 import {
-  fxPositionClass, normalizeFxVolume, parseFxYouTubeId,
+  fxPositionClass, fxSeconds, normalizeFxVolume, parseFxYouTubeId,
   type FxKind, type FxPosition, type FxSize,
 } from "@/lib/fx-validation";
 
@@ -59,7 +59,7 @@ export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Pr
 
   useEffect(() => {
     if (youtubeId || effect.mediaType === "audio" || effect.mediaType === "video") return;
-    const timeout = window.setTimeout(() => onDoneRef.current?.(), Math.max(1, Math.min(30, effect.seconds)) * 1000);
+    const timeout = window.setTimeout(() => onDoneRef.current?.(), fxSeconds(effect.seconds) * 1000);
     return () => window.clearTimeout(timeout);
   }, [effect.mediaType, effect.seconds, youtubeId]);
 
