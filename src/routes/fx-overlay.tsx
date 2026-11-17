@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle } from "lucide-react";
 import { FxMediaCanvas, type FxPlayable } from "@/components/FxMediaCanvas";
 import { fxDb } from "@/lib/fx-api";
-import { classifyFxAfter, fxEventsForInitialOverlay, nextFxOverlayCursor, parseFxYouTubeId, type FxEvent } from "@/lib/fx-validation";
+import { classifyFxAfter, fxEventsForInitialOverlay, fxSeconds, nextFxOverlayCursor, parseFxYouTubeId, type FxEvent } from "@/lib/fx-validation";
 
 export const Route = createFileRoute("/fx-overlay")({
  ssr:false,
@@ -63,7 +63,7 @@ function FxOverlay(){
   const previous=effectTimers.current.get(id);
   if(previous!==undefined)window.clearTimeout(previous);
   // Start the requested effect duration only after playback actually starts.
-  const duration=Math.max(1,Math.min(30,seconds));
+  const duration=fxSeconds(seconds);
   const timer=window.setTimeout(()=>dismiss(id),duration*1000);
   effectTimers.current.set(id,timer);
  },[dismiss]);
@@ -122,7 +122,7 @@ function FxOverlay(){
         };
         // Never replay old media after reconnect, and never keep stale timers.
         const ageMs=event.createdAt?Math.max(0,Date.now()-Date.parse(event.createdAt)||0):0;
-        const duration=Math.max(1,Math.min(30,effect.seconds));
+        const duration=fxSeconds(effect.seconds);
         const remainingMs=duration*1000-ageMs;
         if(remainingMs<=0)continue;
         // YouTube's iframe needs time to initialize in OBS/CEF. Do not close
