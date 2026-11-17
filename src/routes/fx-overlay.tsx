@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle } from "lucide-react";
 import { FxMediaCanvas, type FxPlayable } from "@/components/FxMediaCanvas";
 import { fxDb } from "@/lib/fx-api";
-import { classifyFxAfter, fxEventsForInitialOverlay, type FxEvent } from "@/lib/fx-validation";
+import { classifyFxAfter, fxEventsForInitialOverlay, parseFxYouTubeId, type FxEvent } from "@/lib/fx-validation";
 
 export const Route = createFileRoute("/fx-overlay")({
  ssr:false,
@@ -19,17 +19,29 @@ function FxOverlay(){
  const lastRef=useRef<number|null>(null);
  const busyRef=useRef(false);
  const effectTimers=useRef(new Map<number,number>());
+ const startedIdsRef=useRef(new Set<number>());
  const token=typeof window!=="undefined"?new URLSearchParams(window.location.search).get("key"):"";
  const stopAll=useCallback(()=>{
   effectTimers.current.forEach(timer=>window.clearTimeout(timer));
-  effectTimers.current.clear();setActive([]);
+  effectTimers.current.clear();startedIdsRef.current.clear();setActive([]);
  },[]);
  const dismiss=useCallback((id:number)=>{
   const timeout=effectTimers.current.get(id);
   if(timeout)window.clearTimeout(timeout);
   effectTimers.current.delete(id);
+  startedIdsRef.current.delete(id);
   setActive(curr=>curr.filter(item=>item.id!==id));
  },[]);
+ const handleMediaStarted=useCallback((id:number,seconds:number)=>{
+  if(startedIdsRef.current.has(id))return;
+  startedIdsRef.current.add(id);
+  const previous=effectTimers.current.get(id);
+  if(previous!==undefined)window.clearTimeout(previous);
+  // Start the requested effect duration only after playback actually starts.
+  const duration=Math.max(1,Math.min(30,seconds));
+  const timer=window.setTimeout(()=>dismiss(id),duration*1000);
+  effectTimers.current.set(id,timer);
+ },[dismiss]);
  useEffect(()=>{
   const root=document.documentElement;
   const body=document.body;
@@ -87,8 +99,12 @@ function FxOverlay(){
         const duration=Math.max(1,Math.min(30,effect.seconds));
         const remainingMs=duration*1000-ageMs;
         if(remainingMs<=0)continue;
-        setActive(items=>[...items.slice(-3),{id:event.id,effect,expiresAt:Date.now()+duration*1000}]);
-        const timer=window.setTimeout(()=>dismiss(event.id),remainingMs);
+        // YouTube's iframe needs time to initialize in OBS/CEF. Do not close
+        // five-second legacy links before the first video frame starts.
+        const isYouTube=Boolean(p.externalUrl&&parseFxYouTubeId(p.externalUrl));
+        const startupAllowanceMs=isYouTube?12000:0;
+        setActive(items=>[...items.slice(-3),{id:event.id,effect,expiresAt:Date.now()+remainingMs+startupAllowanceMs}]);
+        const timer=window.setTimeout(()=>dismiss(event.id),remainingMs+startupAllowanceMs);
         effectTimers.current.set(event.id,timer);
       }
       lastRef.current=Math.max(payload.latest,lastRef.current??0);
@@ -103,7 +119,7 @@ function FxOverlay(){
  },[token,stopAll,dismiss]);
  return <main className="fixed inset-0 isolate overflow-hidden bg-transparent" aria-label="RoceiraFX overlay">
   {active.map(item=>item.effect.mediaPath||item.effect.externalUrl
-   ? <FxMediaCanvas key={item.id} effect={item.effect} onDone={()=>dismiss(item.id)}/>
+   ? <FxMediaCanvas key={item.id} effect={item.effect} onDone={()=>dismiss(item.id)} onStarted={()=>handleMediaStarted(item.id,item.effect.seconds)}/>
    : <div key={item.id} className="pointer-events-none absolute inset-0 flex items-center justify-center">
       <span className="rounded-2xl border border-violet-300/50 bg-black/75 px-9 py-7 text-4xl font-bold text-white shadow-2xl">RoceiraFX conectado ✓</span>
     </div>)}
