@@ -98,6 +98,10 @@ export function FxMediaCanvas({ effect, onDone, preview = false }: Props) {
             : `YouTube não conseguiu reproduzir o vídeo (erro ${code}).`);
         }}
         onAutoplayBlocked={() => {
+          if (mutedRetry) {
+            setYoutubeIssue("Até a reprodução sem áudio foi bloqueada. Abra Interagir na fonte OBS e dê play no vídeo.");
+            return;
+          }
           setYoutubeIssue("Reprodução automática com som bloqueada. Tentando iniciar o vídeo sem áudio.");
           setMutedRetry(true);
           window.setTimeout(() => youtubeControlsRef.current?.play(), 350);
