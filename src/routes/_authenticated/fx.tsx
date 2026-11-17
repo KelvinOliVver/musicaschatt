@@ -43,6 +43,7 @@ function FxStudioPage(){
  const [configured,setConfigured]=useState(false);
  const [allowed,setAllowed]=useState(false);
  const [admin,setAdmin]=useState(false);
+ const [eligible,setEligible]=useState(false);
  const [error,setError]=useState("");
  const [settings,setSettings]=useState<FxSettings>(DEFAULT_SETTINGS);
  const [effects,setEffects]=useState<FxEffect[]>([]);
@@ -81,7 +82,7 @@ function FxStudioPage(){
   void (async()=>{
    const result=await fxCheckAccess();
    if(!live)return;
-   setConfigured(result.configured);setAllowed(result.allowed);setAdmin(result.admin);setReady(true);
+   setConfigured(result.configured);setAllowed(result.allowed);setAdmin(result.admin);setEligible(result.eligible);setReady(true);
    if(result.allowed)await refresh();
   })();
   return()=>{live=false;};
@@ -180,8 +181,14 @@ function FxStudioPage(){
    <LockKeyhole className="mb-4 size-8 text-primary"/>
    <h1 className="text-2xl font-bold">{configured?"Acesso restrito":"RoceiraFX em configuração"}</h1>
    <p className="mt-3 text-sm leading-6 text-muted-foreground">{configured
-    ?"Somente administradores do music.chat e a conta convidada da Roceira podem usar este painel."
+    ?"Somente o proprietário do RoceiraFX e a conta convidada da Roceira podem usar este painel."
     :"A nova página está instalada, mas a migração do banco e do armazenamento ainda precisa ser aplicada. Nenhum efeito será disparado até o serviço estar pronto."}</p>
+   {configured&&eligible&&<Button className="mt-5" onClick={async()=>{
+      const claim=await fxDb.rpc("fx_claim_owner");
+      if(claim.error||claim.data!==true){toast.error("Não foi possível ativar o RoceiraFX",{description:claim.error?.message??"Outra conta já é proprietária"});return;}
+      toast.success("Seu acesso de proprietário foi ativado");
+      window.location.reload();
+   }}>Ativar meu acesso de proprietário</Button>}
    <Link className="mt-6 inline-flex text-sm text-primary hover:underline" to="/player">Voltar à sala de música</Link>
   </div></main></div>;
 
@@ -291,7 +298,7 @@ function FxStudioPage(){
      </div>
      <div className="rounded-2xl border border-white/10 bg-[#15141b] p-5">
       <ShieldCheck className="size-6 text-violet-300"/><h2 className="mt-3 text-lg font-semibold">Quem pode usar?</h2>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">Somente administradores do music.chat e uma conta extra autorizada. A Roceira precisa criar a conta antes de receber o convite.</p>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">Somente você (proprietário) e uma conta extra autorizada. A Roceira precisa criar a conta antes de receber o convite.</p>
       <p className="mt-4 text-xs text-muted-foreground">Contas extras cadastradas: {members.length}/1</p>
       {admin&&<><label className="mt-4 block text-xs text-muted-foreground">E-mail da Roceira<Input type="email" className="mt-2" value={memberEmail} onChange={e=>setMemberEmail(e.target.value)} placeholder="Email cadastrado no music.chat"/></label>
        <div className="mt-4 flex gap-2">
