@@ -676,6 +676,7 @@ function PlayerPage() {
             )}
             {!obsMode && <StreamerSettingsPanel preferences={preferences} onUpdate={updatePreferences} canManage={isAdministrator} globalCooldown={settings.chatCooldownSeconds} obsToken={settings.obsToken} channel={slug} />}
             {!obsMode && <LiveStatsPanel history={queue.history} queue={queue.queue} rejectedCount={rejectedCount} />}
+            {!obsMode && <a href="/fx" className="inline-flex h-8 items-center rounded-md border border-violet-400/25 bg-violet-400/10 px-3 text-xs font-semibold text-violet-200 hover:bg-violet-400/20">RoceiraFX</a>}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
