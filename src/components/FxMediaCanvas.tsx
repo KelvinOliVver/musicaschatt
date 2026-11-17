@@ -31,8 +31,23 @@ export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Pr
   const [youtubeStarted, setYoutubeStarted] = useState(false);
   const url = fxMediaUrl({ media_path: effect.mediaPath ?? null, external_url: effect.externalUrl ?? null });
   const youtubeId = effect.externalUrl ? parseFxYouTubeId(effect.externalUrl) : null;
-  const size = effect.size === "small" ? "max-w-[24%] max-h-[30%]" :
-    effect.size === "large" ? "max-w-[80%] max-h-[80%]" : "max-w-[55%] max-h-[60%]";
+  // Width and height are explicit so small source images can scale up on a 1920x1080 canvas.
+  // object-contain keeps portrait GIFs and landscape videos from being cropped.
+  const sizes: Record<FxSize,string> = {
+    small: "w-[32%] h-[38%]",
+    medium: "w-[60%] h-[65%]",
+    large: "w-[88%] h-[88%]",
+    "extra-large": "w-[96%] h-[96%]",
+    fullscreen: "w-full h-full",
+  };
+  const size = sizes[effect.size] ?? sizes.medium;
+  const youtubeSizes: Record<FxSize,string> = {
+    small: "w-[38%] max-h-[40%]",
+    medium: "w-[65%] max-h-[75%]",
+    large: "w-[88%] max-h-[90%]",
+    "extra-large": "w-[96%] max-h-[98%]",
+    fullscreen: "w-full max-h-full",
+  };
   const volume = normalizeFxVolume(effect.volume) * normalizeFxVolume(effect.masterVolume) / 10000;
   const isNativeMedia = !youtubeId && (effect.mediaType === "audio" || effect.mediaType === "video");
 
@@ -78,11 +93,8 @@ export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Pr
   };
 
   const canInteract = preview || Boolean(youtubeId) || isNativeMedia;
-  return <div className={`${canInteract ? "pointer-events-auto" : "pointer-events-none"} absolute inset-0 flex p-[3%] ${fxPositionClass(effect.position)}`}>
-    {youtubeId && <div className={`relative aspect-video max-h-[80%] overflow-hidden rounded-md bg-black ${
-      effect.size === "small" ? "w-[35%] max-w-[480px]" :
-      effect.size === "large" ? "w-[85%] max-w-[1440px]" : "w-[60%] max-w-[960px]"
-    }`}>
+  return <div className={`${canInteract ? "pointer-events-auto" : "pointer-events-none"} absolute inset-0 flex ${effect.size === "fullscreen" ? "p-0" : "p-[1.5%]"} ${fxPositionClass(effect.position)}`}>
+    {youtubeId && <div className={`relative aspect-video overflow-hidden bg-black ${youtubeSizes[effect.size] ?? youtubeSizes.medium}`}>
       <div className={`size-full ${youtubeStarted ? "" : "pointer-events-none opacity-0"}`}>
       <YouTubeStage
         videoId={youtubeId}
@@ -151,11 +163,11 @@ export function FxMediaCanvas({ effect, onDone, onStarted, preview = false }: Pr
 
     {!youtubeId && url && effect.mediaType === "video" &&
       <video ref={mediaRef as React.RefObject<HTMLVideoElement>} src={url} autoPlay playsInline preload="auto"
-        className={`${size} object-contain`} onPlaying={onStarted} onEnded={onDone} onError={reportMediaError} />}
+        className={`${size} object-contain`} onPlaying={()=>{setMediaIssue(null);onStarted?.();}} onEnded={onDone} onError={reportMediaError} />}
 
     {!youtubeId && url && effect.mediaType === "audio" &&
       <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={url} autoPlay preload="auto"
-        onPlaying={onStarted} onEnded={onDone} onError={reportMediaError} />}
+        onPlaying={()=>{setMediaIssue(null);onStarted?.();}} onEnded={onDone} onError={reportMediaError} />}
 
     {isNativeMedia && mediaIssue && <div role="alert" className="pointer-events-auto absolute inset-x-[6%] bottom-[7%] z-20 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-amber-400/40 bg-black/90 px-4 py-3 text-center text-sm text-amber-100">
       <span>{mediaIssue}</span>
