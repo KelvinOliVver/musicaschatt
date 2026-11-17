@@ -10,8 +10,10 @@ export function fxMediaUrl(effect: Pick<FxEffect,"media_path"|"external_url">): 
   if (!effect.media_path) return "";
   return fxDb.storage.from(FX_MEDIA_BUCKET).getPublicUrl(effect.media_path).data.publicUrl;
 }
-export async function fxCheckAccess(): Promise<{allowed:boolean;admin:boolean;configured:boolean}> {
+export async function fxCheckAccess(): Promise<{allowed:boolean;admin:boolean;configured:boolean;eligible:boolean}> {
   const [member,admin] = await Promise.all([fxDb.rpc("fx_is_allowed"),fxDb.rpc("fx_is_admin")]);
-  if (member.error || admin.error) return {allowed:false,admin:false,configured:false};
-  return {allowed:member.data===true,admin:admin.data===true,configured:true};
+  if (member.error || admin.error) return {allowed:false,admin:false,configured:false,eligible:false};
+  const {data:auth}=await fxDb.auth.getUser();
+  const candidate=auth.user && member.data!==true ? await fxDb.rpc("has_role",{_role:"admin",_user_id:auth.user.id}) : null;
+  return {allowed:member.data===true,admin:admin.data===true,configured:true,eligible:candidate?.data===true};
 }
